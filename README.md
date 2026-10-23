@@ -1,18 +1,11 @@
-# Haruna
+# Haruna Android v0.3
 
-Assistente local/offline para Android.
+Assistente local/offline para Android. A interface web conversa com `HarunaAndroidBridge`; `LlamaCppBackend` usa o binding Android oficial de llama.cpp (`AiChat` / `InferenceEngine`) para carregar um GGUF do armazenamento privado e transmitir tokens de volta à UI.
 
-Este repositório contém a base Android nativa da Haruna. A interface web atual é preservada dentro do APK e se comunica com o runtime local por `window.HarunaAndroid`.
+## Dependência nativa
+O projeto espera o repositório oficial `ggml-org/llama.cpp` em `third_party/llama.cpp` (submódulo Git). Clone com submódulos antes de abrir no Android Studio.
 
-## Estado
+## Primeiro alvo
+CPU arm64-v8a, GGUF pequeno, inferência totalmente local. Sem API de IA e sem permissão INTERNET no app.
 
-- WebView local
-- bridge Android/JavaScript
-- seleção de GGUF
-- armazenamento privado do modelo
-- streaming Android -> JavaScript preparado
-- fallback básico preservado
-- sem API paga
-- sem inferência falsa
-
-Próxima etapa: integrar o runtime Android oficial do llama.cpp e implementar `LlamaCppBackend`.
+O fluxo esperado é: abrir Haruna → selecionar `.gguf` → Android copia para `filesDir/models` → `InferenceEngine.loadModel()` → chat envia prompt → tokens retornam progressivamente à interface.
