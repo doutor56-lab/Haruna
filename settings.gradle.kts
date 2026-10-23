@@ -7,3 +7,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Haruna"
 include(":app")
+include(":llamaLib")
+project(":llamaLib").projectDir = file("third_party/llama.cpp/examples/llama.android/lib")
