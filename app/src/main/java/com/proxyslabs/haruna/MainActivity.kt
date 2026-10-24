@@ -29,9 +29,7 @@ class MainActivity : AppCompatActivity() {
             var imported: File? = null
             val result = runCatching {
                 imported = library.importModel(uri) { progress -> bridge.notifyImportProgress("model", name, progress) }
-                bridge.notifyModelPreparing(imported!!.name)
-                backend.loadModel(imported!!.absolutePath).getOrThrow()
-                library.rememberActive(imported!!)
+                prepareModel(imported!!)
             }
             modelImportBusy = false
             bridge.notifyModelLoadResult(result, imported?.name ?: name)
@@ -40,10 +38,7 @@ class MainActivity : AppCompatActivity() {
 
     private val attachmentPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@registerForActivityResult
-        Thread {
-            val result = runCatching { library.importAttachment(uri) }
-            bridge.notifyAttachmentResult(result)
-        }.start()
+        Thread { bridge.notifyAttachmentResult(runCatching { library.importAttachment(uri) }) }.start()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,6 +60,28 @@ class MainActivity : AppCompatActivity() {
         autoLoadPrimaryModel()
     }
 
+    private fun prepareModel(file:File){
+        bridge.notifyModelPreparing(file.name)
+        if(backend.status().modelLoaded) backend.unloadModel().getOrThrow()
+        backend.loadModel(file.absolutePath).getOrThrow()
+        library.rememberActive(file)
+    }
+
+    fun downloadRecommendedModel(url:String,name:String) {
+        if(modelImportBusy) { bridge.notifyDownloadRejected(name,"Já existe uma instalação em andamento."); return }
+        modelImportBusy=true
+        bridge.notifyDownloadStarted(name)
+        Thread {
+            var downloaded:File?=null
+            val result=runCatching {
+                downloaded=library.downloadModel(url,name){progress->bridge.notifyDownloadProgress(name,progress)}
+                prepareModel(downloaded!!)
+            }
+            modelImportBusy=false
+            bridge.notifyModelLoadResult(result,downloaded?.name?:name)
+        }.start()
+    }
+
     private fun autoLoadPrimaryModel() {
         val file = library.primaryModel() ?: return
         Thread {
@@ -74,17 +91,14 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    fun pickModel() {
-        if (modelImportBusy) return
-        modelPicker.launch(arrayOf("application/octet-stream", "*/*"))
-    }
+    fun pickModel() { if (!modelImportBusy) modelPicker.launch(arrayOf("application/octet-stream", "*/*")) }
     fun pickAttachment() = attachmentPicker.launch(arrayOf("text/plain", "text/markdown", "application/pdf", "image/*", "*/*"))
 
     fun useModel(path: String) {
         Thread {
             val file = File(path)
             val result = runCatching { backend.unloadModel().getOrThrow(); backend.loadModel(file.absolutePath).getOrThrow(); library.rememberActive(file) }
-            bridge.notifyModelLoadResult(result)
+            bridge.notifyModelLoadResult(result,file.name)
         }.start()
     }
 
