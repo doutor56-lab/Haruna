@@ -3,6 +3,7 @@ package com.proxyslabs.haruna
 import android.content.Context
 import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
+import com.arm.aichat.UnsupportedArchitectureException
 import com.arm.aichat.isModelLoaded
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -39,8 +40,14 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             lastError != null -> "error"
             else -> "not_loaded"
         }
-        val error = (engineState as? InferenceEngine.State.Error)?.exception?.message ?: lastError
+        val error = (engineState as? InferenceEngine.State.Error)?.exception?.let(::friendlyLoadError) ?: lastError
         return LlmBackend.Status(true, loaded, state, modelName, error)
+    }
+
+    private fun friendlyLoadError(error: Throwable): String = when (error) {
+        is UnsupportedArchitectureException ->
+            "O llama.cpp não conseguiu abrir este GGUF. Nesta versão do runtime, UnsupportedArchitectureException é um erro genérico de carregamento e não prova que a arquitetura do modelo seja incompatível. O arquivo pode estar incompatível, incompleto/corrompido ou o backend nativo pode ter falhado ao carregá-lo."
+        else -> error.message ?: error.javaClass.simpleName
     }
 
     private suspend fun waitUntilInitialized(timeoutMs: Long = 15000L) {
@@ -64,14 +71,19 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         check(jobs.isEmpty()) { "Há uma geração em andamento" }
         val file = File(localPath)
         require(file.isFile && file.extension.equals("gguf", ignoreCase = true)) { "Arquivo GGUF inválido" }
-        require(file.length() > 0L) { "Arquivo GGUF vazio" }
+        require(file.length() >= 8L) { "Arquivo GGUF vazio ou incompleto" }
+
+        file.inputStream().buffered().use { input ->
+            val magic = ByteArray(4)
+            require(input.read(magic) == 4 && magic.contentEquals(byteArrayOf('G'.code.toByte(), 'G'.code.toByte(), 'U'.code.toByte(), 'F'.code.toByte()))) {
+                "Arquivo inválido: cabeçalho GGUF não encontrado"
+            }
+        }
 
         loading = true
         lastError = null
 
         runBlocking(Dispatchers.IO) {
-            // InferenceEngineImpl initializes its JNI/native backend asynchronously.
-            // Calling loadModel immediately can hit State.Initializing or a previous Error.
             if (engine.state.value is InferenceEngine.State.Error || engine.state.value.isModelLoaded) {
                 engine.cleanUp()
             }
@@ -81,19 +93,13 @@ class LlamaCppBackend(context: Context) : LlmBackend {
 
         check(engine.state.value.isModelLoaded) {
             val state = engine.state.value
-            val detail = (state as? InferenceEngine.State.Error)?.exception?.message
+            val detail = (state as? InferenceEngine.State.Error)?.exception?.let(::friendlyLoadError)
             detail ?: "O llama.cpp não confirmou o carregamento do modelo (${state.javaClass.simpleName})"
         }
         modelName = file.name
     }.onFailure {
         modelName = null
-        lastError = buildString {
-            append(it.message ?: it.javaClass.simpleName)
-            val cause = it.cause
-            if (cause != null && cause.message != null && cause.message != it.message) {
-                append(" | Causa: ").append(cause.message)
-            }
-        }
+        lastError = friendlyLoadError(it)
     }.also {
         loading = false
     }
