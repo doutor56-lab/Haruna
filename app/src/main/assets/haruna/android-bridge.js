@@ -4,10 +4,11 @@ let activeRequestId = null;
 
 function runtime() { return window[BRIDGE_NAME] || null; }
 function parse(v) { if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch { return v; } }
-export function isAvailable() { const r=runtime(); return !!r && ['isAvailable','getStatus','loadModel','unloadModel','generate','stopGeneration'].every(k=>typeof r[k]==='function'); }
+export function isAvailable() { const r=runtime(); return !!r && ['isAvailable','getStatus','loadModel','unloadModel','resetConversation','generate','stopGeneration'].every(k=>typeof r[k]==='function'); }
 export function getStatus() { if(!isAvailable()) return {available:false,modelLoaded:false,state:'basic'}; return parse(runtime().getStatus()); }
 export function loadModel(model={action:'pick_local_gguf'}) { if(!isAvailable()) throw new Error('Android bridge unavailable'); return parse(runtime().loadModel(JSON.stringify(model))); }
 export function unloadModel() { if(!isAvailable()) return {status:'ok',modelLoaded:false}; return parse(runtime().unloadModel()); }
+export function resetConversation() { if(!isAvailable()) throw new Error('Android bridge unavailable'); return parse(runtime().resetConversation()); }
 export async function generate(messages, options={}) {
   if(!isAvailable()) throw new Error('Android bridge unavailable');
   const requestId=`haruna-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -35,4 +36,4 @@ function receiveNativeEvent(raw) {
   else if(event.type==='error') p.reject(new Error(event.error?.message||'Native generation error'));
 }
 window.harunaAndroidOnEvent=receiveNativeEvent;
-export default {isAvailable,getStatus,loadModel,unloadModel,generate,stopGeneration};
+export default {isAvailable,getStatus,loadModel,unloadModel,resetConversation,generate,stopGeneration};
