@@ -17,6 +17,16 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
+    // llama.android discovers the GGML CPU variants by scanning
+    // applicationInfo.nativeLibraryDir at runtime. Force JNI libraries to be
+    // extracted on install so ggml_backend_load_all_from_path() can see them
+    // as real files instead of leaving them only inside the APK.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
