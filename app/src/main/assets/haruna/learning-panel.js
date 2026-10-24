@@ -1,3 +1,4 @@
+import './onboarding-hotfix.js';
 import knowledge from './knowledge-store.js';
 
 const $=s=>document.querySelector(s);
