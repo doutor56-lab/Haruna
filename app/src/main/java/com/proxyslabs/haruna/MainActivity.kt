@@ -15,6 +15,11 @@ import java.io.File
 import java.io.FileOutputStream
 
 class MainActivity : AppCompatActivity() {
+    companion object {
+        private const val PREFS = "haruna_runtime"
+        private const val LAST_MODEL = "last_model_path"
+    }
+
     private lateinit var webView: WebView
     private lateinit var backend: LlmBackend
     private lateinit var bridge: HarunaAndroidBridge
@@ -26,6 +31,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         Thread {
+            var selectedPath: String? = null
             val result = runCatching {
                 val displayName = queryDisplayName(uri) ?: "haruna-model.gguf"
                 require(displayName.endsWith(".gguf", ignoreCase = true)) { "Selecione um arquivo .gguf" }
@@ -43,7 +49,14 @@ class MainActivity : AppCompatActivity() {
                 if (target.exists()) target.delete()
                 require(temporary.renameTo(target)) { "Não foi possível finalizar a cópia do modelo" }
 
+                selectedPath = target.absolutePath
                 backend.loadModel(target.absolutePath).getOrThrow()
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(LAST_MODEL, target.absolutePath).apply()
+            }
+            if (result.isFailure && selectedPath != null) {
+                // A failed model must never become the automatic startup model.
+                val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+                if (prefs.getString(LAST_MODEL, null) == selectedPath) prefs.edit().remove(LAST_MODEL).apply()
             }
             bridge.notifyModelLoadResult(result)
         }.start()
@@ -65,18 +78,29 @@ class MainActivity : AppCompatActivity() {
         webView.settings.allowFileAccess = false
         webView.settings.allowContentAccess = false
         webView.webViewClient = object : WebViewClientCompat() {
-            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-                assetLoader.shouldInterceptRequest(request.url)
-
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
             @Deprecated("Deprecated in Java")
-            override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? =
-                assetLoader.shouldInterceptRequest(Uri.parse(url))
-
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                request.url.host != "appassets.androidplatform.net"
+            override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? = assetLoader.shouldInterceptRequest(Uri.parse(url))
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = request.url.host != "appassets.androidplatform.net"
         }
         webView.addJavascriptInterface(bridge, "HarunaAndroid")
         webView.loadUrl("https://appassets.androidplatform.net/assets/haruna/index.html")
+        autoLoadLastModel()
+    }
+
+    private fun autoLoadLastModel() {
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        val path = prefs.getString(LAST_MODEL, null) ?: return
+        val file = File(path)
+        if (!file.isFile) {
+            prefs.edit().remove(LAST_MODEL).apply()
+            return
+        }
+        Thread {
+            val result = backend.loadModel(file.absolutePath)
+            if (result.isFailure) prefs.edit().remove(LAST_MODEL).apply()
+            bridge.notifyModelLoadResult(result)
+        }.start()
     }
 
     override fun onDestroy() {
@@ -86,17 +110,13 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    fun pickModel() {
-        picker.launch(arrayOf("application/octet-stream", "*/*"))
-    }
+    fun pickModel() { picker.launch(arrayOf("application/octet-stream", "*/*")) }
 
     private fun queryDisplayName(uri: Uri): String? {
         var cursor: Cursor? = null
         return try {
             cursor = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             if (cursor != null && cursor.moveToFirst()) cursor.getString(0) else null
-        } finally {
-            cursor?.close()
-        }
+        } finally { cursor?.close() }
     }
 }
