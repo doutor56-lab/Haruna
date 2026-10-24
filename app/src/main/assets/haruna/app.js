@@ -1,78 +1,18 @@
 import llm from './llm-engine.js';
-
-const messagesEl=document.querySelector('#messages');
-const input=document.querySelector('#input');
-const form=document.querySelector('#composer');
-const brain=document.querySelector('#brain');
-const modelBtn=document.querySelector('#model');
-const history=[];
-let shownError=null;
-
-function add(role,text){
-  const el=document.createElement('div');
-  el.className=`msg ${role}`;
-  if(role==='assistant'){
-    const avatar=document.createElement('div');
-    avatar.className='avatar'; avatar.textContent='H'; el.appendChild(avatar);
-  }
-  const bubble=document.createElement('div');
-  bubble.className='bubble'; bubble.textContent=text; el.appendChild(bubble);
-  messagesEl.appendChild(el); messagesEl.scrollTop=messagesEl.scrollHeight;
-  return bubble;
-}
-
-function basic(text){
-  const t=text.toLowerCase().trim();
-  if(/^(oi|olá|ola|bom dia|boa tarde|boa noite)/.test(t))return 'Olá! ✦ Estou funcionando no modo básico. Toque em Modelo para carregar um GGUF local.';
-  if(t.includes('quem é você')||t.includes('quem e voce'))return 'Eu sou a Haruna, sua assistente local e privada.';
-  return 'Ainda estou no modo básico. Para respostas generativas, carregue um modelo GGUF local.';
-}
-
-function describeError(error){
-  const raw=String(error||'Falha desconhecida no mecanismo local.').trim();
-  return `⚠️ Falha ao carregar o LLM\n\n${raw}\n\nTente novamente apenas depois de verificar esta mensagem.`;
-}
-
-function paint(s){
-  const map={basic:'Modo básico',not_loaded:'Modelo não carregado',loading:'Carregando modelo…',active:'LLM local ativo',generating:'Gerando…',error:'Erro no LLM'};
-  brain.textContent=map[s.state]||s.state;
-  if(s.state==='error'&&s.error&&s.error!==shownError){
-    shownError=s.error;
-    add('assistant',describeError(s.error));
-  }
-  if(s.state!=='error') shownError=null;
-}
-
-function resizeInput(){input.style.height='auto';input.style.height=`${Math.min(input.scrollHeight,120)}px`;}
-input.addEventListener('input',resizeInput);
-input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit();}});
-
-llm.subscribe(paint);
-llm.refreshStatus().then(paint).catch(err=>add('assistant',describeError(err?.message)));
-modelBtn.addEventListener('click',async()=>{
-  try{
-    const r=await llm.loadModel({action:'pick_local_gguf'});
-    if(r?.error) add('assistant',describeError(r.error));
-  }catch(err){
-    add('assistant',describeError(err?.message));
-  }
-});
-
-form.addEventListener('submit',async e=>{
-  e.preventDefault();
-  const text=input.value.trim(); if(!text)return;
-  input.value=''; resizeInput();
-  add('user',text); history.push({role:'user',content:text});
-  try{
-    const status=await llm.refreshStatus();
-    if(!status.modelLoaded){
-      if(status.state==='error'&&status.error){add('assistant',describeError(status.error));return;}
-      const r=basic(text);add('assistant',r);history.push({role:'assistant',content:r});return;
-    }
-    const out=add('assistant','');
-    try{
-      const r=await llm.generate(history,{onToken:(_,all)=>{out.textContent=all;messagesEl.scrollTop=messagesEl.scrollHeight;}});
-      out.textContent=r.text; history.push({role:'assistant',content:r.text});
-    }catch(err){out.textContent=`Falha local: ${err.message}`;}
-  }catch(err){add('assistant',`Não consegui acessar o mecanismo local: ${err.message}`);}
-});
+const $=s=>document.querySelector(s), messagesEl=$('#messages'),input=$('#input'),form=$('#composer'),brain=$('#brain'),modelBtn=$('#model'),modelName=$('#modelName'),stopBtn=$('#stop'),sendBtn=$('#send'),newChat=$('#newChat'),toast=$('#memoryToast');
+const HISTORY_KEY='haruna_chat_v1', MEMORY_KEY='haruna_memories_v1';
+let history=read(HISTORY_KEY,[]), memories=read(MEMORY_KEY,[]), shownError=null, generating=false;
+function read(k,f){try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}} function save(){localStorage.setItem(HISTORY_KEY,JSON.stringify(history.slice(-80)));localStorage.setItem(MEMORY_KEY,JSON.stringify(memories.slice(-100)))}
+function add(role,text){const el=document.createElement('div');el.className=`msg ${role}`;if(role==='assistant'){const a=document.createElement('div');a.className='avatar';a.textContent='H';el.appendChild(a)}const b=document.createElement('div');b.className='bubble';b.textContent=text;el.appendChild(b);messagesEl.appendChild(el);messagesEl.scrollTop=messagesEl.scrollHeight;return b}
+if(history.length){messagesEl.innerHTML='';history.forEach(m=>add(m.role,m.display||m.content))}
+function remember(text){const m=text.match(/(?:lembre(?:-se)?(?: de)? que|guarde que|quero que (?:você|vc) (?:se )?lembre que)\s+(.+)/i);if(!m)return false;const fact=m[1].trim().replace(/[.!?]+$/,'');if(fact.length<3)return false;if(!memories.some(x=>x.toLowerCase()===fact.toLowerCase()))memories.push(fact);save();toast.hidden=false;clearTimeout(remember.t);remember.t=setTimeout(()=>toast.hidden=true,1800);return true}
+function enriched(text){if(!memories.length)return text;return `[Memórias persistentes fornecidas pelo aplicativo. Use apenas quando forem relevantes e não diga que acabou de aprendê-las:\n${memories.map(x=>'• '+x).join('\n')}\n]\n\nMensagem atual do usuário: ${text}`}
+function basic(t){return /^(oi|olá|ola)/i.test(t)?'Olá! ✦ Carregue um modelo GGUF para ativar minha IA.':'Ainda estou no modo básico. Carregue um modelo GGUF local.'}
+function err(e){return `⚠️ Falha no LLM\n\n${String(e||'Falha desconhecida').trim()}`}
+function paint(s){const map={basic:'Modo básico',not_loaded:'Modelo não carregado',loading:'Carregando modelo…',active:'LLM local ativo',generating:'Gerando…',error:'Erro no LLM'};brain.textContent=map[s.state]||s.state;modelName.textContent=s.modelName||'Local';generating=s.state==='generating';stopBtn.hidden=!generating;sendBtn.hidden=generating;if(s.state==='error'&&s.error&&s.error!==shownError){shownError=s.error;add('assistant',err(s.error))}if(s.state!=='error')shownError=null}
+function resize(){input.style.height='auto';input.style.height=`${Math.min(input.scrollHeight,120)}px`} input.addEventListener('input',resize);input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}});
+llm.subscribe(paint);llm.refreshStatus().then(paint).catch(e=>add('assistant',err(e?.message)));
+modelBtn.onclick=async()=>{try{await llm.loadModel({action:'pick_local_gguf'})}catch(e){add('assistant',err(e.message))}};
+stopBtn.onclick=()=>llm.stopGeneration();
+newChat.onclick=async()=>{if(generating)llm.stopGeneration();history=[];localStorage.removeItem(HISTORY_KEY);messagesEl.innerHTML='';add('assistant','Nova conversa. 🌸 Como posso ajudar?');try{const s=await llm.refreshStatus();if(s.modelLoaded)await llm.resetConversation()}catch(e){add('assistant',`Não consegui reiniciar o contexto: ${e.message}`)}};
+form.addEventListener('submit',async e=>{e.preventDefault();if(generating)return;const text=input.value.trim();if(!text)return;input.value='';resize();add('user',text);remember(text);history.push({role:'user',content:text});save();try{const status=await llm.refreshStatus();if(!status.modelLoaded){const r=basic(text);add('assistant',r);history.push({role:'assistant',content:r});save();return}const out=add('assistant','');const requestHistory=[...history.slice(0,-1),{role:'user',content:enriched(text)}];try{const r=await llm.generate(requestHistory,{maxTokens:384,onToken:(_,all)=>{out.textContent=all;messagesEl.scrollTop=messagesEl.scrollHeight}});out.textContent=r.text;history.push({role:'assistant',content:r.text});save()}catch(e){if(e.message?.includes('interrompida')){out.textContent=out.textContent||'Geração interrompida.'}else out.textContent=`Falha local: ${e.message}`}}catch(e){add('assistant',`Não consegui acessar o mecanismo local: ${e.message}`)}});
