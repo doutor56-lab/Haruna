@@ -36,6 +36,16 @@ jobs:
           test -f third_party/llama.cpp/examples/llama.android/lib/src/main/java/com/arm/aichat/InferenceEngine.kt
           test -f third_party/llama.cpp/examples/llama.android/lib/src/main/cpp/ai_chat.cpp
 
+      - name: Guard Haruna app sources
+        run: |
+          grep -Fq 'IA local no seu dispositivo' app/src/main/assets/haruna/index.html
+          grep -Fq 'Local • Privada' app/src/main/assets/haruna/index.html
+          grep -Fq 'haruna-icon.svg' app/src/main/assets/haruna/index.html
+          grep -Fq "import llm from './llm-engine.js'" app/src/main/assets/haruna/app.js
+          grep -Fq 'WebViewAssetLoader' app/src/main/java/com/proxyslabs/haruna/MainActivity.kt
+          grep -Fq 'appassets.androidplatform.net/assets/haruna/index.html' app/src/main/java/com/proxyslabs/haruna/MainActivity.kt
+          grep -Fq 'HarunaAndroid' app/src/main/java/com/proxyslabs/haruna/MainActivity.kt
+
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
@@ -53,8 +63,37 @@ jobs:
         with:
           gradle-version: '8.14.3'
 
+      - name: Clean stale Android outputs
+        run: gradle clean --no-daemon
+
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Verify packaged Haruna UI
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          apk='app/build/outputs/apk/debug/app-debug.apk'
+          with zipfile.ZipFile(apk) as z:
+              names=set(z.namelist())
+              required={
+                  'assets/haruna/index.html',
+                  'assets/haruna/style.css',
+                  'assets/haruna/app.js',
+                  'assets/haruna/llm-engine.js',
+                  'assets/haruna/android-bridge.js',
+                  'assets/haruna/haruna-icon.svg',
+              }
+              missing=required-names
+              if missing:
+                  raise SystemExit(f'Missing Haruna assets in APK: {sorted(missing)}')
+              html=z.read('assets/haruna/index.html').decode('utf-8')
+              js=z.read('assets/haruna/app.js').decode('utf-8')
+              assert 'IA local no seu dispositivo' in html
+              assert 'Local • Privada' in html
+              assert "import llm from './llm-engine.js'" in js
+          print('Verified: APK contains the current Haruna UI and bridge assets.')
+          PY
 
       - name: Upload debug APK
         if: success()
