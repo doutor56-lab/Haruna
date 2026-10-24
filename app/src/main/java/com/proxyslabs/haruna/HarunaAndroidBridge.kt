@@ -10,7 +10,7 @@ class HarunaAndroidBridge(private val activity: MainActivity, private val webVie
     private val executor = Executors.newSingleThreadExecutor()
     @JavascriptInterface fun isAvailable() = backend.status().available
     @JavascriptInterface fun getStatus() = statusJson().toString()
-    @JavascriptInterface fun loadModel(modelJson: String): String { activity.runOnUiThread { activity.pickModel() }; return JSONObject().put("status","loading").put("pendingSelection",true).toString() }
+    @JavascriptInterface fun loadModel(modelJson: String): String { activity.runOnUiThread { activity.pickModel() }; return JSONObject().put("status","selecting").put("pendingSelection",true).toString() }
     @JavascriptInterface fun listModels(): String = activity.library.modelsJson(null)
     @JavascriptInterface fun useModel(path: String): String { activity.useModel(path); return JSONObject().put("status","loading").toString() }
     @JavascriptInterface fun setPrimaryModel(path: String): String = runCatching { activity.library.setPrimary(path) }.fold({ JSONObject().put("status","ok").toString() }, { JSONObject().put("status","error").put("error",it.message).toString() })
@@ -20,7 +20,19 @@ class HarunaAndroidBridge(private val activity: MainActivity, private val webVie
     @JavascriptInterface fun resetConversation(): String { val r=backend.resetConversation();emitStatus();return JSONObject().put("status",if(r.isSuccess)"ok" else "error").put("error",r.exceptionOrNull()?.message).toString() }
     @JavascriptInterface fun generate(payloadJson:String):String{val id=JSONObject(payloadJson).getString("requestId");executor.execute{backend.generate(id,payloadJson,{emit(JSONObject().put("requestId",id).put("type","token").put("token",it))},{emit(JSONObject().put("requestId",id).put("type","completed").put("text",it))},{c,m->emitError(id,c,m)})};return JSONObject().put("streaming",true).toString()}
     @JavascriptInterface fun stopGeneration(requestId:String):String{val r=backend.stop(requestId);return JSONObject().put("status",if(r.isSuccess)"ok" else "error").toString()}
-    fun notifyModelLoadResult(result:Result<Unit>){emitStatus();if(result.isFailure)emit(JSONObject().put("type","status").put("state","error").put("error",result.exceptionOrNull()?.message))}
+
+    fun notifyImportStarted(kind:String,name:String){emit(JSONObject().put("type","import-progress").put("kind",kind).put("state","copying").put("name",name).put("copiedBytes",0))}
+    fun notifyImportProgress(kind:String,name:String,progress:LocalLibrary.CopyProgress){
+        val event=JSONObject().put("type","import-progress").put("kind",kind).put("state","copying").put("name",name).put("copiedBytes",progress.copiedBytes)
+        progress.totalBytes?.let { total -> event.put("totalBytes",total); if(total>0) event.put("percent",((progress.copiedBytes*100)/total).toInt().coerceIn(0,100)) }
+        emit(event)
+    }
+    fun notifyModelPreparing(name:String){emit(JSONObject().put("type","import-progress").put("kind","model").put("state","preparing").put("name",name).put("percent",100))}
+    fun notifyModelLoadResult(result:Result<Unit>,name:String?=null){
+        emitStatus()
+        result.onSuccess{emit(JSONObject().put("type","import-progress").put("kind","model").put("state","completed").put("name",name).put("percent",100))}
+            .onFailure{emit(JSONObject().put("type","import-progress").put("kind","model").put("state","error").put("name",name).put("error",it.message))}
+    }
     fun notifyAttachmentResult(result:Result<File>){result.onSuccess{emit(JSONObject().put("type","attachment").put("name",it.name).put("path",it.absolutePath).put("bytes",it.length()))}.onFailure{emit(JSONObject().put("type","attachment").put("error",it.message))}}
     private fun statusJson():JSONObject{val s=backend.status();return JSONObject().put("available",s.available).put("modelLoaded",s.modelLoaded).put("state",s.state).put("modelName",s.modelName).put("error",s.error)}
     private fun emitStatus()=emit(statusJson().put("type","status"))
