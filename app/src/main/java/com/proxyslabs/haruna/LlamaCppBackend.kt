@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -42,6 +43,23 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         return LlmBackend.Status(true, loaded, state, modelName, error)
     }
 
+    private suspend fun waitUntilInitialized(timeoutMs: Long = 15000L) {
+        val started = System.currentTimeMillis()
+        while (true) {
+            when (val state = engine.state.value) {
+                is InferenceEngine.State.Initialized -> return
+                is InferenceEngine.State.ModelReady -> return
+                is InferenceEngine.State.Error -> throw state.exception
+                else -> {
+                    if (System.currentTimeMillis() - started >= timeoutMs) {
+                        throw IllegalStateException("Timeout aguardando inicialização do llama.cpp (${state.javaClass.simpleName})")
+                    }
+                    delay(50)
+                }
+            }
+        }
+    }
+
     override fun loadModel(localPath: String): Result<Unit> = runCatching {
         check(jobs.isEmpty()) { "Há uma geração em andamento" }
         val file = File(localPath)
@@ -50,13 +68,32 @@ class LlamaCppBackend(context: Context) : LlmBackend {
 
         loading = true
         lastError = null
-        if (engine.state.value.isModelLoaded) engine.cleanUp()
-        runBlocking(Dispatchers.IO) { engine.loadModel(file.absolutePath) }
-        check(engine.state.value.isModelLoaded) { "O llama.cpp não confirmou o carregamento do modelo" }
+
+        runBlocking(Dispatchers.IO) {
+            // InferenceEngineImpl initializes its JNI/native backend asynchronously.
+            // Calling loadModel immediately can hit State.Initializing or a previous Error.
+            if (engine.state.value is InferenceEngine.State.Error || engine.state.value.isModelLoaded) {
+                engine.cleanUp()
+            }
+            waitUntilInitialized()
+            engine.loadModel(file.absolutePath)
+        }
+
+        check(engine.state.value.isModelLoaded) {
+            val state = engine.state.value
+            val detail = (state as? InferenceEngine.State.Error)?.exception?.message
+            detail ?: "O llama.cpp não confirmou o carregamento do modelo (${state.javaClass.simpleName})"
+        }
         modelName = file.name
     }.onFailure {
         modelName = null
-        lastError = it.message ?: it.javaClass.simpleName
+        lastError = buildString {
+            append(it.message ?: it.javaClass.simpleName)
+            val cause = it.cause
+            if (cause != null && cause.message != null && cause.message != it.message) {
+                append(" | Causa: ").append(cause.message)
+            }
+        }
     }.also {
         loading = false
     }
@@ -64,7 +101,8 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     override fun unloadModel(): Result<Unit> = runCatching {
         jobs.values.forEach { it.cancel() }
         jobs.clear()
-        engine.cleanUp()
+        val state = engine.state.value
+        if (state.isModelLoaded || state is InferenceEngine.State.Error) engine.cleanUp()
         modelName = null
         lastError = null
     }
