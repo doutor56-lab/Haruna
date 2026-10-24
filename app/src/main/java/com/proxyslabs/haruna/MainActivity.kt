@@ -4,10 +4,13 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewClientCompat
 import java.io.File
 import java.io.FileOutputStream
 
@@ -53,16 +56,27 @@ class MainActivity : AppCompatActivity() {
         backend = LlamaCppBackend(applicationContext)
         bridge = HarunaAndroidBridge(this, webView, backend)
 
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
-        webView.settings.allowFileAccess = true
+        webView.settings.allowFileAccess = false
         webView.settings.allowContentAccess = false
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean =
-                url?.startsWith("file:///android_asset/haruna/") != true
+        webView.webViewClient = object : WebViewClientCompat() {
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+                assetLoader.shouldInterceptRequest(request.url)
+
+            @Deprecated("Deprecated in Java")
+            override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? =
+                assetLoader.shouldInterceptRequest(Uri.parse(url))
+
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
+                request.url.host != "appassets.androidplatform.net"
         }
         webView.addJavascriptInterface(bridge, "HarunaAndroid")
-        webView.loadUrl("file:///android_asset/haruna/index.html")
+        webView.loadUrl("https://appassets.androidplatform.net/assets/haruna/index.html")
     }
 
     override fun onDestroy() {
