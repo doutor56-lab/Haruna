@@ -15,6 +15,8 @@ class LocalLibrary(private val context: Context) {
         const val LAST_MODEL = "last_model_path"
     }
 
+    data class CopyProgress(val copiedBytes: Long, val totalBytes: Long?)
+
     val modelsDir = File(context.filesDir, "models").apply { mkdirs() }
     val attachmentsDir = File(context.filesDir, "attachments").apply { mkdirs() }
     val documentsDir = File(context.filesDir, "documents").apply { mkdirs() }
@@ -29,21 +31,29 @@ class LocalLibrary(private val context: Context) {
         } finally { c?.close() }
     }
 
+    fun contentLength(uri: Uri): Long? {
+        var c: android.database.Cursor? = null
+        return try {
+            c = context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+            if (c != null && c.moveToFirst()) c.getLong(0).takeIf { it >= 0 } else null
+        } catch (_: Exception) { null } finally { c?.close() }
+    }
+
     private fun safe(name: String) = name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(180)
 
-    fun importModel(uri: Uri): File {
+    fun importModel(uri: Uri, onProgress: ((CopyProgress) -> Unit)? = null): File {
         val name = displayName(uri) ?: "haruna-model.gguf"
         require(name.endsWith(".gguf", true)) { "Selecione um arquivo .gguf" }
         val target = uniqueTarget(modelsDir, safe(name))
-        copyAtomic(uri, target)
+        copyAtomic(uri, target, onProgress)
         if (prefs.getString(PRIMARY_MODEL, null) == null) prefs.edit().putString(PRIMARY_MODEL, target.absolutePath).apply()
         return target
     }
 
-    fun importAttachment(uri: Uri): File {
+    fun importAttachment(uri: Uri, onProgress: ((CopyProgress) -> Unit)? = null): File {
         val name = safe(displayName(uri) ?: "arquivo")
         val target = uniqueTarget(attachmentsDir, name)
-        copyAtomic(uri, target)
+        copyAtomic(uri, target, onProgress)
         return target
     }
 
@@ -58,14 +68,37 @@ class LocalLibrary(private val context: Context) {
         return out
     }
 
-    private fun copyAtomic(uri: Uri, target: File) {
+    private fun copyAtomic(uri: Uri, target: File, onProgress: ((CopyProgress) -> Unit)? = null) {
         val tmp = File(target.parentFile, target.name + ".part")
-        context.contentResolver.openInputStream(uri).use { input ->
-            requireNotNull(input) { "Não foi possível abrir o arquivo" }
-            FileOutputStream(tmp).use { out -> input.copyTo(out, 1024 * 1024) }
+        val total = contentLength(uri)
+        try {
+            context.contentResolver.openInputStream(uri).use { input ->
+                requireNotNull(input) { "Não foi possível abrir o arquivo" }
+                FileOutputStream(tmp).use { out ->
+                    val buffer = ByteArray(1024 * 1024)
+                    var copied = 0L
+                    var lastReported = -1
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        out.write(buffer, 0, read)
+                        copied += read
+                        val percent = total?.takeIf { it > 0 }?.let { ((copied * 100) / it).toInt().coerceIn(0, 100) }
+                        if (percent == null || percent != lastReported) {
+                            onProgress?.invoke(CopyProgress(copied, total))
+                            lastReported = percent ?: lastReported
+                        }
+                    }
+                    out.fd.sync()
+                }
+            }
+            require(tmp.length() > 0) { "Arquivo vazio" }
+            require(tmp.renameTo(target)) { "Não foi possível salvar o arquivo" }
+            onProgress?.invoke(CopyProgress(target.length(), total ?: target.length()))
+        } catch (e: Exception) {
+            tmp.delete()
+            throw e
         }
-        require(tmp.length() > 0) { "Arquivo vazio" }
-        require(tmp.renameTo(target)) { "Não foi possível salvar o arquivo" }
     }
 
     fun modelsJson(activePath: String?): String {
