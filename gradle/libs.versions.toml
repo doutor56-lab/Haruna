@@ -4,6 +4,7 @@ kotlin = "2.3.0"
 activity = "1.12.2"
 appcompat = "1.7.1"
 core-ktx = "1.17.0"
+webkit = "1.14.0"
 constraint-layout = "2.2.1"
 datastore-preferences = "1.2.0"
 material = "1.13.0"
@@ -21,6 +22,7 @@ androidx-activity = { group = "androidx.activity", name = "activity", version.re
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraint-layout" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
+androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore-preferences" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso-core" }
