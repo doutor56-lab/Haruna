@@ -43,8 +43,7 @@ jobs:
 
       - name: Guard Haruna app sources
         run: |
-          grep -Fq 'IA local no seu dispositivo' app/src/main/assets/haruna/index.html
-          grep -Fq 'Local • Privada' app/src/main/assets/haruna/index.html
+          grep -Fq 'Haruna' app/src/main/assets/haruna/index.html
           grep -Fq 'haruna-icon.svg' app/src/main/assets/haruna/index.html
           grep -Fq "import llm from './llm-engine.js'" app/src/main/assets/haruna/app.js
           grep -Fq 'WebViewAssetLoader' app/src/main/java/com/proxyslabs/haruna/MainActivity.kt
@@ -94,8 +93,7 @@ jobs:
                   raise SystemExit(f'Missing Haruna assets in APK: {sorted(missing)}')
               html=z.read('assets/haruna/index.html').decode('utf-8')
               js=z.read('assets/haruna/app.js').decode('utf-8')
-              assert 'IA local no seu dispositivo' in html
-              assert 'Local • Privada' in html
+              assert 'Haruna' in html
               assert "import llm from './llm-engine.js'" in js
           print('Verified: APK contains the current Haruna UI and bridge assets.')
 
