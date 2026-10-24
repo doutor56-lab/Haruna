@@ -1,9 +1,11 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080b18"><title>Haruna</title><link rel="icon" href="haruna-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css"></head>
 <body><main class="app">
-<header class="topbar"><div class="brand"><div class="brand-mark">H<span>✦</span></div><div><h1>Haruna</h1><small>IA local • privada • offline</small></div></div><div class="actions"><button id="newChat" class="ghost" type="button" title="Nova conversa">＋</button><button id="model" class="model-button" type="button">Modelo</button></div></header>
+<header class="topbar"><div class="brand"><button id="menu" class="menu" type="button" aria-label="Conversas">☰</button><div class="brand-mark">H<span>✦</span></div><div><h1>Haruna</h1><small>IA local • privada • offline</small></div></div><div class="actions"><button id="newChat" class="ghost" type="button" title="Nova conversa">＋</button><button id="model" class="model-button" type="button">Modelo</button></div></header>
 <div class="status-row"><span class="status-dot"></span><span id="brain">Modo básico</span><span id="modelName" class="privacy">Local</span></div>
-<section id="messages" class="messages" aria-live="polite"><div class="msg assistant"><div class="avatar">H</div><div class="bubble">Olá! Eu sou a Haruna. ✦<br><span class="muted">Estou aqui com você, localmente no seu dispositivo.</span></div></div></section>
+<section id="messages" class="messages" aria-live="polite"></section>
 <div id="memoryToast" class="memory-toast" hidden>🌸 Memória salva</div>
 <form id="composer" class="composer"><textarea id="input" rows="1" maxlength="12000" placeholder="Converse com a Haruna..." aria-label="Mensagem"></textarea><button id="send" type="submit" class="send" aria-label="Enviar">➤</button><button id="stop" type="button" class="stop" aria-label="Parar geração" hidden>■</button></form>
-<div class="footer-note">Haruna • tudo fica neste dispositivo</div></main><script type="module" src="app.js"></script></body></html>
+<div class="footer-note">Haruna • tudo fica neste dispositivo</div>
+<div id="scrim" class="scrim" hidden></div><aside id="drawer" class="drawer" aria-label="Conversas"><div class="drawer-head"><div><strong>Conversas</strong><small>Seu histórico local</small></div><button id="closeMenu" class="icon-btn" type="button">×</button></div><button id="drawerNew" class="new-chat" type="button">＋ Nova conversa</button><label class="search"><span>⌕</span><input id="chatSearch" type="search" placeholder="Pesquisar conversas e mensagens"></label><div id="chatList" class="chat-list"></div><div class="drawer-foot"><span>🌸</span><div><strong>Memória local</strong><small id="memoryCount">0 memórias salvas</small></div></div></aside>
+</main><script type="module" src="app.js"></script></body></html>
