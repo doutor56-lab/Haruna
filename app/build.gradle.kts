@@ -12,8 +12,8 @@ android {
         applicationId = "com.proxyslabs.haruna"
         minSdk = 33
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3"
+        versionCode = 4
+        versionName = "0.4"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
@@ -31,5 +31,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity)
+    implementation(libs.androidx.webkit)
     implementation(project(":llamaLib"))
 }
