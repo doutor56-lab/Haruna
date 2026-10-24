@@ -29,6 +29,75 @@ jobs:
           git -C third_party/llama.cpp checkout --detach "$LLAMA_CPP_REVISION"
           echo "Using llama.cpp $(git -C third_party/llama.cpp rev-parse HEAD)"
 
+      - name: Patch Android loader diagnostics
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          cpp = Path('third_party/llama.cpp/examples/llama.android/lib/src/main/cpp/ai_chat.cpp')
+          text = cpp.read_text()
+          text = text.replace('#include <string>\n', '#include <string>\n#include <mutex>\n')
+          marker = 'static common_sampler                   * g_sampler;\n'
+          diagnostics = r'''
+static std::mutex                        g_load_error_mutex;
+static std::string                       g_last_load_error;
+
+static void haruna_load_log_callback(enum ggml_log_level level, const char * text, void * /*user_data*/) {
+    aichat_android_log_callback(level, text, nullptr);
+    if (level == GGML_LOG_LEVEL_ERROR || level == GGML_LOG_LEVEL_WARN) {
+        std::lock_guard<std::mutex> lock(g_load_error_mutex);
+        if (text != nullptr) {
+            g_last_load_error += text;
+            if (!g_last_load_error.empty() && g_last_load_error.back() != '\n') g_last_load_error += '\n';
+            constexpr size_t MAX_ERROR_CHARS = 12000;
+            if (g_last_load_error.size() > MAX_ERROR_CHARS) {
+                g_last_load_error.erase(0, g_last_load_error.size() - MAX_ERROR_CHARS);
+            }
+        }
+    }
+}
+'''
+          if diagnostics.strip() not in text:
+              text = text.replace(marker, marker + diagnostics)
+          text = text.replace('llama_log_set(aichat_android_log_callback, nullptr);', 'llama_log_set(haruna_load_log_callback, nullptr);')
+          text = text.replace('    LOGd("%s: Loading model from: \\n%s\\n", __func__, model_path);\n\n    auto *model = llama_model_load_from_file(model_path, model_params);', '    LOGd("%s: Loading model from: \\n%s\\n", __func__, model_path);\n    { std::lock_guard<std::mutex> lock(g_load_error_mutex); g_last_load_error.clear(); }\n\n    auto *model = llama_model_load_from_file(model_path, model_params);')
+          insertion = r'''
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_arm_aichat_internal_InferenceEngineImpl_lastLoadError(JNIEnv *env, jobject /*unused*/) {
+    std::lock_guard<std::mutex> lock(g_load_error_mutex);
+    return env->NewStringUTF(g_last_load_error.c_str());
+}
+
+'''
+          anchor = 'static llama_context *init_context('
+          if insertion.strip() not in text:
+              text = text.replace(anchor, insertion + anchor)
+          cpp.write_text(text)
+
+          kt = Path('third_party/llama.cpp/examples/llama.android/lib/src/main/java/com/arm/aichat/internal/InferenceEngineImpl.kt')
+          text = kt.read_text()
+          text = text.replace('    private external fun load(modelPath: String): Int\n', '    private external fun load(modelPath: String): Int\n\n    @FastNative\n    private external fun lastLoadError(): String\n')
+          old = '''                load(pathToModel).let {
+                    // TODO-han.yin: find a better way to pass other error codes
+                    if (it != 0) throw UnsupportedArchitectureException()
+                }
+'''
+          new = '''                load(pathToModel).let { code ->
+                    if (code != 0) {
+                        val nativeDetail = lastLoadError().trim()
+                        val detail = if (nativeDetail.isNotEmpty()) nativeDetail else "llama_model_load_from_file returned null without a native diagnostic"
+                        throw IOException("Falha nativa ao abrir o GGUF (load=$code): $detail")
+                    }
+                }
+'''
+          if old not in text:
+              raise SystemExit('Expected upstream load block not found; refusing an unsafe patch')
+          kt.write_text(text.replace(old, new))
+          PY
+          grep -Fq 'lastLoadError' third_party/llama.cpp/examples/llama.android/lib/src/main/java/com/arm/aichat/internal/InferenceEngineImpl.kt
+          grep -Fq 'g_last_load_error' third_party/llama.cpp/examples/llama.android/lib/src/main/cpp/ai_chat.cpp
+
       - name: Verify llama.cpp Android binding
         run: |
           test "$(git -C third_party/llama.cpp rev-parse HEAD)" = "$LLAMA_CPP_REVISION"
