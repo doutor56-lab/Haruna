@@ -15,18 +15,26 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var backend: LlmBackend
     private lateinit var bridge: HarunaAndroidBridge
+    @Volatile private var modelImportBusy = false
     lateinit var library: LocalLibrary
         private set
 
     private val modelPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@registerForActivityResult
+        if (uri == null) { modelImportBusy = false; return@registerForActivityResult }
+        if (modelImportBusy) return@registerForActivityResult
+        modelImportBusy = true
+        val name = library.displayName(uri) ?: "haruna-model.gguf"
+        bridge.notifyImportStarted("model", name)
         Thread {
+            var imported: File? = null
             val result = runCatching {
-                val file = library.importModel(uri)
-                backend.loadModel(file.absolutePath).getOrThrow()
-                library.rememberActive(file)
+                imported = library.importModel(uri) { progress -> bridge.notifyImportProgress("model", name, progress) }
+                bridge.notifyModelPreparing(imported!!.name)
+                backend.loadModel(imported!!.absolutePath).getOrThrow()
+                library.rememberActive(imported!!)
             }
-            bridge.notifyModelLoadResult(result)
+            modelImportBusy = false
+            bridge.notifyModelLoadResult(result, imported?.name ?: name)
         }.start()
     }
 
@@ -66,7 +74,10 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    fun pickModel() = modelPicker.launch(arrayOf("application/octet-stream", "*/*"))
+    fun pickModel() {
+        if (modelImportBusy) return
+        modelPicker.launch(arrayOf("application/octet-stream", "*/*"))
+    }
     fun pickAttachment() = attachmentPicker.launch(arrayOf("text/plain", "text/markdown", "application/pdf", "image/*", "*/*"))
 
     fun useModel(path: String) {
