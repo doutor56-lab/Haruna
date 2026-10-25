@@ -10,7 +10,7 @@ class HarunaAndroidBridge(private val activity:MainActivity,private val webView:
  @JavascriptInterface fun getStatus()=statusJson().toString()
  @JavascriptInterface fun loadModel(modelJson:String):String{activity.runOnUiThread{activity.pickModel()};return JSONObject().put("status","selecting").put("pendingSelection",true).toString()}
  @JavascriptInterface fun downloadModel(modelJson:String):String{return runCatching{val m=JSONObject(modelJson);val url=m.getString("url");val name=m.getString("fileName");activity.downloadRecommendedModel(url,name);JSONObject().put("status","downloading").put("name",name).toString()}.getOrElse{JSONObject().put("status","error").put("error",it.message).toString()}}
- @JavascriptInterface fun listModels():String=activity.library.modelsJson(null)
+ @JavascriptInterface fun listModels():String=activity.library.modelsJson(activity.activeModelPath())
  @JavascriptInterface fun useModel(path:String):String{activity.useModel(path);return JSONObject().put("status","loading").toString()}
  @JavascriptInterface fun setPrimaryModel(path:String)=runCatching{activity.library.setPrimary(path)}.fold({JSONObject().put("status","ok").toString()},{JSONObject().put("status","error").put("error",it.message).toString()})
  @JavascriptInterface fun deleteModel(path:String)=runCatching{val s=backend.status();if(s.modelName==File(path).name)backend.unloadModel().getOrThrow();activity.library.deleteModel(path)}.fold({emitStatus();JSONObject().put("status","ok").toString()},{JSONObject().put("status","error").put("error",it.message).toString()})
@@ -26,6 +26,7 @@ class HarunaAndroidBridge(private val activity:MainActivity,private val webView:
  fun notifyDownloadStarted(name:String){emit(JSONObject().put("type","import-progress").put("kind","model").put("state","downloading").put("name",name).put("copiedBytes",0))}
  fun notifyDownloadProgress(name:String,progress:LocalLibrary.CopyProgress){val e=JSONObject().put("type","import-progress").put("kind","model").put("state","downloading").put("name",name).put("copiedBytes",progress.copiedBytes);progress.totalBytes?.let{e.put("totalBytes",it);if(it>0)e.put("percent",((progress.copiedBytes*100)/it).toInt().coerceIn(0,100))};emit(e)}
  fun notifyDownloadRejected(name:String,message:String){emit(JSONObject().put("type","import-progress").put("kind","model").put("state","error").put("name",name).put("error",message))}
+ fun notifyModelSelectionCancelled(){emit(JSONObject().put("type","import-progress").put("kind","model").put("state","cancelled"))}
  fun notifyModelPreparing(name:String){emit(JSONObject().put("type","import-progress").put("kind","model").put("state","preparing").put("name",name).put("percent",100))}
  fun notifyModelLoadResult(result:Result<Unit>,name:String?=null){emitStatus();result.onSuccess{emit(JSONObject().put("type","import-progress").put("kind","model").put("state","completed").put("name",name).put("percent",100))}.onFailure{emit(JSONObject().put("type","import-progress").put("kind","model").put("state","error").put("name",name).put("error",it.message))}}
  fun notifyAttachmentCancelled(){emit(JSONObject().put("type","attachment").put("cancelled",true))}

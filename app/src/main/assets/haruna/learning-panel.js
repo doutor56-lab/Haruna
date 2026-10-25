@@ -45,6 +45,7 @@ reconcileOnboarding();
  const stateLabel=d=>d.approvedForTraining?'Aprovado':d.rejectedForTraining?'Rejeitado':d.learningState==='permanent_candidate'?'Candidato':'Em avaliação';
  async function edit(d){const current=await knowledge.getText(d.id),next=prompt(`Corrigir conteúdo de ${d.name}`,current);if(next===null||next===current)return;await knowledge.replaceText(d.id,next);render()}
  async function removeDoc(d){
+  if(!confirm(`Excluir ${d.name}? Esta ação não pode ser desfeita.`))return;
   try{const result=await knowledge.remove(d.id);if(result?.status!=='ok')throw new Error('A exclusão não foi concluída.');render()}catch(e){alert(`Não foi possível excluir: ${e?.message||e}`)}
  }
  function render(){

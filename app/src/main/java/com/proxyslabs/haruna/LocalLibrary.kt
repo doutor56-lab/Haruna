@@ -7,6 +7,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
+import java.security.MessageDigest
 
 class LocalLibrary(private val context: Context) {
     companion object {
@@ -65,7 +67,7 @@ class LocalLibrary(private val context: Context) {
         name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(180)
 
     private fun registerModel(target: File): File {
-        if (prefs.getString(PRIMARY_MODEL, null) == null) {
+        if (primaryModel() == null) {
             prefs.edit().putString(PRIMARY_MODEL, target.absolutePath).apply()
         }
         return target
@@ -74,6 +76,19 @@ class LocalLibrary(private val context: Context) {
     fun importModel(uri: Uri, onProgress: ((CopyProgress) -> Unit)? = null): File {
         val name = displayName(uri) ?: "haruna-model.gguf"
         require(name.endsWith(".gguf", true)) { "Selecione um arquivo .gguf" }
+        val total = contentLength(uri)
+        val candidates = modelFiles().filter { total == null || it.length() == total }
+        if (candidates.isNotEmpty()) {
+            val digest = context.contentResolver.openInputStream(uri).use { input ->
+                requireNotNull(input) { "Não foi possível abrir o arquivo" }
+                sha256(input)
+            }
+            val existing = candidates.firstOrNull { file -> file.inputStream().use { sha256(it).contentEquals(digest) } }
+            if (existing != null) {
+                onProgress?.invoke(CopyProgress(existing.length(), existing.length()))
+                return registerModel(existing)
+            }
+        }
         val target = uniqueTarget(modelsDir, safe(name))
         copyAtomic(uri, target, onProgress)
         return registerModel(target)
@@ -114,6 +129,13 @@ class LocalLibrary(private val context: Context) {
             }
 
             require(tmp.length() > 0) { "Download vazio" }
+            val digest = tmp.inputStream().use { sha256(it) }
+            val existing = modelFiles().firstOrNull { file -> file.length() == tmp.length() && file.inputStream().use { sha256(it).contentEquals(digest) } }
+            if (existing != null) {
+                tmp.delete()
+                onProgress?.invoke(CopyProgress(existing.length(), existing.length()))
+                return registerModel(existing)
+            }
             require(tmp.renameTo(target)) { "Não foi possível instalar o modelo" }
             onProgress?.invoke(CopyProgress(target.length(), totalBytes ?: target.length()))
             return registerModel(target)
@@ -143,10 +165,11 @@ class LocalLibrary(private val context: Context) {
 
     fun deleteAttachment(path: String) {
         val file = File(path)
-        require(file.parentFile?.canonicalFile == attachmentsDir.canonicalFile && file.isFile) {
+        require(file.parentFile?.canonicalFile == attachmentsDir.canonicalFile) {
             "Anexo inválido"
         }
-        require(file.delete()) { "Não foi possível excluir o anexo" }
+        if (!file.exists()) return
+        require(file.isFile && file.delete()) { "Não foi possível excluir o anexo" }
     }
 
     private fun uniqueTarget(dir: File, name: String): File {
@@ -241,8 +264,34 @@ class LocalLibrary(private val context: Context) {
         prefs.edit().putString(PRIMARY_MODEL, file.absolutePath).apply()
     }
 
-    fun primaryModel(): File? =
-        prefs.getString(PRIMARY_MODEL, null)?.let(::File)?.takeIf { it.isFile }
+    private fun modelFiles(): List<File> = modelsDir.listFiles()?.filter {
+        it.isFile && it.length() > 0 && it.extension.equals("gguf", true)
+    }?.sortedBy { it.name } ?: emptyList()
+
+    private fun savedModel(key: String): File? = prefs.getString(key, null)?.let(::File)?.takeIf {
+        it.parentFile?.canonicalFile == modelsDir.canonicalFile && it.isFile && it.length() > 0 && it.extension.equals("gguf", true)
+    }
+
+    fun primaryModel(): File? = savedModel(PRIMARY_MODEL)
+
+    fun startupModel(): File? {
+        val model = savedModel(LAST_MODEL) ?: primaryModel() ?: modelFiles().firstOrNull() ?: return null
+        registerModel(model)
+        return model
+    }
+
+    fun installedModel(name: String): File? = modelFiles().firstOrNull { it.name == safe(name) }
+
+    private fun sha256(input: InputStream): ByteArray {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(1024 * 1024)
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            digest.update(buffer, 0, count)
+        }
+        return digest.digest()
+    }
 
     fun rememberActive(file: File) {
         prefs.edit().putString(LAST_MODEL, file.absolutePath).apply()
