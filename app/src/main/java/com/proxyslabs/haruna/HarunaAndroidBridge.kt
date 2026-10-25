@@ -28,7 +28,10 @@ class HarunaAndroidBridge(private val activity:MainActivity,private val webView:
  fun notifyDownloadRejected(name:String,message:String){emit(JSONObject().put("type","import-progress").put("kind","model").put("state","error").put("name",name).put("error",message))}
  fun notifyModelPreparing(name:String){emit(JSONObject().put("type","import-progress").put("kind","model").put("state","preparing").put("name",name).put("percent",100))}
  fun notifyModelLoadResult(result:Result<Unit>,name:String?=null){emitStatus();result.onSuccess{emit(JSONObject().put("type","import-progress").put("kind","model").put("state","completed").put("name",name).put("percent",100))}.onFailure{emit(JSONObject().put("type","import-progress").put("kind","model").put("state","error").put("name",name).put("error",it.message))}}
+ fun notifyAttachmentCancelled(){emit(JSONObject().put("type","attachment").put("cancelled",true))}
  fun notifyAttachmentResult(result:Result<File>){result.onSuccess{emit(JSONObject().put("type","attachment").put("name",it.name).put("path",it.absolutePath).put("bytes",it.length()).put("readable",it.extension.lowercase() in setOf("txt","md","csv","json","log")))}.onFailure{emit(JSONObject().put("type","attachment").put("error",it.message))}}
  private fun statusJson():JSONObject{val s=backend.status();return JSONObject().put("available",s.available).put("modelLoaded",s.modelLoaded).put("state",s.state).put("modelName",s.modelName).put("error",s.error)}
- private fun emitStatus()=emit(statusJson().put("type","status"));private fun emitError(id:String,code:String,message:String)=emit(JSONObject().put("requestId",id).put("type","error").put("error",JSONObject().put("code",code).put("message",message)));private fun emit(event:JSONObject){webView.post{webView.evaluateJavascript("window.harunaAndroidOnEvent(${JSONObject.quote(event.toString())})",null)}}
+ private fun emitStatus()=emit(statusJson().put("type","status"))
+ private fun emitError(id:String,code:String,message:String)=emit(JSONObject().put("requestId",id).put("type","error").put("error",JSONObject().put("code",code).put("message",message)))
+ private fun emit(event:JSONObject){webView.post{webView.evaluateJavascript("window.harunaAndroidOnEvent(${JSONObject.quote(event.toString())})",null)}}
 }
