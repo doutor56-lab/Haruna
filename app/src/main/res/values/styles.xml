@@ -7,4 +7,13 @@
         <item name="android:statusBarColor">#F5F3ED</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
+    <style name="Theme.Haruna.Dialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/haruna_dialog_background</item>
+        <item name="android:colorBackground">#101628</item>
+        <item name="android:textColorPrimary">#F7F5FF</item>
+        <item name="android:textColorSecondary">#AAA1C7</item>
+        <item name="colorAccent">#A58CFF</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:backgroundDimAmount">0.65</item>
+    </style>
 </resources>

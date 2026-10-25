@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
-import android.webkit.WebChromeClient
 import java.util.concurrent.Executors
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -17,6 +16,7 @@ import java.net.URL
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
+    private lateinit var chromeClient: HarunaWebChromeClient
     private lateinit var backend: LlmBackend
     private lateinit var bridge: HarunaAndroidBridge
     @Volatile private var modelImportBusy = false
@@ -56,7 +56,8 @@ class MainActivity : AppCompatActivity() {
         bridge = HarunaAndroidBridge(this, webView, backend)
         val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this)).build()
         // Enables the existing JS confirm/alert/prompt dialogs, including deletion confirmations.
-        webView.webChromeClient = WebChromeClient()
+        chromeClient = HarunaWebChromeClient(this)
+        webView.webChromeClient = chromeClient
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.allowFileAccess = false
@@ -147,5 +148,5 @@ class MainActivity : AppCompatActivity() {
             bridge.notifyModelLoadResult(result, file.name)
         }
     }
-    override fun onDestroy() { modelExecutor.shutdown(); webView.removeJavascriptInterface("HarunaAndroid"); webView.stopLoading(); webView.destroy(); super.onDestroy() }
+    override fun onDestroy() { chromeClient.dispose(); modelExecutor.shutdown(); webView.removeJavascriptInterface("HarunaAndroid"); webView.stopLoading(); webView.destroy(); super.onDestroy() }
 }
