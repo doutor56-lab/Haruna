@@ -1,0 +1,2 @@
+Haruna Android build trigger
+UI interaction fix validation.
