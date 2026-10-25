@@ -1,0 +1,2 @@
+/* Minimal UI reliability hotfix. Keep the HTML hidden attribute authoritative even when component styles define display. */
+[hidden]{display:none!important}
