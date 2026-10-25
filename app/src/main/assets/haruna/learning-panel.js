@@ -45,8 +45,7 @@ reconcileOnboarding();
  const stateLabel=d=>d.approvedForTraining?'Aprovado':d.rejectedForTraining?'Rejeitado':d.learningState==='permanent_candidate'?'Candidato':'Em avaliação';
  async function edit(d){const current=await knowledge.getText(d.id),next=prompt(`Corrigir conteúdo de ${d.name}`,current);if(next===null||next===current)return;await knowledge.replaceText(d.id,next);render()}
  async function removeDoc(d){
-  if(!confirm(`Excluir ${d.name}?\n\nIsso removerá este arquivo e seus trechos do segundo cérebro da Haruna. Esta ação não pode ser desfeita.`))return;
-  try{await knowledge.remove(d.id);render()}catch(e){alert(`Não foi possível excluir: ${e?.message||e}`)}
+  try{const result=await knowledge.remove(d.id);if(result?.status!=='ok')throw new Error('A exclusão não foi concluída.');render()}catch(e){alert(`Não foi possível excluir: ${e?.message||e}`)}
  }
  function render(){
   const docs=knowledge.list().filter(d=>d.active).sort((a,b)=>Number(b.approvedForTraining)-Number(a.approvedForTraining)||(b.importance+b.confidence)-(a.importance+a.confidence));
@@ -59,7 +58,7 @@ reconcileOnboarding();
    row.querySelector('[data-action=edit]').onclick=()=>edit(d);
    row.querySelector('[data-action=reject]').onclick=()=>{knowledge.updateLearning(d.id,{rejectedForTraining:true,approvedForTraining:false,learningState:'useful'});render()};
    row.querySelector('[data-action=approve]').onclick=()=>{knowledge.updateLearning(d.id,{approvedForTraining:!d.approvedForTraining,rejectedForTraining:false,learningState:d.approvedForTraining?'useful':'permanent_candidate'});render()};
-   row.querySelector('[data-action=delete]').onclick=()=>removeDoc(d);
+   row.querySelector('[data-action=delete]').onclick=e=>{e.preventDefault();e.stopPropagation();removeDoc(d)};
    list.appendChild(row)
   }
  }
