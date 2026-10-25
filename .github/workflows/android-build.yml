@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [main]
+    branches: [main, recovery/haruna-82d3c47]
   pull_request:
   workflow_dispatch:
 
