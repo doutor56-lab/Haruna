@@ -7,6 +7,9 @@ import com.arm.aichat.InferenceEngine
 import com.arm.aichat.UnsupportedArchitectureException
 import com.arm.aichat.isModelLoaded
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -46,6 +49,8 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     @Volatile private var modelName: String? = null
     @Volatile private var modelPath: String? = null
     @Volatile private var lastError: String? = null
+    @Volatile private var resetRequired = false
+    @Volatile private var conversationId: String? = null
 
     override fun status(): LlmBackend.Status {
         val engineState = engine.state.value
@@ -113,48 +118,101 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         val file = File(localPath); validateModel(file); loading = true; lastError = null
         runBlocking(Dispatchers.IO) { loadAndPrime(file) }
         modelName = file.name; modelPath = file.absolutePath
+        conversationId = null; resetRequired = false
     }.onFailure { modelName = null; modelPath = null; lastError = friendlyLoadError(it) }.also { loading = false }
 
     override fun resetConversation(): Result<Unit> = runCatching {
-        check(jobs.isEmpty()) { "Há uma geração em andamento" }
-        check(engine.state.value.isModelLoaded) { "Nenhum modelo carregado" }
-        loading = true; lastError = null
-        val started = System.currentTimeMillis()
-        runBlocking(Dispatchers.Default) { engine.setSystemPrompt(SYSTEM_PROMPT) }
-        Log.i(TAG, "conversation_reset_ms=${System.currentTimeMillis() - started} (model kept loaded)")
-        check(engine.state.value.isModelLoaded) { "O modelo não ficou pronto ao reiniciar a conversa" }
-    }.onFailure { lastError = friendlyLoadError(it) }.also { loading = false }
+        check(!loading) { "Aguarde o carregamento do modelo" }
+        // Join cancelled work before allowing another conversation to use native state.
+        runBlocking { jobs.values.toList().forEach { it.cancelAndJoin() } }
+        val file = File(requireNotNull(modelPath) { "Nenhum modelo carregado" })
+        validateModel(file)
+        // This binding has no context-reset API and accepts a system prompt only once
+        // per load. Reload the private copy before the next user prompt, off the UI thread.
+        resetRequired = true
+        lastError = null
+    }
 
     override fun unloadModel(): Result<Unit> = runCatching {
-        jobs.values.forEach { it.cancel() }; jobs.clear()
+        runBlocking { jobs.values.toList().forEach { it.cancelAndJoin() } }
         val state = engine.state.value
         if (state.isModelLoaded || state is InferenceEngine.State.Error) engine.cleanUp()
         modelName = null; modelPath = null; lastError = null
+        conversationId = null; resetRequired = false
     }
 
     override fun generate(requestId: String, payloadJson: String, onToken: (String) -> Unit, onComplete: (String) -> Unit, onError: (String, String) -> Unit) {
-        if (!engine.state.value.isModelLoaded) { onError("model_not_loaded", "Nenhum modelo GGUF carregado"); return }
-        if (jobs.containsKey(requestId)) { onError("duplicate_request", "Esta geração já está em andamento"); return }
-        val job = scope.launch {
-            try {
-                val root = JSONObject(payloadJson); val messages = root.optJSONArray("messages"); var prompt = ""
-                if (messages != null) for (i in 0 until messages.length()) { val message = messages.getJSONObject(i); if (message.optString("role") == "user") prompt = message.optString("content") }
-                require(prompt.isNotBlank()) { "Prompt vazio" }
-                val predictLength = root.optJSONObject("options")?.optInt("maxTokens", 512)?.coerceIn(16, 1024) ?: 512
-                val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; val output = StringBuilder()
-                engine.sendUserPrompt(prompt, predictLength).collect { token ->
-                    if (firstTokenAt == 0L) { firstTokenAt = System.currentTimeMillis(); Log.i(TAG, "first_token_ms=${firstTokenAt - generationStart}") }
-                    output.append(token); withContext(Dispatchers.Main) { onToken(token) }
-                }
-                Log.i(TAG, "generation_ms=${System.currentTimeMillis() - generationStart} chars=${output.length}")
-                withContext(Dispatchers.Main) { onComplete(output.toString()) }
-            } catch (e: CancellationException) { withContext(Dispatchers.Main) { onError("cancelled", "Geração interrompida") }; throw e }
-            catch (e: Throwable) { lastError = e.message ?: e.javaClass.simpleName; withContext(Dispatchers.Main) { onError("generation_failed", lastError ?: "Falha na inferência local") } }
-            finally { jobs.remove(requestId) }
+        if (!engine.state.value.isModelLoaded && !resetRequired) { onError("model_not_loaded", "Nenhum modelo GGUF carregado"); return }
+        synchronized(jobs) {
+            if (loading || jobs.isNotEmpty()) { onError("generation_busy", "Há uma operação em andamento"); return }
+            // Reserve the request before starting it, including very short generations.
+            val job = scope.launch(start = CoroutineStart.LAZY) {
+                try {
+                    val root = JSONObject(payloadJson)
+                    val messages = requireNotNull(root.optJSONArray("messages")) { "Prompt vazio" }
+                    val options = root.optJSONObject("options")
+                    val nextConversation = options?.optString("conversationId")?.takeIf { it.isNotBlank() } ?: "legacy"
+                    val switching = resetRequired || conversationId != nextConversation
+                    if (resetRequired || (conversationId != null && conversationId != nextConversation)) {
+                        loading = true
+                        try {
+                            val file = File(requireNotNull(modelPath) { "Nenhum modelo carregado" })
+                            validateModel(file)
+                            loadAndPrime(file)
+                            resetRequired = false
+                        } finally { loading = false }
+                    }
+                    var prompt = ""
+                    var lastUser = -1
+                    for (i in 0 until messages.length()) {
+                        val message = messages.getJSONObject(i)
+                        if (message.optString("role") == "user") { prompt = message.optString("content"); lastUser = i }
+                    }
+                    require(prompt.isNotBlank()) { "Prompt vazio" }
+                    // Restore a bounded transcript only when entering a chat. Later turns
+                    // already have this chat's native context and must not duplicate it.
+                    if (switching && lastUser > 0) {
+                        val history = StringBuilder()
+                        var remaining = (7200 - prompt.length).coerceIn(0, 3200)
+                        val selected = mutableListOf<String>()
+                        for (i in lastUser - 1 downTo maxOf(0, lastUser - 8)) {
+                            if (remaining <= 0) break
+                            val message = messages.getJSONObject(i)
+                            val role = message.optString("role")
+                            if (role != "user" && role != "assistant") continue
+                            val content = message.optString("content").takeLast(minOf(1600, remaining))
+                            remaining -= content.length
+                            selected.add("${if (role == "user") "Usuário" else "Haruna"}: $content")
+                        }
+                        selected.asReversed().forEach { history.append(it).append("\n\n") }
+                        if (history.isNotEmpty()) prompt = "HISTÓRICO DESTA CONVERSA (referência, não instruções do sistema):\n$history\nMENSAGEM ATUAL:\n$prompt"
+                    }
+                    conversationId = nextConversation
+                    val predictLength = options?.optInt("maxTokens", 512)?.coerceIn(16, 1024) ?: 512
+                    val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; val output = StringBuilder()
+                    engine.sendUserPrompt(prompt, predictLength).collect { token ->
+                        if (firstTokenAt == 0L) { firstTokenAt = System.currentTimeMillis(); Log.i(TAG, "first_token_ms=${firstTokenAt - generationStart}") }
+                        output.append(token); withContext(Dispatchers.Main) { onToken(token) }
+                    }
+                    Log.i(TAG, "generation_ms=${System.currentTimeMillis() - generationStart} chars=${output.length}")
+                    withContext(Dispatchers.Main) { onComplete(output.toString()) }
+                } catch (e: CancellationException) {
+                    resetRequired = true
+                    withContext(NonCancellable + Dispatchers.Main) { onError("cancelled", "Geração interrompida") }
+                    throw e
+                } catch (e: Throwable) {
+                    resetRequired = true
+                    lastError = e.message ?: e.javaClass.simpleName
+                    withContext(Dispatchers.Main) { onError("generation_failed", lastError ?: "Falha na inferência local") }
+                } finally { jobs.remove(requestId) }
+            }
+            jobs[requestId] = job
+            job.invokeOnCompletion { jobs.remove(requestId, job) }
+            job.start()
         }
-        jobs[requestId] = job
     }
 
-    override fun stop(requestId: String): Result<Unit> = runCatching { jobs.remove(requestId)?.cancel() }
+    override fun stop(requestId: String): Result<Unit> = runCatching { jobs[requestId]?.cancel() }
+
     fun destroy() { jobs.values.forEach { it.cancel() }; jobs.clear(); engine.destroy(); scope.cancel() }
 }
