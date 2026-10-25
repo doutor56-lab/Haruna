@@ -4,88 +4,65 @@
   const THINK_KEY = 'haruna_think_mode';
   let thinkMode = localStorage.getItem(THINK_KEY) === '1';
   let knowledgeType = 'knowledge';
+  let feeding = false;
 
   const add = (role, text) => {
-    const messages = $('#messages');
-    if (!messages) return null;
+    const messages = $('#messages'); if (!messages) return null;
     messages.querySelector('.empty')?.remove();
-    const el = document.createElement('div'); el.className = `msg ${role}`;
-    if (role === 'assistant') { const a=document.createElement('div'); a.className='avatar'; a.textContent='H'; el.appendChild(a); }
-    const bubble=document.createElement('div'); bubble.className='bubble'; bubble.textContent=text; el.appendChild(bubble);
-    messages.appendChild(el); messages.scrollTop=messages.scrollHeight; return bubble;
+    const el=document.createElement('div'); el.className=`msg ${role}`;
+    if(role==='assistant'){const a=document.createElement('div');a.className='avatar';a.textContent='H';el.appendChild(a);}
+    const bubble=document.createElement('div');bubble.className='bubble';bubble.textContent=text;el.appendChild(bubble);messages.appendChild(el);messages.scrollTop=messages.scrollHeight;return bubble;
   };
 
-  const showView = async (name) => {
-    document.querySelectorAll('.view').forEach(v => { v.hidden = true; });
-    const target=$(`#${name}View`); if(target) target.hidden=false;
-    document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
-    // The recovery listener runs before app.js, so explicitly refresh native model UI here.
-    if(name==='settings') try { const m=await import('./model-library.js'); m.refreshModels?.(); } catch(_) {}
-  };
-  const hideDrawer=()=>{ $('#drawer')?.classList.remove('open'); const s=$('#scrim'); if(s)s.hidden=true; };
-  const showDrawer=()=>{ $('#drawer')?.classList.add('open'); const s=$('#scrim'); if(s)s.hidden=false; };
-  const paintThink=()=>{ const b=$('#think'),l=$('#reasoningMode'); b?.classList.toggle('active',thinkMode); b?.setAttribute('aria-pressed',String(thinkMode)); if(l){l.textContent=thinkMode?'Pensar':'Rápido';l.classList.toggle('thinking',thinkMode);} };
-  const newConversation=async()=>{ const m=$('#messages'); if(m)m.innerHTML='<div class="empty"><div class="orb">H✦</div><strong>Olá, eu sou a Haruna.</strong><span>Converse comigo. Suas conversas e memórias ficam salvas localmente neste dispositivo.</span></div>'; hideDrawer(); showView('chat'); try{const llm=(await import('./llm-engine.js')).default;const s=await llm.refreshStatus();if(s?.modelLoaded)await llm.resetConversation();}catch(_){} };
+  const showView=async(name)=>{document.querySelectorAll('.view').forEach(v=>{v.hidden=true;});const target=$(`#${name}View`);if(target)target.hidden=false;document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===name));if(name==='settings')try{const m=await import('./model-library.js');m.refreshModels?.();}catch(_){}if(name==='memory')renderKnowledge();};
+  const hideDrawer=()=>{$('#drawer')?.classList.remove('open');const s=$('#scrim');if(s)s.hidden=true;};
+  const showDrawer=()=>{$('#drawer')?.classList.add('open');const s=$('#scrim');if(s)s.hidden=false;};
+  const paintThink=()=>{const b=$('#think'),l=$('#reasoningMode');b?.classList.toggle('active',thinkMode);b?.setAttribute('aria-pressed',String(thinkMode));if(l){l.textContent=thinkMode?'Pensar':'Rápido';l.classList.toggle('thinking',thinkMode);}};
+  const newConversation=async()=>{const m=$('#messages');if(m)m.innerHTML='<div class="empty"><div class="orb">H✦</div><strong>Olá, eu sou a Haruna.</strong><span>Converse comigo. Suas conversas e memórias ficam salvas localmente neste dispositivo.</span></div>';hideDrawer();showView('chat');try{const llm=(await import('./llm-engine.js')).default;const s=await llm.refreshStatus();if(s?.modelLoaded)await llm.resetConversation();}catch(_){}};
 
-  const renderKnowledge = async () => {
-    const list=$('#knowledgeList'); if(!list)return;
-    try{
-      const knowledge=(await import('./knowledge-store.js')).default;
-      const docs=knowledge.list(); list.innerHTML='';
-      if(!docs.length){list.innerHTML='<div class="model-empty">Nenhum conhecimento adicionado ainda.</div>';return;}
-      for(const d of docs){
-        const row=document.createElement('div'); row.className='model-row';
-        row.innerHTML='<div class="model-info"><strong></strong><small></small></div><div class="model-actions"></div>';
-        row.querySelector('strong').textContent=d.name;
-        row.querySelector('small').textContent=`${d.type==='behavior'?'Conversação':'Conhecimento'} • ${d.chunks} trechos • ${d.active?'Ativo':'Pausado'}`;
-        const actions=row.querySelector('.model-actions'),toggle=document.createElement('button'),del=document.createElement('button');
-        toggle.textContent=d.active?'Pausar':'Ativar'; toggle.onclick=()=>{knowledge.toggle(d.id);renderKnowledge();};
-        del.textContent='Excluir'; del.className='danger'; del.onclick=async()=>{if(confirm(`Excluir ${d.name}?`)){await knowledge.remove(d.id);renderKnowledge();}};
-        actions.append(toggle,del); list.appendChild(row);
-      }
-    }catch(e){list.innerHTML=`<div class="model-empty">Falha ao carregar conhecimento: ${e?.message||e}</div>`;}
-  };
+  const renderKnowledge=async()=>{const list=$('#knowledgeList');if(!list)return;try{const knowledge=(await import('./knowledge-store.js')).default;const docs=knowledge.list();list.innerHTML='';if(!docs.length){list.innerHTML='<div class="model-empty">Nenhum conhecimento adicionado ainda.</div>';return;}for(const d of docs){const row=document.createElement('div');row.className='model-row';row.innerHTML='<div class="model-info"><strong></strong><small></small></div><div class="model-actions"></div>';row.querySelector('strong').textContent=d.name;row.querySelector('small').textContent=`${d.type==='behavior'?'Conversação':'Conhecimento'} • ${d.chunks} trechos • ${d.active?'Ativo':'Pausado'}`;const actions=row.querySelector('.model-actions'),toggle=document.createElement('button'),del=document.createElement('button');toggle.textContent=d.active?'Pausar':'Ativar';toggle.onclick=()=>{knowledge.toggle(d.id);renderKnowledge();};del.textContent='Excluir';del.className='danger';del.onclick=async()=>{if(confirm(`Excluir ${d.name}?`)){await knowledge.remove(d.id);renderKnowledge();}};actions.append(toggle,del);list.appendChild(row);}}catch(e){list.innerHTML=`<div class="model-empty">Falha ao carregar conhecimento: ${e?.message||e}</div>`;}};
 
-  const feedFile = async (file) => {
-    if(!file)return;
+  const hideKnowledgeProgress=()=>{const p=$('#knowledgeProgress');if(p)p.hidden=true;};
+  const feedFile=async(file)=>{
+    if(!file||feeding)return;
     if(!file.name.toLowerCase().endsWith('.txt')){alert('Por enquanto, use um arquivo TXT.');return;}
     const progress=$('#knowledgeProgress'),title=$('#knowledgeProgressTitle'),pct=$('#knowledgeProgressPercent'),bar=$('#knowledgeProgressBar'),detail=$('#knowledgeProgressDetail'),feed=$('#feedAi');
+    feeding=true;
     try{
-      if(feed)feed.disabled=true; if(progress)progress.hidden=false;
-      if(title)title.textContent='Lendo arquivo…'; if(pct)pct.textContent=''; if(bar)bar.style.width='8%'; if(detail)detail.textContent=file.name;
-      const text=await file.text();
+      if(feed)feed.disabled=true;if(progress)progress.hidden=false;if(title)title.textContent='Lendo arquivo…';if(pct)pct.textContent='';if(bar)bar.style.width='8%';if(detail)detail.textContent=file.name;
+      const text=await file.text();if(!text.trim())throw new Error('O arquivo está vazio.');
       if(title)title.textContent='Indexando…';
       const knowledge=(await import('./knowledge-store.js')).default;
       await knowledge.addText(file.name,text,knowledgeType,p=>{if(pct)pct.textContent=`${p}%`;if(bar)bar.style.width=`${p}%`;});
-      if(title)title.textContent='✓ Conhecimento adicionado'; if(pct)pct.textContent='100%'; if(detail)detail.textContent=`${file.name} está disponível para a Haruna.`;
-      await renderKnowledge(); setTimeout(()=>{if(progress)progress.hidden=true;},2200);
-    }catch(e){if(title)title.textContent='Falha ao adicionar';if(detail)detail.textContent=e?.message||String(e);}
-    finally{if(feed)feed.disabled=false;}
+      if(title)title.textContent='✓ Conhecimento adicionado';if(pct)pct.textContent='100%';if(detail)detail.textContent=`${file.name} está disponível para a Haruna.`;await renderKnowledge();
+      setTimeout(hideKnowledgeProgress,1800);
+    }catch(e){if(title)title.textContent='Falha ao adicionar';if(pct)pct.textContent='';if(detail)detail.textContent=e?.message||String(e);setTimeout(hideKnowledgeProgress,3500);}
+    finally{feeding=false;if(feed)feed.disabled=false;}
   };
 
   document.addEventListener('click',event=>{
-    const nav=event.target.closest('.nav-item');
-    if(nav){event.preventDefault();event.stopImmediatePropagation();showView(nav.dataset.view||'chat');return;}
-    const choice=event.target.closest('.knowledge-choice');
-    if(choice){event.preventDefault();event.stopImmediatePropagation();knowledgeType=choice.dataset.knowledgeType||'knowledge';document.querySelectorAll('.knowledge-choice').forEach(x=>x.classList.toggle('active',x===choice));return;}
+    const nav=event.target.closest('.nav-item');if(nav){event.preventDefault();event.stopImmediatePropagation();showView(nav.dataset.view||'chat');return;}
+    const choice=event.target.closest('.knowledge-choice');if(choice){event.preventDefault();event.stopImmediatePropagation();knowledgeType=choice.dataset.knowledgeType||'knowledge';document.querySelectorAll('.knowledge-choice').forEach(x=>x.classList.toggle('active',x===choice));return;}
     const id=event.target.closest('button, #scrim')?.id;
     if(id==='menu'){event.preventDefault();event.stopImmediatePropagation();showDrawer();}
     else if(id==='closeMenu'||id==='scrim'){event.preventDefault();event.stopImmediatePropagation();hideDrawer();}
     else if(id==='think'){event.preventDefault();event.stopImmediatePropagation();thinkMode=!thinkMode;localStorage.setItem(THINK_KEY,thinkMode?'1':'0');paintThink();}
     else if(id==='newChat'||id==='drawerNew'){event.preventDefault();event.stopImmediatePropagation();newConversation();}
-    else if(id==='feedAi'){event.preventDefault();event.stopImmediatePropagation();$('#knowledgeFile')?.click();}
-    else if(id==='addModel'){ /* allow model-library.js handler to own this button */ }
+    else if(id==='feedAi'){
+      event.preventDefault();event.stopImmediatePropagation();
+      if(feeding)return;
+      const picker=$('#knowledgeFile');
+      if(!picker){alert('Seletor de TXT indisponível.');return;}
+      picker.value='';
+      picker.click();
+    }
   },true);
 
-  $('#knowledgeFile')?.addEventListener('change',event=>{event.stopImmediatePropagation();const file=event.target.files?.[0];event.target.value='';feedFile(file);},true);
+  const picker=$('#knowledgeFile');
+  if(picker){picker.addEventListener('change',event=>{event.stopImmediatePropagation();const file=event.target.files?.[0];if(file)feedFile(file);},true);}
 
-  document.addEventListener('submit',async event=>{
-    if(event.target?.id!=='composer')return; event.preventDefault();event.stopImmediatePropagation();
-    const input=$('#input'),text=input?.value?.trim();if(!text)return;input.value='';add('user',text);
-    try{const llm=(await import('./llm-engine.js')).default;const status=await llm.refreshStatus();if(!status?.modelLoaded){add('assistant','Estou funcionando, mas ainda não há um modelo GGUF carregado. Abra Configurações e selecione um modelo local.');return;}const out=add('assistant','✦');const prompt=/qwen3/i.test(status?.modelName||'')?`${text}\n\n${thinkMode?'/think':'/no_think'}`:text;const result=await llm.generate([{role:'user',content:prompt}],{maxTokens:thinkMode?512:256,onToken:(_t,all)=>{if(out)out.textContent=all||'✦';}});if(out)out.textContent=result?.text?.trim()||'Não consegui formular uma resposta.';}catch(error){add('assistant',`Falha local: ${error?.message||String(error)}`);}
-  },true);
+  document.addEventListener('submit',async event=>{if(event.target?.id!=='composer')return;event.preventDefault();event.stopImmediatePropagation();const input=$('#input'),text=input?.value?.trim();if(!text)return;input.value='';add('user',text);try{const llm=(await import('./llm-engine.js')).default;const status=await llm.refreshStatus();if(!status?.modelLoaded){add('assistant','Estou funcionando, mas ainda não há um modelo GGUF carregado. Abra Configurações e selecione um modelo local.');return;}const out=add('assistant','✦');const prompt=/qwen3/i.test(status?.modelName||'')?`${text}\n\n${thinkMode?'/think':'/no_think'}`:text;const result=await llm.generate([{role:'user',content:prompt}],{maxTokens:thinkMode?512:256,onToken:(_t,all)=>{if(out)out.textContent=all||'✦';}});if(out)out.textContent=result?.text?.trim()||'Não consegui formular uma resposta.';}catch(error){add('assistant',`Falha local: ${error?.message||String(error)}`);}},true);
   document.addEventListener('keydown',event=>{if(event.target?.id!=='input'||event.key!=='Enter'||event.shiftKey)return;event.preventDefault();$('#composer')?.requestSubmit();},true);
 
-  paintThink(); renderKnowledge();
-  window.__HARUNA_RECOVERY_RUNTIME__=true;
+  hideKnowledgeProgress();paintThink();renderKnowledge();window.__HARUNA_RECOVERY_RUNTIME__=true;
 })();
