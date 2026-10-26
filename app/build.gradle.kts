@@ -1,3 +1,9 @@
+import java.io.File
+import java.net.URI
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
@@ -53,21 +59,21 @@ val fetchSherpaAar by tasks.registering {
     inputs.property("sha256", expected)
     outputs.file(sherpaAar)
     doLast {
-        fun digest(file: java.io.File): String {
-            val hash = java.security.MessageDigest.getInstance("SHA-256")
+        fun digest(file: File): String {
+            val hash = MessageDigest.getInstance("SHA-256")
             file.inputStream().use { input -> val buffer = ByteArray(131072); while (true) { val n = input.read(buffer); if (n < 0) break; hash.update(buffer, 0, n) } }
             return hash.digest().joinToString("") { "%02x".format(it) }
         }
         val target = sherpaAar.get().asFile
         if (!target.isFile || digest(target) != expected) {
             target.parentFile.mkdirs()
-            val part = java.io.File(target.parentFile, target.name + ".part")
+            val part = File(target.parentFile, target.name + ".part")
             try {
-                val connection = java.net.URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.0/sherpa-onnx-2.0.0.aar").toURL().openConnection()
+                val connection = URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.0/sherpa-onnx-2.0.0.aar").toURL().openConnection()
                 connection.connectTimeout = 30000; connection.readTimeout = 60000
                 connection.getInputStream().use { input -> part.outputStream().use { input.copyTo(it) } }
                 check(digest(part) == expected) { "Official sherpa-onnx AAR checksum mismatch" }
-                java.nio.file.Files.move(part.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                Files.move(part.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
             } finally { part.delete() }
         }
     }
