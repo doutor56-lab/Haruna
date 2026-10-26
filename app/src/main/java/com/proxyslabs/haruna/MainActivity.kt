@@ -16,6 +16,7 @@ import java.net.URL
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
+    private lateinit var recognition: com.proxyslabs.haruna.speech.RecognitionBridge
     private lateinit var speech: com.proxyslabs.haruna.speech.SpeechBridge
     private lateinit var chromeClient: HarunaWebChromeClient
     private lateinit var backend: LlmBackend
@@ -60,6 +61,29 @@ class MainActivity : AppCompatActivity() {
         catch (failure: Exception) { voicePickerOpen = false; speech.selectionFailed(failure.message ?: "Não foi possível abrir o seletor de voz") }
     }
 
+    private var recognitionPickerOpen = false
+    private val recognitionPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        recognitionPickerOpen = false
+        if (uri != null) recognition.importModel(uri)
+    }
+    fun pickRecognitionModel() {
+        if (recognitionPickerOpen) return
+        recognitionPickerOpen = true
+        try { recognitionPicker.launch(arrayOf("application/x-bzip2", "application/octet-stream", "*/*")) }
+        catch (failure: Exception) { recognitionPickerOpen = false; recognition.selectionFailed(failure.message ?: "Não foi possível abrir o seletor") }
+    }
+    private var pendingVoicePermission: Pair<String, String>? = null
+    private val voicePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val pending = pendingVoicePermission; pendingVoicePermission = null
+        if (pending != null) { if (granted) recognition.permitted(pending.first, pending.second) else recognition.denied(pending.second) }
+    }
+    fun requestVoicePermission(mode: String, id: String) {
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) recognition.permitted(mode, id)
+        else { pendingVoicePermission = mode to id; try { voicePermission.launch(android.Manifest.permission.RECORD_AUDIO) } catch (failure: Exception) { pendingVoicePermission = null; recognition.permissionFailed(failure.message ?: "Não foi possível solicitar o microfone", id) } }
+    }
+    fun prepareToListen(ready: () -> Unit) = speech.prepareForListening(ready)
+    fun stopListening() { if (::recognition.isInitialized) recognition.stop() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         library = LocalLibrary(applicationContext)
@@ -88,6 +112,8 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(bridge, "HarunaAndroid")
         speech = com.proxyslabs.haruna.speech.SpeechBridge(this, webView)
         webView.addJavascriptInterface(speech, "HarunaSpeech")
+        recognition = com.proxyslabs.haruna.speech.RecognitionBridge(this, webView)
+        webView.addJavascriptInterface(recognition, "HarunaRecognition")
         webView.loadUrl("https://appassets.androidplatform.net/assets/haruna/index.html")
     }
 
@@ -164,8 +190,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
     override fun onStop() {
+        pendingVoicePermission = null
+        if (::recognition.isInitialized) { recognition.stop(); recognition.cancelInstallation() }
         if (::speech.isInitialized) { speech.stop(); speech.cancelInstallation() }
         super.onStop()
     }
-    override fun onDestroy() { speech.close(); webView.removeJavascriptInterface("HarunaSpeech"); chromeClient.dispose(); modelExecutor.shutdown(); webView.removeJavascriptInterface("HarunaAndroid"); webView.stopLoading(); webView.destroy(); super.onDestroy() }
+    override fun onDestroy() { recognition.close(); webView.removeJavascriptInterface("HarunaRecognition"); speech.close(); webView.removeJavascriptInterface("HarunaSpeech"); chromeClient.dispose(); modelExecutor.shutdown(); webView.removeJavascriptInterface("HarunaAndroid"); webView.stopLoading(); webView.destroy(); super.onDestroy() }
 }

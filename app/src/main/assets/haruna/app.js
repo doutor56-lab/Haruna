@@ -1,6 +1,6 @@
 import llm from './llm-engine.js';import {refreshModels} from './model-library.js';import knowledge from './knowledge-store.js';import attachments from './attachment-store.js';import android from './android-bridge.js';
 const $=s=>document.querySelector(s),messagesEl=$('#messages'),input=$('#input'),form=$('#composer'),brain=$('#brain'),modelName=$('#modelName'),stopBtn=$('#stop'),sendBtn=$('#send'),newChatBtn=$('#newChat'),thinkBtn=$('#think'),reasoningMode=$('#reasoningMode'),toast=$('#memoryToast'),drawer=$('#drawer'),scrim=$('#scrim'),menu=$('#menu'),closeMenu=$('#closeMenu'),drawerNew=$('#drawerNew'),chatList=$('#chatList'),chatSearch=$('#chatSearch'),memoryCount=$('#memoryCount'),memoryPageCount=$('#memoryPageCount'),memoryItems=$('#memoryItems'),feedAi=$('#feedAi'),knowledgeFile=$('#knowledgeFile'),knowledgeList=$('#knowledgeList'),kp=$('#knowledgeProgress'),kpTitle=$('#knowledgeProgressTitle'),kpPct=$('#knowledgeProgressPercent'),kpBar=$('#knowledgeProgressBar'),kpDetail=$('#knowledgeProgressDetail'),attachmentTray=$('#attachmentTray'),selectChats=$('#selectChats'),selectionBar=$('#chatSelectionBar'),selectAllChats=$('#selectAllChats'),selectedChatCount=$('#selectedChatCount'),cancelChatSelection=$('#cancelChatSelection'),deleteBar=$('#chatDeleteBar'),deleteSelectedChats=$('#deleteSelectedChats'),drawerSubtitle=$('#drawerSubtitle'),onboarding=$('#onboarding'),onboardingWelcome=$('#onboardingWelcome'),onboardingModels=$('#onboardingModels'),onboardingProgress=$('#onboardingProgress'),onboardingReady=$('#onboardingReady'),onboardingStart=$('#onboardingStart'),onboardingSkip=$('#onboardingSkip'),onboardingBack=$('#onboardingBack'),onboardingImport=$('#onboardingImport'),onboardingFinish=$('#onboardingFinish'),onboardingProgressTitle=$('#onboardingProgressTitle'),onboardingProgressDetail=$('#onboardingProgressDetail'),onboardingProgressBar=$('#onboardingProgressBar'),onboardingProgressPercent=$('#onboardingProgressPercent');
-const CHATS_KEY='haruna_chats_v2',LEGACY_KEY='haruna_chat_v1',MEMORY_KEY='haruna_memories_v1',THINK_KEY='haruna_think_mode',ONBOARDING_KEY='haruna_onboarding_v1';const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}},now=()=>Date.now(),id=()=>`${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`;let memories=read(MEMORY_KEY,[]),chats=read(CHATS_KEY,[]),activeId=localStorage.getItem('haruna_active_chat'),shownError=null,generating=false,thinkMode=localStorage.getItem(THINK_KEY)==='1',currentModelName='',knowledgeType='knowledge',selectingChats=false,onboardingImporting=false,chatBusy=false,activeGeneration=null,attachmentTargetId=null;const selectedChats=new Set();const legacy=read(LEGACY_KEY,[]);if(!chats.length&&legacy.length){chats=[{id:id(),title:'Conversa anterior',createdAt:now(),updatedAt:now(),messages:legacy,pinned:false}];activeId=chats[0].id;localStorage.removeItem(LEGACY_KEY)}for(const c of chats)if(typeof c.pinned!=='boolean')c.pinned=false;
+const CHATS_KEY='haruna_chats_v2',LEGACY_KEY='haruna_chat_v1',MEMORY_KEY='haruna_memories_v1',THINK_KEY='haruna_think_mode',ONBOARDING_KEY='haruna_onboarding_v1';const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}},now=()=>Date.now(),id=()=>`${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`;let memories=read(MEMORY_KEY,[]),chats=read(CHATS_KEY,[]),activeId=localStorage.getItem('haruna_active_chat'),shownError=null,generating=false,thinkMode=localStorage.getItem(THINK_KEY)==='1',currentModelName='',knowledgeType='knowledge',selectingChats=false,onboardingImporting=false,chatBusy=false,activeGeneration=null,attachmentTargetId=null,voiceRequestId=null;const selectedChats=new Set();const legacy=read(LEGACY_KEY,[]);if(!chats.length&&legacy.length){chats=[{id:id(),title:'Conversa anterior',createdAt:now(),updatedAt:now(),messages:legacy,pinned:false}];activeId=chats[0].id;localStorage.removeItem(LEGACY_KEY)}for(const c of chats)if(typeof c.pinned!=='boolean')c.pinned=false;
 function sortChats(){chats.sort((a,b)=>(Number(b.pinned)-Number(a.pinned))||((b.updatedAt||0)-(a.updatedAt||0)))}function fresh(){const c={id:id(),title:'Nova conversa',createdAt:now(),updatedAt:now(),messages:[],pinned:false};chats.unshift(c);activeId=c.id;persist();return c}function active(){return chats.find(c=>c.id===activeId)||chats[0]||fresh()}function renderMemories(){if(memoryPageCount)memoryPageCount.textContent=`${memories.length} ${memories.length===1?'memória salva':'memórias salvas'}`;if(!memoryItems)return;memoryItems.innerHTML='';if(!memories.length){memoryItems.innerHTML='<div class="model-empty">Nenhuma memória de conversa salva ainda.</div>';return}memories.slice().reverse().forEach(m=>{const el=document.createElement('div');el.className='memory-item';el.textContent=m;memoryItems.appendChild(el)})}function persist(){sortChats();localStorage.setItem(CHATS_KEY,JSON.stringify(chats));localStorage.setItem(MEMORY_KEY,JSON.stringify(memories.slice(-200)));localStorage.setItem('haruna_active_chat',activeId||'');memoryCount.textContent=`${memories.length} ${memories.length===1?'memória salva':'memórias salvas'}`;renderList();renderMemories()}
 function renderKnowledge(){if(!knowledgeList)return;const docs=knowledge.list();knowledgeList.innerHTML='';if(!docs.length){knowledgeList.innerHTML='<div class="model-empty">Nenhum conhecimento adicionado ainda.</div>';return}docs.forEach(d=>{const row=document.createElement('div');row.className='model-row';row.innerHTML='<div class="model-info"><strong></strong><small></small></div><div class="model-actions"></div>';row.querySelector('strong').textContent=d.name;row.querySelector('small').textContent=`${d.type==='behavior'?'Conversação':'Conhecimento'} • ${d.chunks} trechos • ${d.active?'Ativo':'Pausado'}`;const a=row.querySelector('.model-actions'),toggle=document.createElement('button'),del=document.createElement('button');toggle.textContent=d.active?'Pausar':'Ativar';toggle.onclick=()=>{knowledge.toggle(d.id);renderKnowledge()};del.textContent='Excluir';del.className='danger';del.onclick=async()=>{if(confirm(`Excluir ${d.name}?`)){await knowledge.remove(d.id);renderKnowledge()}};a.append(toggle,del);knowledgeList.appendChild(row)})}
 window.addEventListener('haruna-knowledge-changed',renderKnowledge);
@@ -80,6 +80,7 @@ async function stopCurrentGeneration(){
  await pending;
 }
 async function resetChatContext(){
+ window.dispatchEvent(new CustomEvent('haruna-chat-context-changing'));
  const status=await llm.refreshStatus();
  if(status.modelLoaded)await llm.resetConversation();
 }
@@ -175,7 +176,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
  try{
   remember(text);
   const status=await llm.refreshStatus();currentModelName=status.modelName||currentModelName;
-  if(!status.modelLoaded){push('assistant',basic(text),chat);render();return}
+  if(!status.modelLoaded){push('assistant',basic(text),chat);render();return {chatId:chat.id,error:true,text:'Nenhum modelo GGUF carregado'}}
   const out=add('assistant','✦');
   const draft={role:'assistant',content:'',at:now(),interrupted:true};
   let lastSaved=0;
@@ -193,14 +194,32 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
    if(!cancelled)draft.error=true;
   }
   chat.updatedAt=now();persist();render();
+  return {chatId:chat.id,text:draft.content,error:!!draft.error,interrupted:!!draft.interrupted};
  }catch(error){
-  push('assistant',`Não consegui concluir a mensagem: ${error.message}`,chat,{error:true});render();
+  push('assistant',`Não consegui concluir a mensagem: ${error.message}`,chat,{error:true});render();return {chatId:chat.id,error:true,text:error.message};
  }
+}
+function submitMessage(fromVoice=false){
+ if(chatBusy||activeGeneration||generating)throw new Error('Aguarde a operação atual da Haruna.');
+ window.dispatchEvent(new CustomEvent('haruna-chat-submit',{detail:{fromVoice}}));
+ activeGeneration=sendMessage().finally(()=>{activeGeneration=null});return activeGeneration;
 }
 form.addEventListener('submit',e=>{
  e.preventDefault();if(chatBusy||activeGeneration||generating)return;
- activeGeneration=sendMessage().catch(error=>alert(`Não foi possível salvar a conversa: ${error.message||error}`)).finally(()=>{activeGeneration=null});
+ submitMessage().catch(error=>alert(`Não foi possível salvar a conversa: ${error.message||error}`));
 });
+// Narrow interface: voice turns reuse the exact same persistence, attachments and RAG path.
+window.harunaChatVoice={
+ state:()=>({chatId:activeId,busy:!!(chatBusy||activeGeneration||generating),draft:input.value,attachments:attachments.pending(activeId).length,modelLoaded:!!android.getStatus()?.modelLoaded}),
+ send:async(text,chatId,requestId)=>{
+  if(chatId!==activeId)throw new Error('A conversa ativa mudou.');
+  if(input.value.trim()||attachments.pending(activeId).length)throw new Error('Envie ou limpe o rascunho antes de usar a chamada.');
+  if(chatBusy||activeGeneration||generating)throw new Error('Aguarde a operação atual da Haruna.');
+  input.value=text;resize();voiceRequestId=requestId;
+  try{return await submitMessage(true)}finally{if(voiceRequestId===requestId)voiceRequestId=null}
+ },
+ cancel:async requestId=>{if(voiceRequestId===requestId&&activeGeneration){llm.stopGeneration();await activeGeneration}}
+};
 if(!chats.length)fresh();else if(!chats.some(c=>c.id===activeId))activeId=chats[0].id;persist();renderKnowledge();render();showView('chat');maybeShowOnboarding();
 // Hand off chat events only after all handlers and persisted state are ready.
 window.__HARUNA_CHAT_READY__=true;

@@ -19,7 +19,7 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
     private val closed = AtomicBoolean(false)
     private val normalizer = TtsTextNormalizer()
     private val engine: TtsEngine = SupertonicTtsEngine()
-    private val player = TtsAudioPlayer(context) { stop() }
+    private val player = TtsAudioPlayer(context) { stop("audio_focus_lost") }
     @Volatile private var state = "idle"
     @Volatile private var error: String? = null
     @Volatile private var copied = 0L
@@ -37,7 +37,7 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
         .put("voiceLabels", org.json.JSONArray((0 until models.speakers()).map { sid ->
             if (sid < 5) "F${sid + 1} • feminina (speaker $sid)" else "M${sid - 4} • masculina (speaker $sid)"
         }))
-    private fun publish(next: String, failure: String? = null) { state = next; error = failure; emit(status()) }
+    private fun publish(next: String, failure: String? = null, reason: String? = null) { state = next; error = failure; val value = status(); if (reason != null) value.put("reason", reason); emit(value) }
     fun configure(json: String) {
         val value = JSONObject(json); val count = models.speakers()
         if (value.has("speaker")) {
@@ -98,11 +98,15 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
             }
         }
     }
-    fun stop() {
-        val ticket = generation.incrementAndGet(); player.stop(); if (!installing.get()) publish("idle")
+    fun stop(reason: String? = null) {
+        val ticket = generation.incrementAndGet(); player.stop(); if (!installing.get()) publish("idle", reason = reason)
         if (!closed.get()) runCatching { worker.schedule({ if (generation.get() == ticket) engine.close() }, 30, TimeUnit.SECONDS) }
     }
     fun reportError(message: String) { publish("error", message) }
+    fun prepareForListening(ready: () -> Unit) {
+        stop()
+        worker.execute { engine.close(); if (!closed.get()) ready() }
+    }
     fun cancelInstallation() { if (installing.get()) { models.cancel(); publish("cancelling") } }
     fun install(uri: Uri?) {
         require(installing.compareAndSet(false, true)) { "Já existe uma instalação em andamento" }
