@@ -14,11 +14,11 @@ card.innerHTML=`<div class="section-title"><div><strong>Voz da Haruna</strong><s
 <label class="speech-field">Velocidade <output data-speed-label>1,0×</output><input data-speed aria-label="Velocidade da voz" type="range" min="0.7" max="1.4" step="0.05" value="1"></label>
 <label class="speech-field">Pronúncia de “Haruna”<input data-name placeholder="Original, até escolhermos uma pronúncia" maxlength="100"></label>
 <small class="settings-note">Esta substituição afeta somente a fala. Use Testar voz para comparar as vozes e a pronúncia.</small>
-<div class="model-actions speech-actions"><button data-test>▶ Testar voz</button><button data-stop hidden>⏹ Parar áudio</button><button data-import>📁 Importar modelo já baixado</button><button data-download>Baixar modelo</button><button data-cancel hidden>Cancelar instalação</button><button data-remove class="danger" hidden>Remover modelo de voz</button></div>`;
+<div class="model-actions speech-actions"><button data-test>Testar voz</button><button data-stop hidden>Parar áudio</button><button data-import>Importar modelo já baixado</button><button data-download>Baixar modelo</button><button data-cancel hidden>Cancelar instalação</button><button data-remove class="danger" hidden>Remover modelo de voz</button></div>`;
 document.querySelector('#settingsView')?.appendChild(card);
 const q=s=>card.querySelector(s),speaker=q('[data-speaker]'),speed=q('[data-speed]'),pronunciation=q('[data-name]');
 const control=document.createElement('div');control.className='speech-player';control.hidden=true;control.style.display='none';control.setAttribute('role','status');
-const label=document.createElement('span'),stop=document.createElement('button');stop.type='button';stop.textContent='⏹ Parar áudio';stop.onclick=()=>run('stop');control.append(label,stop);document.querySelector('#composer')?.before(control);
+const label=document.createElement('span'),stop=document.createElement('button');stop.type='button';stop.textContent='Parar áudio';stop.onclick=()=>run('stop');control.append(label,stop);document.querySelector('#composer')?.before(control);
 const busy=()=>['downloading','importing','extracting','cancelling'].includes(status.state);
 function refresh(){try{render(parse(native()?.getStatus()||'{}'))}catch(error){q('[data-progress]').textContent=error.message}}
 function render(next){
@@ -60,7 +60,7 @@ function openSettings(){window.dispatchEvent(new CustomEvent('haruna-open-view',
 function installDialog(){
  if(document.querySelector('.speech-install[open]'))return;
  const d=document.createElement('dialog');d.className='message-menu speech-install';d.setAttribute('aria-label','Instalação da voz local');
- d.innerHTML='<strong>Voz local não instalada</strong><p>Para a Haruna falar, é necessário instalar o modelo de voz Supertonic 3.</p><p class="settings-note">Pacote: aproximadamente 129 MB. Instalação: aproximadamente 145 MB. Reserve 650 MB livres para preparar o modelo.</p><p data-install-progress aria-live="polite"></p><button data-download>Baixar modelo</button><button data-import>📁 Importar modelo já baixado</button><button data-finish>Cancelar</button>';
+ d.innerHTML='<strong>Voz local não instalada</strong><p>Para a Haruna falar, é necessário instalar o modelo de voz Supertonic 3.</p><p class="settings-note">Pacote: aproximadamente 129 MB. Instalação: aproximadamente 145 MB. Reserve 650 MB livres para preparar o modelo.</p><p data-install-progress aria-live="polite"></p><button data-download>Baixar modelo</button><button data-import>Importar modelo já baixado</button><button data-finish>Cancelar</button>';
  const close=()=>{d.close();d.remove()};
  d.querySelector('[data-download]').onclick=()=>run('download');d.querySelector('[data-import]').onclick=()=>run('importModel');
  d.querySelector('[data-finish]').onclick=()=>{if(status.installed){close();openSettings()}else{if(busy())run('cancelInstallation');close()}};
@@ -75,3 +75,4 @@ export function hearMessage(text,id){
 window.addEventListener('haruna-tts-status',e=>render(e.detail));
 document.addEventListener('visibilitychange',()=>{if(document.hidden){run('stop')}else refresh()});
 refresh();
+

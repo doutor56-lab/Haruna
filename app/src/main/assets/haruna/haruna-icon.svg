@@ -1,1 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-label="Haruna"><defs><linearGradient id="h" x1="22" y1="18" x2="88" y2="91" gradientUnits="userSpaceOnUse"><stop stop-color="#173BE8"/><stop offset=".5" stop-color="#573BF1"/><stop offset="1" stop-color="#9A63F5"/></linearGradient><linearGradient id="r" x1="27" y1="43" x2="86" y2="69" gradientUnits="userSpaceOnUse"><stop stop-color="#563CF0"/><stop offset=".58" stop-color="#8B66F7"/><stop offset="1" stop-color="#D6BCFF"/></linearGradient></defs><rect x="2" y="2" width="104" height="104" rx="27" fill="#fff"/><path d="M27 28c0-6 4-10 10-10s10 4 10 10v22c8 2 17 1 25-3V28c0-6 4-10 10-10s10 4 10 10v52c0 6-4 10-10 10s-10-4-10-10V63c-8-3-17-2-25 2v15c0 6-4 10-10 10s-10-4-10-10V28Z" fill="url(#h)"/><path d="M27 41c9 13 22 17 36 13 11-4 20-1 29 9v14c-9-11-18-15-29-12-15 4-27 1-36-9V41Z" fill="url(#r)"/><path d="M88 16l2.2 6.2 6.2 2.2-6.2 2.2-2.2 6.2-2.2-6.2-6.2-2.2 6.2-2.2Z" fill="#6448F5"/><path d="M14 72c13 11 31 14 49 8 17-5 29-15 35-28-4 15-16 27-33 34-20 8-41 5-53-7-2-2-1-5 2-7Z" fill="none" stroke="#9C7BFF" stroke-width="2.1" stroke-linecap="round" opacity=".72"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Haruna">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#eae4ff"/></linearGradient>
+    <linearGradient id="stem" x1="0" y1="0" x2=".65" y2="1"><stop stop-color="#0019ff"/><stop offset=".55" stop-color="#3924f3"/><stop offset="1" stop-color="#7548f5"/></linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2=".5"><stop stop-color="#4032f5"/><stop offset=".6" stop-color="#8a66ff"/><stop offset="1" stop-color="#c8b2ff"/></linearGradient>
+    <linearGradient id="orbit" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#9b78ff"/><stop offset=".5" stop-color="#d7c6ff"/><stop offset="1" stop-color="#a583ff"/></linearGradient>
+  </defs>
+  <rect x="5" y="5" width="246" height="246" rx="65" fill="url(#tile)"/>
+  <rect x="5.5" y="5.5" width="245" height="245" rx="64.5" fill="none" stroke="#fff" stroke-opacity=".85"/>
+  <path d="M44 158C8 193 63 213 145 178S247 100 197 106" fill="none" stroke="url(#orbit)" stroke-width="5" opacity=".8"/>
+  <rect x="60" y="47" width="41" height="149" rx="20.5" fill="url(#stem)"/>
+  <rect x="155" y="47" width="41" height="149" rx="20.5" fill="url(#stem)"/>
+  <path d="M60 85C80 116 102 119 130 111C157 103 176 104 196 126V169C176 140 156 134 131 141C102 149 79 141 60 123Z" fill="url(#ribbon)"/>
+  <path d="M131 141C156 134 176 140 196 169V153C178 128 157 122 131 130C101 139 78 132 60 109V123C79 141 102 149 131 141Z" fill="#b3a0ff" opacity=".25"/>
+  <path d="M36 175C30 198 88 203 150 176C179 164 201 150 215 136" fill="none" stroke="url(#orbit)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M216 49C219 60 224 65 233 68C224 71 219 76 216 87C213 76 208 71 199 68C208 65 213 60 216 49Z" fill="#6945ff"/>
+</svg>

@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- A rede é usada somente para downloads solicitados pelo usuário; a inferência continua local. -->
-    <application android:allowBackup="true" android:label="Haruna" android:icon="@drawable/haruna_launcher" android:roundIcon="@drawable/haruna_launcher" android:theme="@style/Theme.Haruna" android:usesCleartextTraffic="false">
+    <application android:allowBackup="true" android:label="Haruna" android:icon="@mipmap/haruna_launcher" android:roundIcon="@mipmap/haruna_launcher" android:theme="@style/Theme.Haruna" android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="unspecified">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

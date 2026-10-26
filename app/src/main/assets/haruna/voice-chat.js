@@ -8,12 +8,12 @@ function quiet(target,method,...args){try{return invoke(target,method,...args)}c
 let status={},capture=null,localCall=null,sequence=0,resumeTimer=null;
 const id=prefix=>`${prefix}-${Date.now().toString(36)}-${++sequence}`;
 const isBusy=()=>['importing','downloading','extracting','cancelling'].includes(status.state);
-const mic=document.createElement('button');mic.type='button';mic.className='voice-input';mic.textContent='🎙️';mic.setAttribute('aria-label','Escrever por voz');composer?.insertBefore(mic,input);
-const phone=document.createElement('button');phone.type='button';phone.className='ghost';phone.textContent='📞';phone.setAttribute('aria-label','Conversa por voz local');document.querySelector('.topbar .actions')?.prepend(phone);
+const mic=document.createElement('button');mic.type='button';mic.className='voice-input';mic.textContent='';mic.setAttribute('aria-label','Escrever por voz');composer?.insertBefore(mic,input);
+const phone=document.createElement('button');phone.type='button';phone.className='ghost';phone.textContent='';phone.setAttribute('aria-label','Conversa por voz local');document.querySelector('.topbar .actions')?.prepend(phone);
 const dictation=document.createElement('div');dictation.className='speech-player dictation-control';dictation.style.display='none';dictation.hidden=true;
 const dictationLabel=document.createElement('span'),finish=document.createElement('button'),cancel=document.createElement('button');finish.type=cancel.type='button';finish.textContent='Concluir';cancel.textContent='Cancelar';dictation.append(dictationLabel,finish,cancel);composer?.before(dictation);
 const settings=document.createElement('div');settings.className='page-card recognition-settings';
-settings.innerHTML='<div class="section-title"><div><strong>Escrita e conversa por voz</strong><small>Whisper Tiny INT8 • português • reconhecimento local</small></div></div><div class="setting-row"><span>Reconhecimento</span><strong data-state>Não instalado</strong></div><p class="settings-note" data-progress aria-live="polite"></p><progress data-progress-bar max="100" hidden></progress><p class="settings-note">🎙️ preenche o rascunho para revisão. 📞 conversa por turnos e envia suas falas ao chat. O microfone pausa durante a resposta. Cada fala pode ter até 20 segundos; uma pausa encerra o trecho.</p><div class="model-actions speech-actions"><button data-download>Baixar reconhecimento</button><button data-import>📁 Importar modelo STT</button><button data-cancel hidden>Cancelar instalação</button><button data-remove class="danger" hidden>Remover reconhecimento</button></div>';
+settings.innerHTML='<div class="section-title"><div><strong>Escrita e conversa por voz</strong><small>Whisper Tiny INT8 • português • reconhecimento local</small></div></div><div class="setting-row"><span>Reconhecimento</span><strong data-state>Não instalado</strong></div><p class="settings-note" data-progress aria-live="polite"></p><progress data-progress-bar max="100" hidden></progress><p class="settings-note">O ditado preenche o rascunho para revisão. A chamada conversa por turnos e envia suas falas ao chat. O microfone pausa durante a resposta. Cada fala pode ter até 20 segundos; uma pausa encerra o trecho.</p><div class="model-actions speech-actions"><button data-download>Baixar reconhecimento</button><button data-import>Importar modelo STT</button><button data-cancel hidden>Cancelar instalação</button><button data-remove class="danger" hidden>Remover reconhecimento</button></div>';
 document.querySelector('#settingsView')?.appendChild(settings);
 const q=s=>settings.querySelector(s);
 function current(){const s=chat()?.state();if(!s)throw new Error('O chat ainda está iniciando.');return s}
@@ -34,7 +34,7 @@ function settingsView(){window.dispatchEvent(new CustomEvent('haruna-open-view',
 function installDialog(){
  if(document.querySelector('.recognition-install[open]'))return;
  const d=document.createElement('dialog');d.className='message-menu recognition-install';d.setAttribute('aria-label','Instalação do reconhecimento local');
- d.innerHTML='<strong>Reconhecimento local não instalado</strong><p>Instale o Whisper Tiny multilíngue para transformar sua fala em texto, sem enviar áudio para servidores.</p><p class="settings-note">Pacote de 116,2 MB. Somente os componentes INT8 serão guardados. Reserve 450 MB livres.</p><p data-progress aria-live="polite"></p><button data-download>Baixar modelo oficial</button><button data-import>📁 Importar sherpa-onnx-whisper-tiny.tar.bz2</button><button data-close>Fechar</button>';
+ d.innerHTML='<strong>Reconhecimento local não instalado</strong><p>Instale o Whisper Tiny multilíngue para transformar sua fala em texto, sem enviar áudio para servidores.</p><p class="settings-note">Pacote de 116,2 MB. Somente os componentes INT8 serão guardados. Reserve 450 MB livres.</p><p data-progress aria-live="polite"></p><button data-download>Baixar modelo oficial</button><button data-import>Importar sherpa-onnx-whisper-tiny.tar.bz2</button><button data-close>Fechar</button>';
  const close=()=>{if(isBusy())quiet(native(),'cancelInstallation');d.close();d.remove()};
  d.querySelector('[data-download]').onclick=()=>{try{command('download')}catch(e){alert(e.message)}};d.querySelector('[data-import]').onclick=()=>{try{command('importModel')}catch(e){alert(e.message)}};
  d.querySelector('[data-close]').onclick=close;d.addEventListener('cancel',e=>{e.preventDefault();close()});document.body.appendChild(d);d.showModal();refresh();
@@ -142,3 +142,4 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)endVoice();
 window.addEventListener('pagehide',endVoice);
 document.addEventListener('click',e=>{const button=e.target.closest('button');if(button?.classList.contains('nav-item')&&button.dataset.view!=='chat')endVoice();if(button?.id==='attach')endVoice()},true);
 refresh();
+
