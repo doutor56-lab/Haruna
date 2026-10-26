@@ -44,3 +44,35 @@ dependencies {
     implementation(libs.androidx.webkit)
     implementation(project(":llamaLib"))
 }
+
+// Official Android AAR, pinned to a release and its published SHA-256.
+// The model itself is installed by the user, never bundled or fetched at runtime by this task.
+val sherpaAar = layout.buildDirectory.file("speech-dependencies/sherpa-onnx-2.0.0.aar")
+val fetchSherpaAar by tasks.registering {
+    val expected = "f0f8716982d27cb4ce695e3934018b1342d9d3d6fdb6ef1f1658fe8bad50b4fc"
+    inputs.property("sha256", expected)
+    outputs.file(sherpaAar)
+    doLast {
+        fun digest(file: java.io.File): String {
+            val hash = java.security.MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input -> val buffer = ByteArray(131072); while (true) { val n = input.read(buffer); if (n < 0) break; hash.update(buffer, 0, n) } }
+            return hash.digest().joinToString("") { "%02x".format(it) }
+        }
+        val target = sherpaAar.get().asFile
+        if (!target.isFile || digest(target) != expected) {
+            target.parentFile.mkdirs()
+            val part = java.io.File(target.parentFile, target.name + ".part")
+            try {
+                val connection = java.net.URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.0/sherpa-onnx-2.0.0.aar").toURL().openConnection()
+                connection.connectTimeout = 30000; connection.readTimeout = 60000
+                connection.getInputStream().use { input -> part.outputStream().use { input.copyTo(it) } }
+                check(digest(part) == expected) { "Official sherpa-onnx AAR checksum mismatch" }
+                java.nio.file.Files.move(part.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } finally { part.delete() }
+        }
+    }
+}
+dependencies {
+    implementation(files(sherpaAar).builtBy(fetchSherpaAar))
+    implementation("org.apache.commons:commons-compress:1.27.1")
+}

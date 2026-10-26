@@ -16,6 +16,7 @@ import java.net.URL
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
+    private lateinit var speech: com.proxyslabs.haruna.speech.SpeechBridge
     private lateinit var chromeClient: HarunaWebChromeClient
     private lateinit var backend: LlmBackend
     private lateinit var bridge: HarunaAndroidBridge
@@ -47,6 +48,18 @@ class MainActivity : AppCompatActivity() {
         Thread { bridge.notifyAttachmentResult(runCatching { library.importAttachment(uri) }) }.start()
     }
 
+    private var voicePickerOpen = false
+    private val voicePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        voicePickerOpen = false
+        if (uri != null) speech.importModel(uri) else speech.selectionCancelled()
+    }
+    fun pickVoiceModel() {
+        if (voicePickerOpen) return
+        voicePickerOpen = true
+        try { voicePicker.launch(arrayOf("application/x-bzip2", "application/octet-stream", "*/*")) }
+        catch (failure: Exception) { voicePickerOpen = false; speech.selectionFailed(failure.message ?: "Não foi possível abrir o seletor de voz") }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         library = LocalLibrary(applicationContext)
@@ -73,6 +86,8 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = request.url.host != "appassets.androidplatform.net"
         }
         webView.addJavascriptInterface(bridge, "HarunaAndroid")
+        speech = com.proxyslabs.haruna.speech.SpeechBridge(this, webView)
+        webView.addJavascriptInterface(speech, "HarunaSpeech")
         webView.loadUrl("https://appassets.androidplatform.net/assets/haruna/index.html")
     }
 
@@ -148,5 +163,9 @@ class MainActivity : AppCompatActivity() {
             bridge.notifyModelLoadResult(result, file.name)
         }
     }
-    override fun onDestroy() { chromeClient.dispose(); modelExecutor.shutdown(); webView.removeJavascriptInterface("HarunaAndroid"); webView.stopLoading(); webView.destroy(); super.onDestroy() }
+    override fun onStop() {
+        if (::speech.isInitialized) { speech.stop(); speech.cancelInstallation() }
+        super.onStop()
+    }
+    override fun onDestroy() { speech.close(); webView.removeJavascriptInterface("HarunaSpeech"); chromeClient.dispose(); modelExecutor.shutdown(); webView.removeJavascriptInterface("HarunaAndroid"); webView.stopLoading(); webView.destroy(); super.onDestroy() }
 }

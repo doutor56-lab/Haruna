@@ -30,6 +30,7 @@ function openMessageMenu(chat,message,bubble){
  const heading=document.createElement('strong');heading.textContent='Mensagem';dialog.appendChild(heading);
  const close=()=>{dialog.close();dialog.remove();bubble.focus()};
  const action=(label,handler,danger=false)=>{const b=document.createElement('button');b.type='button';b.textContent=label;if(danger)b.className='danger';b.onclick=async()=>{close();try{await handler(b)}catch(error){alert(error.message||String(error))}};dialog.appendChild(b)};
+ if(message.role==='assistant'&&!message.error)action('🔊 Ouvir',async()=>{const speech=await import('./speech-ui.js');speech.hearMessage(message.content||'',`${chat.id}:${message.at}`)});
  action('Copiar texto',async()=>{const text=message.content||'';try{await navigator.clipboard.writeText(text)}catch{const field=document.createElement('textarea');field.value=text;document.body.appendChild(field);field.select();const copied=document.execCommand('copy');field.remove();if(!copied)alert('Não foi possível copiar o texto.')}});
  action('Responder citando',()=>{input.value=`> ${(message.content||'').slice(0,600).replace(/\n/g,'\n> ')}\n\n${input.value}`;resize();input.focus()});
  action('Salvar no Segundo Cérebro',b=>saveKnowledge(chat,[message],b));
