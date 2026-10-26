@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [main, recovery/haruna-82d3c47]
+    branches: [build/apk-9c605395-20261026]
   pull_request:
   workflow_dispatch:
 
@@ -20,6 +20,7 @@ jobs:
       - name: Checkout Haruna and llama.cpp
         uses: actions/checkout@v6
         with:
+          ref: 9c60539513ed8e037bfb154924fe2ea59811ad07
           submodules: recursive
           fetch-depth: 1
 
@@ -101,6 +102,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: haruna-debug-apk
+          name: haruna-9c605395-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
