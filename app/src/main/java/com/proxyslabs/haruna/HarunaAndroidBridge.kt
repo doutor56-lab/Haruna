@@ -8,6 +8,7 @@ import java.util.concurrent.Executors
 class HarunaAndroidBridge(private val activity:MainActivity,private val webView:WebView,private val backend:LlmBackend){
  private val executor=Executors.newSingleThreadExecutor()
  @JavascriptInterface fun isAvailable()=backend.status().available
+ @JavascriptInterface fun getAssistantIdentity():String=HarunaIdentity.NAME
  @JavascriptInterface fun getStatus()=statusJson().toString()
  @JavascriptInterface fun loadModel(modelJson:String):String{activity.runOnUiThread{activity.pickModel()};return JSONObject().put("status","selecting").put("pendingSelection",true).toString()}
  @JavascriptInterface fun downloadModel(modelJson:String):String{return runCatching{val m=JSONObject(modelJson);val url=m.getString("url");val name=m.getString("fileName");activity.downloadRecommendedModel(url,name);JSONObject().put("status","downloading").put("name",name).toString()}.getOrElse{JSONObject().put("status","error").put("error",it.message).toString()}}
@@ -54,4 +55,5 @@ class HarunaAndroidBridge(private val activity:MainActivity,private val webView:
  private fun emitError(id:String,code:String,message:String)=emit(JSONObject().put("requestId",id).put("type","error").put("error",JSONObject().put("code",code).put("message",message)))
  private fun emit(event:JSONObject){webView.post{webView.evaluateJavascript("window.harunaAndroidOnEvent(${JSONObject.quote(event.toString())})",null)}}
 }
+
 

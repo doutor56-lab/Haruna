@@ -1,3 +1,4 @@
+import {directIdentityReply} from './identity/direct-replies.js';
 import * as firstContact from './essential/first-contact.js';import {withEssentialContext} from './essential/store.js';
 import llm from './llm-engine.js';import {refreshModels} from './model-library.js';import knowledge from './knowledge-store.js';import attachments from './attachment-store.js';import android from './android-bridge.js';
 const $=s=>document.querySelector(s),messagesEl=$('#messages'),input=$('#input'),form=$('#composer'),brain=$('#brain'),modelName=$('#modelName'),stopBtn=$('#stop'),sendBtn=$('#send'),newChatBtn=$('#newChat'),thinkBtn=$('#think'),reasoningMode=$('#reasoningMode'),toast=$('#memoryToast'),drawer=$('#drawer'),scrim=$('#scrim'),menu=$('#menu'),closeMenu=$('#closeMenu'),drawerNew=$('#drawerNew'),chatList=$('#chatList'),chatSearch=$('#chatSearch'),memoryCount=$('#memoryCount'),memoryPageCount=$('#memoryPageCount'),memoryItems=$('#memoryItems'),feedAi=$('#feedAi'),knowledgeFile=$('#knowledgeFile'),knowledgeList=$('#knowledgeList'),kp=$('#knowledgeProgress'),kpTitle=$('#knowledgeProgressTitle'),kpPct=$('#knowledgeProgressPercent'),kpBar=$('#knowledgeProgressBar'),kpDetail=$('#knowledgeProgressDetail'),attachmentTray=$('#attachmentTray'),selectChats=$('#selectChats'),selectionBar=$('#chatSelectionBar'),selectAllChats=$('#selectAllChats'),selectedChatCount=$('#selectedChatCount'),cancelChatSelection=$('#cancelChatSelection'),deleteBar=$('#chatDeleteBar'),deleteSelectedChats=$('#deleteSelectedChats'),drawerSubtitle=$('#drawerSubtitle'),onboarding=$('#onboarding'),onboardingWelcome=$('#onboardingWelcome'),onboardingModels=$('#onboardingModels'),onboardingProgress=$('#onboardingProgress'),onboardingReady=$('#onboardingReady'),onboardingStart=$('#onboardingStart'),onboardingSkip=$('#onboardingSkip'),onboardingBack=$('#onboardingBack'),onboardingImport=$('#onboardingImport'),onboardingFinish=$('#onboardingFinish'),onboardingProgressTitle=$('#onboardingProgressTitle'),onboardingProgressDetail=$('#onboardingProgressDetail'),onboardingProgressBar=$('#onboardingProgressBar'),onboardingProgressPercent=$('#onboardingProgressPercent');
@@ -192,9 +193,11 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
  try{
   remember(text);
   const contact=firstContact.handleUser(text,{chatId:chat.id,lastMessage:chat.messages[previousLength-1],hasAttachments:files.length>0});
-  if(contact.reply){
-   push('assistant',contact.reply,chat,{essentialIntro:contact.kind||'local'});render();
-   return {chatId:chat.id,text:contact.reply,error:false};
+  const identityReply=directIdentityReply(text,{hasAttachments:files.length>0});
+  const localReply=identityReply||contact.reply;
+  if(localReply){
+   push('assistant',localReply,chat,{essentialIntro:identityReply?'identity':contact.kind||'local'});render();
+   return {chatId:chat.id,text:localReply,error:false};
   }
   const status=await llm.refreshStatus();currentModelName=status.modelName||currentModelName;
   if(!status.modelLoaded){push('assistant',basic(text),chat);render();return {chatId:chat.id,error:true,text:'Nenhum modelo GGUF carregado'}}
@@ -247,6 +250,7 @@ window.__HARUNA_CHAT_READY__=true;
 essentialReady=true;render();
 // Observe only the existing overlay's visibility; do not alter its flow or appearance.
 if(onboarding){const introObserver=new MutationObserver(()=>{if(onboarding.hidden)render()});introObserver.observe(onboarding,{attributes:true,attributeFilter:['hidden']})}
+
 
 
 

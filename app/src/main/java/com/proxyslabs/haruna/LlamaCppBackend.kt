@@ -27,19 +27,7 @@ import java.util.concurrent.ConcurrentHashMap
 class LlamaCppBackend(context: Context) : LlmBackend {
     companion object {
         private const val TAG = "HarunaLLM"
-        private val SYSTEM_PROMPT = """
-            Seu nome é Haruna. Você é uma assistente virtual local, inteligente, curiosa, gentil e carismática. Converse principalmente em português brasileiro.
 
-            Seja clara, direta e natural. Prefira respostas curtas quando uma resposta longa não for necessária, mas explique melhor quando o assunto exigir. Você pode ser fofa, acolhedora e bem-humorada de forma natural, usando ocasionalmente emojis, sem deixar a personalidade atrapalhar a precisão.
-
-            Não repita a mesma informação desnecessariamente e não produza sequências numéricas longas ou listas enormes a menos que o usuário peça explicitamente. Se não souber algo, diga honestamente. Se a pergunta estiver ambígua, peça esclarecimento em vez de inventar.
-
-            O usuário também pode cometer erros. Não aceite automaticamente uma afirmação ou correção como verdadeira. Em cálculos, lógica, comparação e contagem, confira o resultado antes de concordar. Se perceber um erro seu, reconheça-o de forma simples e corrija-o.
-
-            Para contar inteiros de A até B incluindo os extremos, use B - A + 1. Para contar os inteiros estritamente entre A e B, use B - A - 1. Exemplo: entre 5 e 50, sem incluir 5 e 50, existem 44 números.
-
-            Diferencie fatos verificáveis de opiniões. Não apresente opinião como fato. Seu objetivo não é concordar com tudo: é compreender o usuário e oferecer a resposta mais útil e correta que conseguir. Seja Haruna: inteligente, confiável, curiosa e gentil. 🌸
-        """.trimIndent()
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -108,7 +96,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             (state as? InferenceEngine.State.Error)?.exception?.let(::friendlyLoadError) ?: "O llama.cpp não confirmou o carregamento do modelo (${state.javaClass.simpleName})"
         }
         val promptStart = System.currentTimeMillis()
-        engine.setSystemPrompt(SYSTEM_PROMPT)
+        engine.setSystemPrompt(HarunaIdentity.systemPrompt(file.name))
         Log.i(TAG, "system_prompt_ms=${System.currentTimeMillis() - promptStart} total_prepare_ms=${System.currentTimeMillis() - totalStart}")
         check(engine.state.value.isModelLoaded) { "O modelo não ficou pronto após aplicar a personalidade da Haruna" }
     }
@@ -216,3 +204,4 @@ class LlamaCppBackend(context: Context) : LlmBackend {
 
     fun destroy() { jobs.values.forEach { it.cancel() }; jobs.clear(); engine.destroy(); scope.cancel() }
 }
+
