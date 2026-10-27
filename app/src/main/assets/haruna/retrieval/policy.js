@@ -12,9 +12,10 @@ export function routeMessage(text,context={},catalogProvider=()=>({knowledge:0,b
  const doc=/\b(?:arquivo|documento|apostila|manual|contrato|txt|fonte|base de conhecimento)\b/.test(q)&&/\b(?:consulte|pesquise|busque|conforme|segundo|baseado|no|na|nesse|neste|desse|deste|resuma|resumir|o que diz|qual|compare|procure|encontre)\b/.test(q);
  const explicit=brain||doc;
  const attachment=!!context.hasAttachments&&/\b(?:anexo|anexado|arquivo enviado|arquivo que enviei|esse arquivo|este arquivo|desse arquivo|neste arquivo)\b/.test(q);
- if(attachment&&!brain)return skip('attachment_priority');
+ if((attachment||context.newAttachmentFocus===true)&&!brain)return skip('attachment_priority');
  if(!explicit){
-  if(/\b(?:meu nome|me chamar|me chama|me chamo|me chame|meu apelido|meu idioma|minha preferencia|minhas preferencias|meu estilo|como (?:eu )?(?:prefiro|gosto))\b/.test(q))return skip('essential_priority');
+  const personal=/^(?:(?:qual(?: e| seria)? (?:o )?meu (?:nome|apelido|idioma|estilo)(?: (?:preferido|principal|mesmo))?)|(?:quais (?:sao )?(?:as )?minhas preferencias)|(?:como (?:eu )?me chamo)|(?:como (?:voce|vc) (?:deve|vai|costuma) me chamar)|(?:como (?:eu )?(?:prefiro|gosto) (?:que voce (?:responda|fale|explique)|(?:das|de) respostas))|(?:(?:voce|vc) (?:lembra|sabe) (?:qual e |o )?(?:o )?meu nome))$/.test(trimmed);
+  if(personal)return skip('essential_priority');
   if(/^(?:oi+|ola|opa|bom dia|boa tarde|boa noite|e ai|obrigad[oa]|valeu|ok|okay|certo|entendi|beleza|sim|nao|tchau|ate mais|boa|legal)(?:[ ,]+(?:tudo bem|tudo certo|como vai|obrigad[oa]|kk+|haha|sim|entendi))*$/.test(trimmed))return skip('social');
   if(/^(?:e voce|e vc|e com voce|e contigo|qual (?:e )?(?:seu|o seu) nome|tudo certo|tudo bom|quem e voce|posso te perguntar algo|voce consegue me ajudar|voce pode conversar comigo|voce (?:ta|esta) ai|tem alguem ai|alguem ai|voce me ouve|me escuta|voce sabe programar|tudo bem|como (?:voce|vc) (?:esta|ta|vai)|quem (?:e|eh) voce|quem e a haruna|o que voce faz|conte (?:uma )?piada|estou (?:bem|triste|feliz|cansad[oa])|to (?:bem|triste|feliz|cansad[oa]))$/.test(trimmed))return skip('social');
   if((/[+*/^%=-]/.test(trimmed)||/^(?:quanto e|calcule|calcula)/.test(trimmed))&&/^(?:(?:quanto e|calcule|calcula)\s*)?[\d\s.,+*/()^%=\-]+$/.test(trimmed)&&/\d/.test(trimmed))return skip('simple_math');
@@ -35,7 +36,7 @@ export function routeMessage(text,context={},catalogProvider=()=>({knowledge:0,b
  if(communication&&catalog.behavior)return {consult:true,explicit:false,reason:'communication',mode:'behavior'};
  if(!catalog.knowledge)return skip('no_knowledge');
  const words=terms(q),titleMatch=words.some(w=>catalog.titleTerms.has(w));
- const factual=/^(?:qual|quais|como|o que|oque|por que|porque|quando|onde|explique|defina|descreva|compare|me explique|me fale sobre|fale sobre|calcule|implemente|crie (?:uma )?funcao|escreva (?:um )?codigo|procure|encontre|what|how|why|when|where|which|explain|define|describe|cual|cuando|donde|explica)\b/.test(q)||q.includes('?');
+ const factual=/^(?:qual|quais|como|o que|oque|por que|porque|quando|onde|explique|defina|descreva|compare|me explique|me fale sobre|fale sobre|calcule|implemente|crie (?:uma )?funcao|escreva (?:um )?codigo|procure|encontre|what|how|why|when|where|which|explain|define|describe|cual|cuando|donde|explica)\b/.test(q)||q.includes('?')||/(?:^|[.!;]\s+)(?:explique|defina|descreva|compare|implemente|crie (?:uma )?funcao|escreva (?:um )?codigo)\b/.test(q);
  if(titleMatch||factual)return {consult:true,explicit:false,reason:titleMatch?'catalog_match':'factual_question',mode:'knowledge'};
  return skip('no_signal');
 }

@@ -140,7 +140,8 @@ function remember(text){const m=text.match(/(?:lembre(?:-se)?(?: de)? que|guarde
   recentMessages:active().messages.slice(0,-1).slice(-8),
   essentialChars:withEssentialContext('').length,
   localContextChars:parts.join('\n\n').length,
-  hasAttachments:attachments.list(activeId).length>0||newFiles.length>0
+  hasAttachments:attachments.list(activeId).length>0||newFiles.length>0,
+  newAttachmentFocus:newFiles.length>0
  });
  const prompt=parts.length?`[Contexto local adicional:\n${parts.join('\n\n')}\n]\n\n${base}`:base;
  return /qwen3/i.test(currentModelName)?`${prompt}\n\n${thinkMode?'/think':'/no_think'}`:prompt;
