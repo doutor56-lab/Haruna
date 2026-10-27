@@ -2,6 +2,7 @@ import {KEY,MAX_ITEMS,MAX_CHARS,TYPES,STATES,fold,clip,clone,normalize} from './
 import {candidate} from './capture.js';
 import {sensitive} from './privacy.js';
 import {eligible,exportApproved} from './dataset.js';
+import {behaviorProfile,SCENARIOS} from './behavior-profile.js';
 
 let state={version:1,items:[]},available=true,lastError='';
 function load(){try{const raw=localStorage.getItem(KEY);state=raw?normalize(JSON.parse(raw)):{version:1,items:[]};available=true;lastError=''}catch{state={version:1,items:[]};available=false;lastError='Armazenamento indisponível ou formato incompatível; dados originais preservados.'}}
@@ -41,12 +42,14 @@ export function edit(id,patch){return save(items=>{
  // Manual revision confirms the text, never its universal truth or automatic training approval.
  e.provenance={...e.provenance,reviewed:true};
 })}
-export function curate(id,action,{explicitApproval=false,replacesId=null}={}){return save(items=>{
+export function curate(id,action,{explicitApproval=false,replacesId=null,behaviorReviewed=false,scenario=''}={}){return save(items=>{
  const e=items.find(x=>x.id===id);if(!e)throw new Error('Experiência não encontrada.');
  if(action==='delete'){items.splice(items.indexOf(e),1);return}
  if(action==='approve'){
   if(!explicitApproval||!eligible(e))throw new Error('Revise entrada e resposta desejada, removendo dados pessoais. Só exemplos comportamentais podem ser aprovados.');
-  e.status='approved';e.approvedForTraining=true;e.rejectedForTraining=false;e.approval={by:'user',at:new Date().toISOString(),revision:e.revision};
+  const profile=behaviorProfile();
+  if(!profile||!behaviorReviewed||!Object.hasOwn(SCENARIOS,scenario))throw new Error('Escolha o contexto e confirme a revisão do perfil comportamental antes de aprovar.');
+  e.status='approved';e.approvedForTraining=true;e.rejectedForTraining=false;e.approval={by:'user',at:new Date().toISOString(),revision:e.revision,behaviorProfile:profile.id,behaviorReviewed:true,scenario};
  }else if(action==='reject'){revoke(e);e.status='rejected';e.rejectedForTraining=true;e.useForContext=false}
  else if(action==='candidate'){revoke(e);e.status='training_candidate'}
  else if(action==='keep'){

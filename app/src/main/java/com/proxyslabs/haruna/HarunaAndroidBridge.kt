@@ -9,6 +9,7 @@ class HarunaAndroidBridge(private val activity:MainActivity,private val webView:
  private val executor=Executors.newSingleThreadExecutor()
  @JavascriptInterface fun isAvailable()=backend.status().available
  @JavascriptInterface fun getAssistantIdentity():String=HarunaIdentity.NAME
+ @JavascriptInterface fun getBehaviorProfile():String=HarunaBehaviorProfile.metadata().toString()
  @JavascriptInterface fun getStatus()=statusJson().toString()
  @JavascriptInterface fun loadModel(modelJson:String):String{activity.runOnUiThread{activity.pickModel()};return JSONObject().put("status","selecting").put("pendingSelection",true).toString()}
  @JavascriptInterface fun downloadModel(modelJson:String):String{return runCatching{val m=JSONObject(modelJson);val url=m.getString("url");val name=m.getString("fileName");activity.downloadRecommendedModel(url,name);JSONObject().put("status","downloading").put("name",name).toString()}.getOrElse{JSONObject().put("status","error").put("error",it.message).toString()}}

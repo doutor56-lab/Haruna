@@ -1,5 +1,6 @@
 import {list,summary,edit,curate,dataset} from './store.js';
 import {TYPES,STATES,SOURCES} from './schema.js';
+import {behaviorProfile,SCENARIOS} from './behavior-profile.js';
 
 const page=document.querySelector('#memoryView'),card=document.createElement('section');card.className='page-card learned-card';
 card.innerHTML='<div class="section-title"><div><strong>Memória Aprendida e curadoria</strong><small>Experiências são candidatas, não verdades nem aprovação para treinamento.</small></div></div><p class="settings-note" data-count></p><div class="model-actions learning-actions"><button type="button" data-review>Revisar experiências</button><button type="button" data-export>Copiar aprovadas (JSON)</button></div><div data-review-area hidden><label class="settings-note">Estado <select data-filter></select></label><div data-items class="model-list"></div><div class="model-actions learning-actions"><button type="button" data-prev>Anterior</button><span class="settings-note" data-page></span><button type="button" data-next>Próxima</button></div></div><p class="settings-note" data-result role="status"></p>';
@@ -34,6 +35,9 @@ function editor(id){
  const note=document.createElement('p');note.className='settings-note';note.textContent=`${SOURCES[e.source]}. Importância ${e.importance==='high'?'alta':'média'} e confiança ${e.confidence==='high'?'alta':'média'} são heurísticas de origem/utilidade, não comprovação de verdade. ${e.occurrences||1} ocorrência(s).`;form.appendChild(note);
  if(e.context.input||e.context.badOutput){const context=document.createElement('details'),label=document.createElement('summary'),body=document.createElement('p');label.textContent='Contexto de origem';body.className='settings-note';body.textContent=`Entrada: ${e.context.input}\nResposta anterior (não validada): ${e.context.badOutput}`;context.append(label,body);form.appendChild(context)}
  const input=textArea('Exemplo revisado · entrada do usuário',e.example.input||e.context.input,800),output=textArea('Exemplo revisado · resposta desejada',e.example.output,800);
+ const profile=behaviorProfile(),scenario=field('Contexto do exemplo (para treinamento)',document.createElement('select'));scenario.add(new Option('Escolha o contexto',''));for(const [key,label]of Object.entries(SCENARIOS))scenario.add(new Option(label,key));scenario.value=e.approval?.scenario||'';
+ const reviewNote=document.createElement('p');reviewNote.className='settings-note';reviewNote.textContent=profile?`${profile.id}: ${profile.reviewNote}${e.approvedForTraining&&!e.approval?.behaviorProfile?' Aprovação anterior sem perfil: revise novamente antes de exportar.':''}`:'Perfil comportamental indisponível. A conversa e a revisão continuam; aprovação para treinamento aguarda a versão nativa compatível.';form.appendChild(reviewNote);
+ const behaviorReviewed=document.createElement('input');behaviorReviewed.type='checkbox';field('Revisei o exemplo conforme o perfil comportamental',behaviorReviewed);
  const replacement=field('Substituir experiência anterior (opcional)',document.createElement('select'));replacement.add(new Option('Nenhuma',''));for(const old of list().filter(x=>x.id!==e.id&&x.status!=='superseded'))replacement.add(new Option(old.summary.slice(0,80),old.id));
  const info=document.createElement('p');info.className='settings-note';info.textContent='Manter habilita uso de referência no escopo escolhido. Treinamento exige entrada e resposta desejada revisadas, sem dados pessoais. Fatos e contexto de projeto permanecem fora deste dataset.';
  const error=document.createElement('p');error.className='settings-note';error.setAttribute('role','status');form.append(info,error);
@@ -48,7 +52,7 @@ function editor(id){
  for(const [label,key]of [['Manter para contexto','keep'],['Candidato a treinamento','candidate'],['Aprovar para treinamento','approve'],['Descartar','reject']])action(label,()=>{
   if(key==='approve'&&!confirm('Aprovar explicitamente este exemplo para futuro treinamento? Confirme que revisou a entrada e a resposta desejada e removeu dados pessoais/sensíveis. Nenhum modelo será treinado agora.'))return;
   const saved=saveFields();if(!saved.ok){error.textContent=saved.error;return}
-  const result=curate(id,key,{explicitApproval:key==='approve',replacesId:replacement.value||null});if(result.ok)close();else error.textContent=result.error;
+  const result=curate(id,key,{explicitApproval:key==='approve',replacesId:replacement.value||null,behaviorReviewed:behaviorReviewed.checked,scenario:scenario.value});if(result.ok)close();else error.textContent=result.error;
  },key==='reject');
  action('Excluir experiência',()=>{if(!confirm('Excluir somente esta experiência? O histórico, a Memória Essencial e o Segundo Cérebro serão preservados.'))return;const result=curate(id,'delete');if(result.ok)close();else error.textContent=result.error},true);
  action('Fechar',close);form.onsubmit=event=>event.preventDefault();d.addEventListener('cancel',event=>{event.preventDefault();close()});d.append(heading,form);document.body.appendChild(d);d.showModal();
