@@ -20,7 +20,7 @@ jobs:
       - name: Checkout Haruna and llama.cpp
         uses: actions/checkout@v6
         with:
-          ref: 30575890d5df1c3b07408335c3d8a82ccefe07c8
+          ref: cd5ba79aab42de6ec50dcf73d76d85da57d27273
           submodules: recursive
           fetch-depth: 1
 
@@ -110,6 +110,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: haruna-3057589-essential-rag-apk
+          name: haruna-cd5ba79-essential-rag-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
