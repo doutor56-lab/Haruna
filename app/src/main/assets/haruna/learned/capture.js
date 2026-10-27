@@ -11,7 +11,7 @@ export function candidate(text,{chatId,recentMessages=[],fromVoice=false,hasAtta
  const essential=inspectUser(text);if(essential.forget||essential.declined||Object.keys(essential.updates).length)return null;
  if(sensitive(text)||(!/\bsempre\b/.test(value)&&/\b(?:hoje|agora|neste momento|estou com sono|estou almocando|esperando o onibus)\b/.test(value)))return null;
  let type=null,topicKey='';
- if(/^(?:nao[, ]+|voce errou|o correto e|corrigindo\b)/.test(value))type='correction';
+ if(/^(?:nao[, ]+(?:e|era|sao|foi|o correto|o valor)\b|voce errou\b|o correto e\b|corrigindo\b)/.test(value))type='correction';
  else if(/^(?:eu )?prefiro\b/.test(value))type='preference';
  else if(/^(?:quando .{3,100},? (?:use|faca)|da proxima vez|nao quero que voce|quando eu .{3,100},? nao)/.test(value))type='behavior';
  else if(/^(?:decidi que|decidimos que|para (?:este|esse|o) projeto.{0,80},? (?:vamos usar|usaremos|vamos seguir))/.test(value))type='decision';
@@ -24,7 +24,8 @@ export function candidate(text,{chatId,recentMessages=[],fromVoice=false,hasAtta
  const previousUser=[...recent].reverse().find(m=>m.role==='user');
  const needsContext=type==='correction'||/\b(?:assim|desse jeito|isso|disso)\b/.test(value);
  if(needsContext&&(!previousAssistant||!previousUser))return null;
- const project=value.match(/\bprojeto ([a-z0-9_-]{3,40})(?:\b|$)/)?.[1];
+ const projectWord=value.match(/\bprojeto ([a-z0-9_-]{3,40})(?:\b|$)/)?.[1];
+ const project=projectWord&&!['vai','vamos','sera','deve','tem','usa','usar','utiliza','esta','ter','foi','seguira'].includes(projectWord)?projectWord:null;
  const scope=project?{kind:'project',label:project}:{kind:'chat',chatId};
  const rule=value.match(/^(quando .{3,100}?)[, ]+(?:use sempre|faca sempre|nao)/);
  if(rule)topicKey=rule[1];
