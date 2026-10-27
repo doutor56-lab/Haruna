@@ -1,3 +1,4 @@
+import {observe as observeExperience} from './learned/store.js';import {learnedContext} from './learned/context.js';
 import {directIdentityReply} from './identity/direct-replies.js';
 import * as firstContact from './essential/first-contact.js';import {withEssentialContext} from './essential/store.js';
 import llm from './llm-engine.js';import {refreshModels} from './model-library.js';import knowledge from './knowledge-store.js';import attachments from './attachment-store.js';import android from './android-bridge.js';
@@ -131,6 +132,7 @@ function remember(text){const m=text.match(/(?:lembre(?:-se)?(?: de)? que|guarde
  // Use the same retrieval function as the proven recovery TXT/RAG path.
  // Preserve essential memory, this chat and attachments before allocating optional retrieval context.
  const parts=[];
+ const learned=learnedContext(text,{chatId:activeId,hasAttachments:attachments.list(activeId).length>0||newFiles.length>0});if(learned)parts.push(learned);
  if(memories.length)parts.push(`Memórias persistentes autorizadas pelo usuário (use somente se relevantes):\n${memories.slice(-40).map(x=>'• '+x).join('\n')}`);
  await restoreChatFiles(active());
  const matches=attachments.search(activeId,text,5);
@@ -193,6 +195,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
  try{
   if(!fromVoice)remember(text);
   const contact=fromVoice?{}:firstContact.handleUser(text,{chatId:chat.id,lastMessage:chat.messages[previousLength-1],hasAttachments:files.length>0});
+  if(!fromVoice)observeExperience(text,{chatId:chat.id,recentMessages:chat.messages.slice(0,previousLength).slice(-8),hasAttachments:files.length>0,legacyMemories:memories});
   const identityReply=directIdentityReply(text,{hasAttachments:files.length>0});
   const localReply=identityReply||contact.reply;
   if(localReply){

@@ -72,6 +72,9 @@ export function diagnosticCards(native={},knowledge={}){
   ],'Sem atribuição confiável de RAM por subsistema neste runtime. Nenhuma estimativa numérica é apresentada. Memória nativa inclui bibliotecas e alocações compartilhadas; tamanho dos pesos em disco não é consumo de RAM.'),
   section('device','Dispositivo e sessão',[
    row('Memória Essencial · acesso direto',knowledge.essential?.available===true?'Ativa':unavailable),row('Memória Essencial · campos definidos',number(knowledge.essential?.fields)),
+   row('Memória Aprendida · experiências',number(knowledge.learned?.stored)),row('Memória Aprendida · em avaliação',number(knowledge.learned?.observed)),
+   row('Memória Aprendida · candidatas',number(knowledge.learned?.training_candidate)),row('Memória Aprendida · aprovadas',number(knowledge.learned?.approved)),
+   row('Memória Aprendida · rejeitadas',number(knowledge.learned?.rejected)),row('Memória Aprendida · substituídas',number(knowledge.learned?.superseded)),
    row('App · versão / build',device.app?.version?`${clean(device.app.version)} / ${number(device.app.build)}`:unavailable),
    row('Dispositivo',device.model?`${clean(device.manufacturer)} ${clean(device.model)}`:unavailable),
    row('Android',device.android?`${clean(device.android)} · API ${number(device.api)}`:unavailable),
