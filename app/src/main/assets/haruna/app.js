@@ -178,7 +178,7 @@ window.addEventListener('haruna-attachment-ready',e=>{
  catch(error){alert(`Não foi possível preparar o anexo: ${error.message||error}`)}
 });
 
-function resize(){input.style.height='auto';input.style.height=`${Math.min(input.scrollHeight,120)}px`}input.addEventListener('input',resize);input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}});llm.subscribe(paint);llm.refreshStatus().then(paint).catch(e=>add('assistant',err(e?.message)));stopBtn.onclick=()=>llm.stopGeneration();async function sendMessage(){
+function resize(){input.style.height='auto';input.style.height=`${Math.min(input.scrollHeight,120)}px`}input.addEventListener('input',resize);input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}});llm.subscribe(paint);llm.refreshStatus().then(paint).catch(e=>add('assistant',err(e?.message)));stopBtn.onclick=()=>llm.stopGeneration();async function sendMessage(fromVoice=false){
  const chat=active(),files=attachments.pending(chat.id);
  const text=input.value.trim()||(files.length?'Analise os arquivos anexados.':'');if(!text)return;
  // Reading is local. Attachments enter the model context only after Send is pressed.
@@ -186,13 +186,13 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
  try{
   if(files.length&&!(await llm.refreshStatus()).modelLoaded){alert('Carregue um modelo GGUF antes de enviar o arquivo.');return}
   for(const file of files){const result=android.readTextAttachment(file.path);if(result?.status!=='ok')throw new Error(`${file.name}: ${result?.error||'Formato ainda não suportado para leitura'}`);prepared.push({file,text:result.text||''})}
-  push('user',text,chat,{attachments:files});
+  push('user',text,chat,{attachments:files,inputSource:fromVoice?'voice-call':'manual',reviewed:!fromVoice});
  }catch(error){chat.messages.length=previousLength;alert(`Não foi possível enviar: ${error.message||error}`);return}
  for(const item of prepared){attachments.add(chat.id,item.file,item.text);attachments.unstage(chat.id,item.file.path)}
  input.value='';resize();render();
  try{
-  remember(text);
-  const contact=firstContact.handleUser(text,{chatId:chat.id,lastMessage:chat.messages[previousLength-1],hasAttachments:files.length>0});
+  if(!fromVoice)remember(text);
+  const contact=fromVoice?{}:firstContact.handleUser(text,{chatId:chat.id,lastMessage:chat.messages[previousLength-1],hasAttachments:files.length>0});
   const identityReply=directIdentityReply(text,{hasAttachments:files.length>0});
   const localReply=identityReply||contact.reply;
   if(localReply){
@@ -226,7 +226,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
 function submitMessage(fromVoice=false){
  if(chatBusy||activeGeneration||generating)throw new Error('Aguarde a operação atual da Haruna.');
  window.dispatchEvent(new CustomEvent('haruna-chat-submit',{detail:{fromVoice}}));
- activeGeneration=sendMessage().finally(()=>{activeGeneration=null;try{window.dispatchEvent(new CustomEvent('haruna-dbg-chat-finished'))}catch{}});return activeGeneration;
+ activeGeneration=sendMessage(fromVoice).finally(()=>{activeGeneration=null;try{window.dispatchEvent(new CustomEvent('haruna-dbg-chat-finished'))}catch{}});return activeGeneration;
 }
 form.addEventListener('submit',e=>{
  e.preventDefault();if(chatBusy||activeGeneration||generating)return;

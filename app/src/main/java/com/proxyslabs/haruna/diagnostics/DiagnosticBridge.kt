@@ -42,9 +42,21 @@ class DiagnosticBridge(
                     }
                     fun voice(source: () -> String): JSONObject = runCatching {
                         val value = JSONObject(source())
-                        JSONObject().put("state", value.optString("state", "unknown"))
+                        val result = JSONObject().put("state", value.optString("state", "unknown"))
                             .put("installed", value.optBoolean("installed"))
                             .put("fileBytes", if (value.has("bytes")) value.optLong("bytes") else JSONObject.NULL)
+                        value.optJSONObject("diagnostics")?.let { source ->
+                            val recognition = JSONObject()
+                            for (key in listOf("sampleRate", "audioMs", "decodeMs", "rtf", "attempts", "successes")) {
+                                val number = source.optDouble(key, Double.NaN)
+                                if (number.isFinite() && number >= 0) recognition.put(key, number)
+                            }
+                            for (key in listOf("engine", "model", "language")) if (source.has(key)) recognition.put(key, source.optString(key).take(80))
+                            val outcome = source.optString("outcome")
+                            if (outcome in setOf("success", "no_speech", "invalid", "error", "cancelled")) recognition.put("outcome", outcome)
+                            result.put("recognition", recognition)
+                        }
+                        result
                     }.getOrElse { JSONObject().put("state", "unknown") }
                     snapshot.put("stt", voice(sttStatus)).put("tts", voice(ttsStatus))
                     cached = snapshot; lastReply = now
@@ -64,3 +76,4 @@ class DiagnosticBridge(
 
     override fun close() { closed.set(true); worker.shutdownNow() }
 }
+

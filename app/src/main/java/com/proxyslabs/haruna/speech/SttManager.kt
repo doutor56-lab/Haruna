@@ -29,6 +29,7 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
     fun status(): JSONObject = JSONObject().put("state", state).put("error", error)
         .put("installed", models.installed()).put("bytes", models.bytes()).put("busy", active.get()).put("requestId", requestId).put("mode", mode)
         .put("copiedBytes", copied).put("totalBytes", total).put("archiveBytes", SttModelManager.ARCHIVE_BYTES)
+        .put("diagnostics", SttDiagnostics.snapshot())
     private fun publish(next: String, failure: String? = null, text: String? = null) {
         state = next; error = failure
         val value = status(); if (text != null) value.put("text", text)
@@ -43,7 +44,7 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
         require(models.installed()) { "Reconhecimento de voz não instalado" }
         require(active.compareAndSet(false, true)) { "Aguarde a captura ou transcrição atual" }
         val ticket = generation.incrementAndGet()
-        requestId = id; mode = captureMode; recorder.prepare(); publish("preparing")
+        requestId = id; mode = captureMode; recorder.prepare(); SttDiagnostics.begin(); publish("preparing")
         worker.execute {
             fun alive() = !closed.get() && generation.get() == ticket
             var samples = FloatArray(0)
@@ -51,14 +52,19 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
                 if (!alive()) return@execute
                 samples = recorder.capture(::alive, { if (alive()) publish("listening") }) { level -> if (alive()) emit(status().put("level", level)) }
                 if (!alive()) return@execute
-                if (samples.isEmpty()) { publish("no_speech"); return@execute }
+                SttDiagnostics.captured(samples.size)
+                if (samples.isEmpty()) { SttDiagnostics.finished("no_speech"); publish("no_speech"); return@execute }
                 require(models.installed()) { "Reconhecimento de voz não instalado" }
                 publish("transcribing")
                 val text = engine.transcribe(models.directory, samples)
                 // The engine frees its sessions before returning text to the chat.
-                if (alive()) publish(if (text.isBlank()) "no_speech" else "result", text = text)
-            } catch (failure: Throwable) { if (alive()) publish("error", failure.message ?: "Falha no reconhecimento local") }
-            finally { samples.fill(0f); active.set(false); if (!closed.get()) emit(status()) }
+                if (alive()) {
+                    val accepted = SttResultPolicy.accept(text)
+                    SttDiagnostics.finished(if (accepted != null) "success" else "invalid")
+                    if (accepted == null) publish("no_speech") else publish("result", text = accepted)
+                }
+            } catch (failure: Throwable) { if (alive()) { SttDiagnostics.finished("error"); publish("error", failure.message ?: "Falha no reconhecimento local") } }
+            finally { if (!alive()) SttDiagnostics.finished("cancelled"); samples.fill(0f); active.set(false); if (!closed.get()) emit(status()) }
         }
     }
     fun finish() { if (state == "listening") recorder.finish() }
@@ -84,3 +90,4 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
     }
     override fun close() { if (closed.compareAndSet(false, true)) { models.cancel(); stop(); worker.shutdown() } }
 }
+

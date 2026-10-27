@@ -18,11 +18,21 @@ export function diagnosticCards(native={},knowledge={}){
  const section=(id,title,rows,note)=>({id,title,rows,note});
  const voiceRows=(kind,label,model)=>{
   const current=native[kind]||{},timing=session[kind]||{};
+  const recognition=current.recognition||{};
+  const outcome={success:'Sucesso (texto retornado; precisão não aferida)',no_speech:'Sem fala',invalid:'Saída inválida descartada',error:'Falha',cancelled:'Cancelado'};
   return [row(`${label} — estado`,state(current.state)),
    row(`${label} — modelo`,current.installed===true?model:current.installed===false?'Não instalado':unavailable),
    row(`${label} — motor em memória`,typeof timing.loaded==='boolean'?(timing.loaded?'Carregado':'Descarregado'):unavailable),
    row(`${label} — ${kind==='tts'?'último segmento sintetizado':'última transcrição/liberação'}`,duration(timing.lastMs)),row(`${label} — média das amostras`,duration(timing.meanMs)),
-   row(`${label} — amostras`,number(timing.samples)),row(`${label} — RAM atribuída`,unavailable)];
+   row(`${label} — amostras`,number(timing.samples)),row(`${label} — RAM atribuída`,unavailable),
+   ...(kind==='stt'?[
+    row('STT — engine',clean(recognition.engine)),row('STT — idioma configurado',recognition.language==='pt'?'Português (pt)':unavailable),
+    row('STT — sample rate capturado',valid(recognition.sampleRate)?`${number(recognition.sampleRate)} Hz`:unavailable),
+    row('STT — duração do último trecho enviado',duration(recognition.audioMs)),row('STT — última inferência (decode)',duration(recognition.decodeMs)),
+    row('STT — RTF (decode / áudio)',valid(recognition.rtf)?recognition.rtf.toLocaleString('pt-BR',{maximumFractionDigits:3}):unavailable),
+    row('STT — último resultado',Object.hasOwn(outcome,recognition.outcome)?outcome[recognition.outcome]:unavailable),
+    row('STT — tentativas / transcrições na sessão',valid(recognition.attempts)?`${number(recognition.attempts)} / ${number(recognition.successes)}`:unavailable)
+   ]:[])];
  };
  const request=knowledge.lastRequest;
  const consulted=request?(request.calls?`Sim · ${number(request.calls)} chamadas${request.failures?' · houve falha':''}`:'Nenhuma consulta observada'):unavailable;
@@ -56,7 +66,7 @@ export function diagnosticCards(native={},knowledge={}){
   ],'Tempos de busca são observados desde o carregamento desta página. Contagens vêm dos metadados existentes; o DBG não abre nem varre o IndexedDB e não chama search(). Tempos observam as chamadas reais, incluindo retornos vazios. Roteamento é uma regra local, sem inferência extra. Chamadas e seleção são medidas separadamente; recuperar trechos não comprova uso pelo LLM. Solicitações não incluem conteúdo nem identificadores no relatório.'),
   section('voice','Voz',[
    ...voiceRows('stt','STT · fala → texto','Whisper Tiny INT8'),...voiceRows('tts','TTS · texto → fala','Supertonic 3 INT8')
-  ],'STT mede a tentativa de criação, transcrição e liberação do recognizer quando este chegou a ser criado. TTS mede cada segmento sintetizado com sucesso; não inclui reprodução, fila ou carregamento do motor. Médias usam só essas amostras. Instalado e carregado são estados diferentes; ler diagnóstico não carrega os motores.'),
+  ],'STT: a duração antiga inclui criação e liberação do recognizer; decode/RTF medem apenas a inferência, sem carregamento. Áudio é o trecho após remoção de silêncio inicial. Sucesso significa saída estruturalmente válida, não confiança ou precisão medida. TTS mede segmentos sintetizados, sem reprodução/fila/carregamento. Ler diagnóstico não carrega motores nem guarda texto/áudio.'),
   section('subsystems','Uso por subsistema',[
    row('Haruna / base',unavailable),row('LLM',unavailable),row('Segundo Cérebro',unavailable),row('STT',unavailable),row('TTS',unavailable)
   ],'Sem atribuição confiável de RAM por subsistema neste runtime. Nenhuma estimativa numérica é apresentada. Memória nativa inclui bibliotecas e alocações compartilhadas; tamanho dos pesos em disco não é consumo de RAM.'),
@@ -77,5 +87,6 @@ export function diagnosticReport(cards){
  return ['HARUNA — DIAGNÓSTICO','DBG · somente leitura','Atualização: estado a cada 5 s; memória a cada 10 s.','',
   ...cards.flatMap(card=>[card.title.toUpperCase(),...card.rows.map(r=>`${r.label}: ${r.value}`),`Nota: ${card.note}`,''])].join('\n');
 }
+
 
 

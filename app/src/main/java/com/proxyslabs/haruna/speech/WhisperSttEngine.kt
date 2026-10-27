@@ -19,13 +19,20 @@ class WhisperSttEngine : SttEngine {
             featConfig = FeatureConfig(sampleRate = 16000, featureDim = 80),
             modelConfig = OfflineModelConfig(whisper = OfflineWhisperModelConfig(
                 encoder = path("tiny-encoder.int8.onnx"), decoder = path("tiny-decoder.int8.onnx"),
-                language = "pt", task = "transcribe"
-            ), tokens = path("tiny-tokens.txt"), modelType = "whisper", numThreads = 2, provider = "cpu", debug = false)
+                language = SttDiagnostics.LANGUAGE, task = "transcribe", tailPaddings = 300
+            ), tokens = path("tiny-tokens.txt"), modelType = "whisper", numThreads = 2, provider = "cpu", debug = false),
+            decodingMethod = "greedy_search"
         ))
         DiagnosticSession.voiceLoaded("stt", true)
         try {
             val stream = recognizer.createStream()
-            try { stream.acceptWaveform(samples, 16000); recognizer.decode(stream); return recognizer.getResult(stream).text.trim() }
+            try {
+                stream.acceptWaveform(samples, SttAudioRecorder.RATE)
+                val decodeStarted = DiagnosticSession.clock()
+                try { recognizer.decode(stream) }
+                finally { SttDiagnostics.decoded((DiagnosticSession.clock() - decodeStarted) / 1e6) }
+                return recognizer.getResult(stream).text.trim()
+            }
             finally { stream.release() }
         } finally {
             recognizer.release()
@@ -34,4 +41,5 @@ class WhisperSttEngine : SttEngine {
         }
     }
 }
+
 
