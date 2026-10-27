@@ -1,4 +1,4 @@
-import {list,summary,edit,curate,dataset} from './store.js';
+import {list,summary,edit,curate,dataset,potentialConflicts} from './store.js';
 import {TYPES,STATES,SOURCES} from './schema.js';
 import {behaviorProfile,SCENARIOS} from './behavior-profile.js';
 
@@ -39,6 +39,7 @@ function editor(id){
  const reviewNote=document.createElement('p');reviewNote.className='settings-note';reviewNote.textContent=profile?`${profile.id}: ${profile.reviewNote}${e.approvedForTraining&&!e.approval?.behaviorProfile?' Aprovação anterior sem perfil: revise novamente antes de exportar.':''}`:'Perfil comportamental indisponível. A conversa e a revisão continuam; aprovação para treinamento aguarda a versão nativa compatível.';form.appendChild(reviewNote);
  const behaviorReviewed=document.createElement('input');behaviorReviewed.type='checkbox';field('Revisei o exemplo conforme o perfil comportamental',behaviorReviewed);
  const replacement=field('Substituir experiência anterior (opcional)',document.createElement('select'));replacement.add(new Option('Nenhuma',''));for(const old of list().filter(x=>x.id!==e.id&&x.status!=='superseded'))replacement.add(new Option(old.summary.slice(0,80),old.id));
+ const conflicts=potentialConflicts(id);if(conflicts.length){const warning=document.createElement('p');warning.className='settings-note';warning.textContent=`Possível conflito: ${conflicts.length} experiência(s) mantida(s) sobre o mesmo tema. Compare antes de manter. Se a nova substituir uma anterior, selecione-a acima; regras compatíveis podem coexistir. Coincidência de tema não comprova contradição.`;form.appendChild(warning)}
  const info=document.createElement('p');info.className='settings-note';info.textContent='Manter habilita uso de referência no escopo escolhido. Treinamento exige entrada e resposta desejada revisadas, sem dados pessoais. Fatos e contexto de projeto permanecem fora deste dataset.';
  const error=document.createElement('p');error.className='settings-note';error.setAttribute('role','status');form.append(info,error);
  const close=()=>{d.close();d.remove();render()};
