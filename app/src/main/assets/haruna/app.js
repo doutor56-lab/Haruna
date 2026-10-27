@@ -202,7 +202,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
 function submitMessage(fromVoice=false){
  if(chatBusy||activeGeneration||generating)throw new Error('Aguarde a operação atual da Haruna.');
  window.dispatchEvent(new CustomEvent('haruna-chat-submit',{detail:{fromVoice}}));
- activeGeneration=sendMessage().finally(()=>{activeGeneration=null});return activeGeneration;
+ activeGeneration=sendMessage().finally(()=>{activeGeneration=null;try{window.dispatchEvent(new CustomEvent('haruna-dbg-chat-finished'))}catch{}});return activeGeneration;
 }
 form.addEventListener('submit',e=>{
  e.preventDefault();if(chatBusy||activeGeneration||generating)return;
@@ -223,4 +223,5 @@ window.harunaChatVoice={
 if(!chats.length)fresh();else if(!chats.some(c=>c.id===activeId))activeId=chats[0].id;persist();renderKnowledge();render();showView('chat');maybeShowOnboarding();
 // Hand off chat events only after all handlers and persisted state are ready.
 window.__HARUNA_CHAT_READY__=true;
+
 

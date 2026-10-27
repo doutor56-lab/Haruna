@@ -1,0 +1,39 @@
+/* DBG only: no global tokens, existing components or navigation selectors are modified. */
+.haruna-dbg-launcher{display:flex;align-items:center;justify-content:center;gap:6px;min-height:34px;margin:9px 0 10px auto;padding:6px 10px;border:1px solid var(--theme-accent,#8968ff);border-radius:10px;background:var(--theme-surface,#101626);color:var(--theme-accent-soft,#cbb7ff);font:inherit;font-size:11px;font-weight:600;line-height:1.2;box-shadow:0 0 0 2px #8762ff0b}
+.haruna-dbg-launcher svg{width:17px;height:17px;flex-shrink:0}
+.haruna-dbg-launcher:focus-visible,.haruna-dbg-sheet button:focus-visible,.haruna-dbg-sheet summary:focus-visible{outline:2px solid var(--theme-accent,#8968ff);outline-offset:3px}
+.haruna-dbg-sheet{box-sizing:border-box;width:min(530px,calc(100% - 24px));max-height:min(86dvh,940px);margin:auto auto max(12px,env(safe-area-inset-bottom));padding:0;overflow:hidden;border:1px solid var(--theme-stroke,#2b3552);border-radius:23px;background:var(--theme-bg,#080c17);color:var(--theme-text,#f8f7ff);box-shadow:0 24px 85px #0007;font:inherit}
+.haruna-dbg-sheet[open]{display:flex;flex-direction:column}
+.haruna-dbg-sheet::backdrop{background:#02051099;backdrop-filter:blur(3px)}
+.haruna-dbg-handle{width:33px;height:3px;min-height:3px;margin:9px auto 4px;border-radius:5px;background:var(--theme-muted,#9ba5c2);opacity:.45}
+.haruna-dbg-head{display:flex;gap:10px;align-items:flex-start;padding:12px 15px 15px;flex-shrink:0}
+.haruna-dbg-brand{display:grid;place-items:center;flex:0 0 35px;height:35px;border-radius:11px;background:var(--selection,#271d52);color:var(--theme-accent-soft,#cbb7ff)}
+.haruna-dbg-brand svg{width:23px;height:23px}
+.haruna-dbg-head>div:nth-child(2){min-width:0;flex:1}
+.haruna-dbg-head h2{margin:0;font-size:14px;letter-spacing:-.02em;line-height:1.4;overflow-wrap:anywhere}
+.haruna-dbg-head p{margin:4px 0 0;color:var(--theme-muted,#9ba5c2);font-size:10px;line-height:1.45}
+.haruna-dbg-sheet button{font-family:inherit;cursor:pointer}
+.haruna-dbg-close{display:grid;place-items:center;width:29px;height:29px;flex:0 0 29px;padding:5px;border:0;border-radius:9px;background:transparent;color:var(--theme-muted,#9ba5c2)}
+.haruna-dbg-close svg,.haruna-dbg-footer svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.haruna-dbg-content{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 13px 12px;scrollbar-width:thin;scrollbar-color:var(--theme-stroke,#2b3552) transparent}
+.haruna-dbg-card{--dbg-color:var(--theme-accent-soft,#cbb7ff);margin:0 0 12px;border:1px solid var(--theme-stroke,#2b3552);border-radius:14px;background:var(--theme-surface,#101626);overflow:hidden}
+.haruna-dbg-memory{--dbg-color:#64d698}.haruna-dbg-knowledge,.haruna-dbg-device{--dbg-color:#69b0fa}.haruna-dbg-voice{--dbg-color:#e5b15f}.haruna-dbg-subsystems{--dbg-color:#d29aeb}
+.haruna-dbg-card summary{display:flex;align-items:center;gap:9px;cursor:pointer;padding:12px;list-style:none;color:var(--dbg-color);font-size:12px;font-weight:650;line-height:1.4}
+.haruna-dbg-card summary::-webkit-details-marker{display:none}
+.haruna-dbg-card summary:after{content:'';width:6px;height:6px;flex:0 0 6px;margin:0 2px 3px auto;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg)}
+.haruna-dbg-card[open] summary:after{transform:rotate(45deg)}
+.haruna-dbg-section-icon{display:inline-block;flex:0 0 17px;width:17px;height:17px;background:currentColor;mask:var(--dbg-glyph) center/contain no-repeat;-webkit-mask:var(--dbg-glyph) center/contain no-repeat}
+.haruna-dbg-icon-memory{--dbg-glyph:var(--icon-memory)}.haruna-dbg-icon-brain{--dbg-glyph:var(--icon-brain)}.haruna-dbg-icon-volume{--dbg-glyph:var(--icon-volume)}.haruna-dbg-icon-device{--dbg-glyph:var(--icon-device)}.haruna-dbg-icon-layers{--dbg-glyph:var(--icon-copy)}
+.haruna-dbg-card dl{margin:0;padding:0 12px}
+.haruna-dbg-card dl>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:7px 0;border-top:1px solid var(--divider,#202a40);font-size:11px;line-height:1.5}
+.haruna-dbg-card dt{margin:0;color:var(--theme-muted,#9ba5c2);min-width:0;overflow-wrap:anywhere}
+.haruna-dbg-card dd{margin:0;text-align:right;color:var(--theme-text,#f8f7ff);min-width:0;overflow-wrap:anywhere;word-break:break-word;font-variant-numeric:tabular-nums}
+.haruna-dbg-note{padding:9px 12px 12px;margin:0;color:var(--theme-muted,#9ba5c2);font-size:10px;line-height:1.6}
+.haruna-dbg-footer{display:flex;align-items:center;gap:8px;padding:11px 13px max(12px,env(safe-area-inset-bottom));flex-shrink:0;border-top:1px solid var(--theme-stroke,#2b3552);background:var(--theme-bg,#080c17)}
+.haruna-dbg-footer button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:37px;padding:8px 10px;border:1px solid var(--theme-stroke,#2b3552);border-radius:10px;background:var(--theme-surface,#101626);color:var(--theme-text,#f8f7ff);font-size:10px}
+.haruna-dbg-footer .haruna-dbg-done{margin-left:auto;padding-inline:15px;background:var(--brand-gradient,linear-gradient(115deg,#845cff,#4930f5));color:white;border-color:transparent}
+.haruna-dbg-footer [data-dbg-feedback]{min-width:0;max-width:90px;font-size:9px;color:var(--theme-muted,#9ba5c2);overflow-wrap:anywhere}
+.haruna-dbg-copy-buffer{position:fixed;inset:0 auto auto 0;width:1px;height:1px;min-height:0;padding:0;border:0;opacity:0;pointer-events:none}
+@media(max-width:340px){.haruna-dbg-sheet{width:calc(100% - 12px)}.haruna-dbg-head{padding-inline:11px;gap:7px}.haruna-dbg-head h2{font-size:12px}.haruna-dbg-brand{flex-basis:28px;height:28px}.haruna-dbg-card dl>div{grid-template-columns:minmax(0,1fr);gap:2px}.haruna-dbg-card dd{text-align:left}.haruna-dbg-footer{flex-wrap:wrap}}
+
+html[data-theme="light"] .haruna-dbg-memory{--dbg-color:#247e55}html[data-theme="light"] .haruna-dbg-knowledge,html[data-theme="light"] .haruna-dbg-device{--dbg-color:#2d68ad}html[data-theme="light"] .haruna-dbg-voice{--dbg-color:#956310}html[data-theme="light"] .haruna-dbg-subsystems{--dbg-color:#8954a4}

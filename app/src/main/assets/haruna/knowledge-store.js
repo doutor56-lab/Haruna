@@ -15,7 +15,15 @@ async function allChunks(){const db=await open();return new Promise((ok,bad)=>{c
 async function chunksFor(docId){return(await allChunks()).filter(c=>c.docId===docId).sort((a,b)=>(a.order??0)-(b.order??0))}
 async function getText(docId){return(await chunksFor(docId)).map(c=>c.content).join('\n\n')}
 function touch(ids){if(!ids?.length)return;const set=new Set(ids);const d=docs();const now=Date.now();for(const x of d)if(set.has(x.id)){x.useCount=(x.useCount||0)+1;x.lastUsedAt=now}saveDocs(d)}
-async function search(query,{type=null,limit=5}={}){const q=terms(query);const active=new Map(docs().filter(d=>d.active).map(d=>[d.id,d]));if(!q.length||!active.size)return[];const chunks=await allChunks();const qs=new Set(q);const found=chunks.filter(c=>active.has(c.docId)&&(!type||c.type===type)).map(c=>{let score=0;for(const t of c.terms||[])if(qs.has(t))score+=1;const low=c.content.toLowerCase();for(const t of q)if(low.includes(t))score+=.15;const doc=active.get(c.docId);score*=.7+(Math.max(0,Math.min(100,doc.importance??50))/100)*.3;return{...c,score,importance:doc.importance,confidence:doc.confidence}}).filter(c=>c.score>0).sort((a,b)=>b.score-a.score).slice(0,limit);touch([...new Set(found.map(x=>x.docId))]);return found}
+async function search(query,{type=null,limit=5}={}){
+ let diagnosticStarted=null,diagnosticHits=0,diagnosticFailed=true;
+ try{diagnosticStarted=performance.now()}catch{}
+ try {
+const q=terms(query);const active=new Map(docs().filter(d=>d.active).map(d=>[d.id,d]));if(!q.length||!active.size){diagnosticFailed=false;return[]};const chunks=await allChunks();const qs=new Set(q);const found=chunks.filter(c=>active.has(c.docId)&&(!type||c.type===type)).map(c=>{let score=0;for(const t of c.terms||[])if(qs.has(t))score+=1;const low=c.content.toLowerCase();for(const t of q)if(low.includes(t))score+=.15;const doc=active.get(c.docId);score*=.7+(Math.max(0,Math.min(100,doc.importance??50))/100)*.3;return{...c,score,importance:doc.importance,confidence:doc.confidence}}).filter(c=>c.score>0).sort((a,b)=>b.score-a.score).slice(0,limit);diagnosticHits=found.length;touch([...new Set(found.map(x=>x.docId))]);diagnosticFailed=false;return found
+ } finally {
+  try{if(diagnosticStarted!==null)window.dispatchEvent(new CustomEvent('haruna-dbg-rag-search',{detail:{durationMs:performance.now()-diagnosticStarted,hits:diagnosticHits,failed:diagnosticFailed}}))}catch{}
+ }
+}
 // Both knowledge views use this deletion path; resolve only after the transaction commits.
 async function remove(docId){
  if(!docId)throw new Error('Documento inválido.');
@@ -41,3 +49,4 @@ function suggestedCandidates({minImportance=65,minConfidence=60,minUses=1}={}){r
 async function trainingCandidates({approvedOnly=true,minImportance=65,minConfidence=60}={}){const selected=docs().filter(d=>d.active&&!d.rejectedForTraining&&d.importance>=minImportance&&d.confidence>=minConfidence&&(!approvedOnly||d.approvedForTraining));if(!selected.length)return[];return Promise.all(selected.map(async d=>({...d,text:await getText(d.id)})))}
 async function exportTrainingDataset(options={}){const candidates=await trainingCandidates(options);return{format:'haruna-training-v1',createdAt:new Date().toISOString(),count:candidates.length,items:candidates.map(d=>({id:d.id,type:d.type,source:d.source,importance:d.importance,confidence:d.confidence,useCount:d.useCount,createdAt:d.createdAt,correctedAt:d.correctedAt||null,text:d.text}))}}
 export default{addText,search,list:docs,remove,toggle,updateLearning,replaceText,getText,suggestedCandidates,trainingCandidates,exportTrainingDataset};
+

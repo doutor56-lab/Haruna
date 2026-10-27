@@ -6,6 +6,7 @@ import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsSupertonicModelConfig
+import com.proxyslabs.haruna.diagnostics.DiagnosticSession
 import java.io.File
 
 interface TtsEngine : AutoCloseable {
@@ -29,13 +30,18 @@ class SupertonicTtsEngine : TtsEngine {
                 ), numThreads = 2, provider = "cpu", debug = false
             )))
         }
+        DiagnosticSession.voiceLoaded("tts", tts != null)
         return requireNotNull(tts).numSpeakers()
     }
     override fun synthesize(text: String, speaker: Int, speed: Float): GeneratedAudio {
         val engine = requireNotNull(tts)
         require(speaker in 0 until engine.numSpeakers()) { "Selecione uma voz disponível" }
-        return engine.generateWithConfig(text, GenerationConfig(sid = speaker, speed = speed, numSteps = 5,
+        val diagnosticStarted = DiagnosticSession.clock()
+        val audio = engine.generateWithConfig(text, GenerationConfig(sid = speaker, speed = speed, numSteps = 5,
             extra = mapOf("lang" to "pt", "max_len" to "240", "silence_duration" to "0.1")))
+        DiagnosticSession.voiceOperation("tts", diagnosticStarted)
+        return audio
     }
-    override fun close() { tts?.free(); tts = null }
+    override fun close() { tts?.free(); tts = null; DiagnosticSession.voiceLoaded("tts", false) }
 }
+

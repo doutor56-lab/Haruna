@@ -1,4 +1,5 @@
 package com.proxyslabs.haruna
+import com.proxyslabs.haruna.diagnostics.DiagnosticSession
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import org.json.JSONObject
@@ -19,7 +20,24 @@ class HarunaAndroidBridge(private val activity:MainActivity,private val webView:
  @JavascriptInterface fun deleteAttachment(path:String):String=runCatching{activity.library.deleteAttachment(path)}.fold({JSONObject().put("status","ok").toString()},{JSONObject().put("status","error").put("error",it.message).toString()})
  @JavascriptInterface fun unloadModel():String{val r=backend.unloadModel();emitStatus();return JSONObject().put("status",if(r.isSuccess)"ok" else "error").put("modelLoaded",false).toString()}
  @JavascriptInterface fun resetConversation():String{val r=backend.resetConversation();emitStatus();return JSONObject().put("status",if(r.isSuccess)"ok" else "error").put("error",r.exceptionOrNull()?.message).toString()}
- @JavascriptInterface fun generate(payloadJson:String):String{val id=JSONObject(payloadJson).getString("requestId");executor.execute{backend.generate(id,payloadJson,{emit(JSONObject().put("requestId",id).put("type","token").put("token",it))},{emit(JSONObject().put("requestId",id).put("type","completed").put("text",it))},{c,m->emitError(id,c,m)})};return JSONObject().put("streaming",true).toString()}
+ @JavascriptInterface fun generate(payloadJson:String):String {
+  val id=JSONObject(payloadJson).getString("requestId")
+  DiagnosticSession.llmStarted(id)
+  executor.execute {
+   var firstOutputObserved=false
+   backend.generate(id,payloadJson,{token->
+    if(!firstOutputObserved && token.isNotEmpty()){firstOutputObserved=true;DiagnosticSession.llmFirstOutput(id)}
+    emit(JSONObject().put("requestId",id).put("type","token").put("token",token))
+   },{text->
+    DiagnosticSession.llmFinished(id,true)
+    emit(JSONObject().put("requestId",id).put("type","completed").put("text",text))
+   },{code,message->
+    DiagnosticSession.llmFinished(id,false,code=="cancelled")
+    emitError(id,code,message)
+   })
+  }
+  return JSONObject().put("streaming",true).toString()
+ }
  @JavascriptInterface fun stopGeneration(requestId:String):String{val r=backend.stop(requestId);return JSONObject().put("status",if(r.isSuccess)"ok" else "error").toString()}
  fun notifyImportStarted(kind:String,name:String){emit(JSONObject().put("type","import-progress").put("kind",kind).put("state","copying").put("name",name).put("copiedBytes",0))}
  fun notifyImportProgress(kind:String,name:String,progress:LocalLibrary.CopyProgress){val e=JSONObject().put("type","import-progress").put("kind",kind).put("state","copying").put("name",name).put("copiedBytes",progress.copiedBytes);progress.totalBytes?.let{e.put("totalBytes",it);if(it>0)e.put("percent",((progress.copiedBytes*100)/it).toInt().coerceIn(0,100))};emit(e)}
@@ -36,3 +54,4 @@ class HarunaAndroidBridge(private val activity:MainActivity,private val webView:
  private fun emitError(id:String,code:String,message:String)=emit(JSONObject().put("requestId",id).put("type","error").put("error",JSONObject().put("code",code).put("message",message)))
  private fun emit(event:JSONObject){webView.post{webView.evaluateJavascript("window.harunaAndroidOnEvent(${JSONObject.quote(event.toString())})",null)}}
 }
+

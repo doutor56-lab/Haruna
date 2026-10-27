@@ -18,6 +18,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var recognition: com.proxyslabs.haruna.speech.RecognitionBridge
     private lateinit var speech: com.proxyslabs.haruna.speech.SpeechBridge
+    private lateinit var diagnostics: com.proxyslabs.haruna.diagnostics.DiagnosticBridge
     private lateinit var chromeClient: HarunaWebChromeClient
     private lateinit var backend: LlmBackend
     private lateinit var bridge: HarunaAndroidBridge
@@ -114,6 +115,12 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(speech, "HarunaSpeech")
         recognition = com.proxyslabs.haruna.speech.RecognitionBridge(this, webView)
         webView.addJavascriptInterface(recognition, "HarunaRecognition")
+        // Diagnostics is optional: failure to create its bridge must not block the app.
+        runCatching {
+            diagnostics = com.proxyslabs.haruna.diagnostics.DiagnosticBridge(this, webView, backend,
+                { activeModelPath?.let { File(it) } }, { recognition.getStatus() }, { speech.getStatus() })
+            webView.addJavascriptInterface(diagnostics, "HarunaDiagnostics")
+        }
         webView.loadUrl("https://appassets.androidplatform.net/assets/haruna/index.html")
     }
 
@@ -195,5 +202,6 @@ class MainActivity : AppCompatActivity() {
         if (::speech.isInitialized) { speech.stop(); speech.cancelInstallation() }
         super.onStop()
     }
-    override fun onDestroy() { recognition.close(); webView.removeJavascriptInterface("HarunaRecognition"); speech.close(); webView.removeJavascriptInterface("HarunaSpeech"); chromeClient.dispose(); modelExecutor.shutdown(); webView.removeJavascriptInterface("HarunaAndroid"); webView.stopLoading(); webView.destroy(); super.onDestroy() }
+    override fun onDestroy() { if (::diagnostics.isInitialized) diagnostics.close(); webView.removeJavascriptInterface("HarunaDiagnostics"); recognition.close(); webView.removeJavascriptInterface("HarunaRecognition"); speech.close(); webView.removeJavascriptInterface("HarunaSpeech"); chromeClient.dispose(); modelExecutor.shutdown(); webView.removeJavascriptInterface("HarunaAndroid"); webView.stopLoading(); webView.destroy(); super.onDestroy() }
 }
+
