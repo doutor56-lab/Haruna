@@ -28,7 +28,7 @@ Escopo padrão: conversa de origem; projetos explicitamente nomeados ganham esco
 
 Resumo normalizado + tipo + escopo deduplicam; correções incluem também a pergunta de origem. Repetições reforçam contagem/data, sem reaprovar rejeitados. Não há deduplicação semântica pesada.
 
-Antes de ativar uma experiência, chaves claras (regra “Quando X, use sempre Y” ou arquitetura de projeto nomeado) permitem marcar a versão anterior do mesmo escopo como superseded. A revisão também oferece substituição explícita de qualquer item anterior. Histórico permanece visível; substituídos saem do contexto e do dataset. Não há detector universal de contradições: declarações reformuladas, temas ambíguos e conflitos com memórias legadas precisam de revisão humana. Preferências fundamentais continuam sob responsabilidade da Memória Essencial.
+Antes de ativar uma experiência, chaves baratas (regra “Quando X, use sempre Y” ou arquitetura de projeto nomeado) sinalizam possíveis conflitos do mesmo escopo na revisão. Um tema compartilhado não prova contradição: somente a seleção explícita de uma experiência anterior pelo usuário a marca como superseded. Regras compatíveis podem coexistir. Alterar resumo/tipo invalida a chave antiga em vez de atribuí-la ao novo conteúdo. Histórico permanece visível; substituídos saem do contexto e do dataset. Não há detector universal de contradições: declarações reformuladas, temas ambíguos e conflitos com memórias legadas precisam de revisão humana. Preferências fundamentais continuam sob responsabilidade da Memória Essencial.
 
 ## Recuperação leve
 

@@ -20,7 +20,7 @@ jobs:
       - name: Checkout Haruna and llama.cpp
         uses: actions/checkout@v6
         with:
-          ref: 9f5ec1da189147e0ba4ce349f49b1c29f686e6bb
+          ref: 8e531adf605fc634898ac0673e3babf0566a4e7a
           submodules: recursive
           fetch-depth: 1
 
@@ -122,6 +122,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: haruna-9f5ec1d-memory-behavior-apk
+          name: haruna-8e531ad-memory-behavior-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

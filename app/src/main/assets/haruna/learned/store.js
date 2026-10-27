@@ -21,6 +21,7 @@ function save(change){
  }catch(error){lastError=error.message||'Não foi possível salvar.';notify();return {ok:false,error:lastError}}
 }
 const sameScope=(a,b)=>a.kind===b.kind&&(a.kind==='chat'?a.chatId===b.chatId:a.kind==='project'?fold(a.label)===fold(b.label):true);
+export function potentialConflicts(id){const e=state.items.find(x=>x.id===id);return e?.topicKey?state.items.filter(old=>old.id!==id&&old.useForContext&&old.topicKey===e.topicKey&&sameScope(old.scope,e.scope)).map(old=>({id:old.id,summary:old.summary})):[]}
 const revoke=e=>{e.approvedForTraining=false;e.rejectedForTraining=false;e.approval=null};
 export function observe(text,options){
  try{
@@ -36,7 +37,8 @@ export function observe(text,options){
 export function edit(id,patch){return save(items=>{
  const e=items.find(x=>x.id===id);if(!e)throw new Error('Experiência não encontrada.');
  if(!clip(patch.summary,800)||!Object.hasOwn(TYPES,patch.type))throw new Error('Informe um resumo e um tipo válido.');
- e.summary=clip(patch.summary,800);e.type=patch.type;e.example={input:clip(patch.input,800),output:clip(patch.output,800)};
+ const nextSummary=clip(patch.summary,800);if(fold(nextSummary)!==fold(e.summary)||patch.type!==e.type)e.topicKey='';
+ e.summary=nextSummary;e.type=patch.type;e.example={input:clip(patch.input,800),output:clip(patch.output,800)};
  if(['chat','global'].includes(patch.scope))e.scope={kind:patch.scope,chatId:e.originChatId||e.scope.chatId||patch.chatId||''};
  e.revision++;e.updatedAt=new Date().toISOString();revoke(e);e.status=e.useForContext?'useful':'observed';
  // Manual revision confirms the text, never its universal truth or automatic training approval.
@@ -58,8 +60,8 @@ export function curate(id,action,{explicitApproval=false,replacesId=null,behavio
  }else throw new Error('Ação inválida.');
  if(action==='keep'||action==='approve')for(const old of items){
   if(old.id===e.id)continue;
-  const keyed=e.useForContext&&e.topicKey&&old.topicKey===e.topicKey&&sameScope(old.scope,e.scope)&&old.useForContext;
-  if(old.id===replacesId||keyed){revoke(old);old.status='superseded';old.useForContext=false;old.supersededBy=e.id;old.updatedAt=new Date().toISOString()}
+  // A shared topic is only a conflict hint. Supersession always requires the user's selection.
+  if(old.id===replacesId){revoke(old);old.status='superseded';old.useForContext=false;old.supersededBy=e.id;old.updatedAt=new Date().toISOString()}
  }
  e.updatedAt=new Date().toISOString();
 })}
