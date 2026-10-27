@@ -1,4 +1,5 @@
 import knowledge from '../knowledge-store.js';
+import {essentialSummary} from '../essential/store.js';
 
 // Only scalar aggregates. No query, chunk, message, document name or result object is retained.
 const searches={count:0,failures:0,totalMs:0,lastMs:null};
@@ -23,6 +24,7 @@ export function knowledgeMetrics(){
   }catch{metadata=null}
   dirty=false;
  }
- return {...(metadata||{}),searchCount:searches.count,failedSearches:searches.failures,lastMs:searches.lastMs,
+ return {...(metadata||{}),essential:essentialSummary(),searchCount:searches.count,failedSearches:searches.failures,lastMs:searches.lastMs,
   meanMs:searches.count?searches.totalMs/searches.count:null,lastRequest:lastRequest?{...lastRequest}:null};
 }
+

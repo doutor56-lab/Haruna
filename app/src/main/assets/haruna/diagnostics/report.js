@@ -56,6 +56,7 @@ export function diagnosticCards(native={},knowledge={}){
    row('Haruna / base',unavailable),row('LLM',unavailable),row('Segundo Cérebro',unavailable),row('STT',unavailable),row('TTS',unavailable)
   ],'Sem atribuição confiável de RAM por subsistema neste runtime. Nenhuma estimativa numérica é apresentada. Memória nativa inclui bibliotecas e alocações compartilhadas; tamanho dos pesos em disco não é consumo de RAM.'),
   section('device','Dispositivo e sessão',[
+   row('Memória Essencial · acesso direto',knowledge.essential?.available===true?'Ativa':unavailable),row('Memória Essencial · campos definidos',number(knowledge.essential?.fields)),
    row('App · versão / build',device.app?.version?`${clean(device.app.version)} / ${number(device.app.build)}`:unavailable),
    row('Dispositivo',device.model?`${clean(device.manufacturer)} ${clean(device.model)}`:unavailable),
    row('Android',device.android?`${clean(device.android)} · API ${number(device.api)}`:unavailable),
@@ -71,3 +72,4 @@ export function diagnosticReport(cards){
  return ['HARUNA — DIAGNÓSTICO','DBG · somente leitura','Atualização: estado a cada 5 s; memória a cada 10 s.','',
   ...cards.flatMap(card=>[card.title.toUpperCase(),...card.rows.map(r=>`${r.label}: ${r.value}`),`Nota: ${card.note}`,''])].join('\n');
 }
+
