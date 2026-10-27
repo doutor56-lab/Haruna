@@ -23,7 +23,9 @@
 
   window.addEventListener('haruna-attachment-imported',async event=>{if(!knowledgePickPending)return;event.stopImmediatePropagation();knowledgePickPending=false;const d=event.detail||{};if(d.cancelled)return;if(d.error){alert(`Não consegui abrir o TXT: ${d.error}`);return}try{const android=(await import('./android-bridge.js')).default;const name=d.name||'arquivo.txt';if(!name.toLowerCase().endsWith('.txt'))throw new Error('Por enquanto, use um arquivo TXT.');const result=android.readTextAttachment?.(d.path);if(!result||result.status!=='ok')throw new Error(result?.error||'Não foi possível ler este arquivo.');await feedText(name,result.text||'');try{android.deleteAttachment?.(d.path)}catch(_){}}catch(e){alert(e?.message||String(e))}},true);
 
-  const enrichPrompt=async text=>{try{const knowledge=(await import('./knowledge-store.js')).default;const facts=await knowledge.search(text,{type:'knowledge',limit:4});const behavior=await knowledge.search(text,{type:'behavior',limit:3});const sections=[];if(facts.length)sections.push('CONHECIMENTO LOCAL RELEVANTE:\n'+facts.map((x,i)=>`[${i+1}] ${x.content}`).join('\n\n'));if(behavior.length)sections.push('EXEMPLOS DE CONVERSAÇÃO RELEVANTES:\n'+behavior.map((x,i)=>`[${i+1}] ${x.content}`).join('\n\n'));if(!sections.length)return text;return `Use o contexto local abaixo quando ele for relevante. Para fatos presentes no contexto, prefira o contexto e não invente.\n\n${sections.join('\n\n')}\n\nMENSAGEM DO USUÁRIO:\n${text}`}catch(_){return text}};
+  const enrichPrompt=async (text,context={})=>{
+    try{const retrieval=await import('./retrieval/enrich.js');return await retrieval.enrichOnDemand(text,context)}catch{return text}
+  };
 
   document.addEventListener('click',event=>{const nav=event.target.closest('.nav-item');if(nav){event.preventDefault();event.stopImmediatePropagation();showView(nav.dataset.view||'chat');return}const choice=event.target.closest('.knowledge-choice');if(choice){event.preventDefault();event.stopImmediatePropagation();knowledgeType=choice.dataset.knowledgeType||'knowledge';document.querySelectorAll('.knowledge-choice').forEach(x=>x.classList.toggle('active',x===choice));return}const id=event.target.closest('button, #scrim')?.id;if(window.__HARUNA_CHAT_READY__&&['menu','closeMenu','scrim','think','newChat','drawerNew'].includes(id))return;if(id==='menu'){event.preventDefault();event.stopImmediatePropagation();showDrawer()}else if(id==='closeMenu'||id==='scrim'){event.preventDefault();event.stopImmediatePropagation();hideDrawer()}else if(id==='think'){event.preventDefault();event.stopImmediatePropagation();thinkMode=!thinkMode;localStorage.setItem(THINK_KEY,thinkMode?'1':'0');paintThink()}else if(id==='newChat'||id==='drawerNew'){event.preventDefault();event.stopImmediatePropagation();newConversation()}else if(id==='feedAi'){event.preventDefault();event.stopImmediatePropagation();pickKnowledge()}},true);
 
@@ -32,3 +34,4 @@
 
   hideKnowledgeProgress();paintThink();renderKnowledge();window.__HARUNA_RECOVERY_RUNTIME__=true;window.__HARUNA_ENRICH_PROMPT__=enrichPrompt;
 })();
+

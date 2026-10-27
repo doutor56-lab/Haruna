@@ -8,6 +8,8 @@ function duration(value){if(!valid(value))return unavailable;return value<1000?`
 function uptime(value){if(!valid(value))return unavailable;const seconds=Math.floor(value/1000);return seconds<60?`${seconds} s`:`${Math.floor(seconds/60)} min ${seconds%60} s`}
 const stateLabels={idle:'Ocioso',installed:'Instalado',not_loaded:'Descarregado',active:'Carregado',basic:'Modo básico',loading:'Carregando',generating:'Gerando',preparing:'Preparando',listening:'Ouvindo',transcribing:'Transcrevendo',result:'Transcrição concluída',no_speech:'Sem fala detectada',playing:'Reproduzindo',downloading:'Baixando',importing:'Importando',extracting:'Preparando instalação',cancelling:'Cancelando',cancelled:'Cancelado',error:'Erro',unknown:unavailable};
 const state=value=>stateLabels[value]||unavailable;
+const routeReasons={empty:'Mensagem vazia',user_opt_out:'Pedido explícito para não consultar',attachment_priority:'Prioridade ao anexo da conversa',essential_priority:'Prioridade à Memória Essencial',social:'Conversa comum',simple_math:'Expressão aritmética simples',recent_priority:'Prioridade ao contexto recente',provided_context:'Contexto fornecido na mensagem',no_documents:'Sem documentos ativos',no_knowledge:'Sem documentos de conhecimento ativos',communication:'Exemplos de conversação sob demanda',explicit_documents:'Pedido explícito sobre documentos',catalog_match:'Assunto encontrado no catálogo',factual_question:'Pergunta factual',no_signal:'Sem sinal de consulta útil',context_budget:'Sem espaço após contexto prioritário',unavailable:'Consulta indisponível'};
+const routeLabel=value=>value?`${value.decision==='query'?'Consulta solicitada':'Fast path'} · ${Object.hasOwn(routeReasons,value.reason)?routeReasons[value.reason]:unavailable}`:unavailable;
 
 /** Build both UI and clipboard from this explicit allowlist; never serialize raw native/knowledge objects. */
 export function diagnosticCards(native={},knowledge={}){
@@ -43,12 +45,15 @@ export function diagnosticCards(native={},knowledge={}){
    row('Estado',valid(knowledge.activeDocuments)?knowledge.activeDocuments>0?'Ativo':'Inativo / sem documentos ativos':unavailable),
    row('Documentos registrados',number(knowledge.documents)),row('Documentos ativos',number(knowledge.activeDocuments)),
    row('Chunks registrados nos metadados',number(knowledge.chunks)),row('Comprimento registrado · UTF-16',number(knowledge.sourceChars)),
-   row('Tamanho em disco',unavailable),row('Consultas · última solicitação concluída',consulted),
+   row('Tamanho em disco',unavailable),row('Roteamento · última solicitação',routeLabel(request?.route)),
+   row('Solicitações sem consulta / com consulta',knowledge.routing?`${number(knowledge.routing.skipped)} / ${number(knowledge.routing.requested)}`:unavailable),
+   row('Consultas · última solicitação concluída',consulted),
    row('Trechos recuperados · última solicitação',request?number(request.hits):unavailable),
+   row('Trechos selecionados para contexto',number(request?.selection?.selectedChunks)),row('Contexto recuperado · caracteres',number(request?.selection?.contextChars)),
    row('Tempo das buscas · última solicitação',request&&request.calls?duration(request.totalMs):unavailable),
    row('Última chamada de busca',duration(knowledge.lastMs)),row('Média por chamada de busca',duration(knowledge.meanMs)),
    row('Chamadas observadas / falhas',valid(knowledge.searchCount)?`${number(knowledge.searchCount)} / ${number(knowledge.failedSearches)}`:unavailable)
-  ],'Tempos de busca são observados desde o carregamento desta página. Contagens vêm dos metadados existentes; o DBG não abre nem varre o IndexedDB e não chama search(). Tempos observam as chamadas reais, incluindo retornos vazios. Recuperar trechos não comprova que o LLM os utilizou na resposta. Solicitações não incluem conteúdo nem identificadores no relatório.'),
+  ],'Tempos de busca são observados desde o carregamento desta página. Contagens vêm dos metadados existentes; o DBG não abre nem varre o IndexedDB e não chama search(). Tempos observam as chamadas reais, incluindo retornos vazios. Roteamento é uma regra local, sem inferência extra. Chamadas e seleção são medidas separadamente; recuperar trechos não comprova uso pelo LLM. Solicitações não incluem conteúdo nem identificadores no relatório.'),
   section('voice','Voz',[
    ...voiceRows('stt','STT · fala → texto','Whisper Tiny INT8'),...voiceRows('tts','TTS · texto → fala','Supertonic 3 INT8')
   ],'STT mede a tentativa de criação, transcrição e liberação do recognizer quando este chegou a ser criado. TTS mede cada segmento sintetizado com sucesso; não inclui reprodução, fila ou carregamento do motor. Médias usam só essas amostras. Instalado e carregado são estados diferentes; ler diagnóstico não carrega os motores.'),
@@ -72,4 +77,5 @@ export function diagnosticReport(cards){
  return ['HARUNA — DIAGNÓSTICO','DBG · somente leitura','Atualização: estado a cada 5 s; memória a cada 10 s.','',
   ...cards.flatMap(card=>[card.title.toUpperCase(),...card.rows.map(r=>`${r.label}: ${r.value}`),`Nota: ${card.note}`,''])].join('\n');
 }
+
 
