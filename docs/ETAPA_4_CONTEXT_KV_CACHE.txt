@@ -1,0 +1,216 @@
+ETAPA_4_CONTEXT_KV_CACHE
+
+1. RESUMO E ESCOPO
+Base funcional: 5c973bad5783986c3a2cef801e4cf9168880d1b6, ui-polish-icons.
+Checkpoint: checkpoint/haruna-before-kv-cache-5c973ba, preservado sem mover os anteriores.
+Reaproveitamento de prefixo por igualdade exata de tokens, no mesmo contexto,
+modelo e conversa. Um único cache em RAM; nenhum KV em disco ou cache por Activity.
+Sem alegação de ganho real no Samsung/Teclast antes do teste manual.
+
+2. AUDITORIA — CAUSA CONFIRMADA DO REUSE ZERO
+O caminho real já preservava roles e aplicava o template GGUF via Jinja em
+haruna_chat.h. Depois da tokenização e truncamento, executava:
+reset_long_term_states(); reset_short_term_states(); common_sampler_reset(...);
+hm_cleared = 1; decode_tokens_in_batches(... tokens, 0, true).
+reset_long_term_states() chamava llama_memory_clear(...,false), descartando todas
+as posições antes de cada prefill. finishGeneration também limpava tudo após
+cancelamento/erro. A conversationId Kotlin não chegava ao contexto nativo.
+Logo zero reuse era comportamento explícito do código, não falta de RAM do aparelho.
+
+3. FLUXO E CONTEXTO PRESERVADOS
+app/enriched mantém Memória Essencial/Aprendida, anexos e RAG. context/messages.js
+seleciona histórico recente por roles e monta a mensagem atual. LlamaCppBackend
+mantém identidade + perfil na role system. SDK encaminha arrays system/user/
+assistant ao mesmo processChatMessages JNI. common_chat_templates_apply usa
+o template do GGUF com a mesma opção enable_thinking. haruna_tokenize conserva
+parts/is_input e BOS/EOS, protegendo os dados contra interpretação como template.
+Nenhum texto, label ou ID novo é adicionado ao prompt do modelo.
+
+Antes: construir -> tokenizar -> limpar todo KV -> avaliar todo prompt -> gerar.
+Agora: construir/tokenizar/truncar exatamente igual -> validar owner -> comparar
+tokens confirmados -> remover sufixo incompatível -> avaliar só o restante -> gerar.
+
+4. ALGORITMO E LOGITS
+Ledger guarda os token IDs efetivamente avaliados com sucesso, em ordem de posição.
+Compara token a token do início até a primeira divergência; não usa texto,
+comprimento, prefixo de string ou hash como autoridade.
+Owner precisa coincidir: conversationKey + revisão de reset, geração do modelo,
+ponteiro do contexto e template, opção thinking. Sem identidade, reuse é desativado.
+Antes do uso, as posições do seq_id 0 precisam comprovar intervalo [0,N).
+llama_memory_seq_rm(mem,0,keep,-1) remove [keep,+inf). Retorno e limites do intervalo
+retido são verificados. Falha/inconsistência implica clear completo e novo prefill.
+
+Se o prompt inteiro coincidir, o último token é reavaliado para produzir logits
+corretos. Remover um sufixo não torna os logits anteriores automaticamente válidos.
+Portanto LCP pode ser N, mas reuse efetivo fica N-1; o DBG distingue esses números.
+Hit completo de comparação não significa 100% de KV reutilizado nem prefill zero.
+Quando a entrada cresce, todo prefixo antigo compatível pode ser mantido.
+O helper avalia o array original a partir de token_offset=reuse, usando posições
+originais. Não faz cópia do KV nem altera tamanho máximo de batch/ubatch.
+Sampler recebe o mesmo reset que já recebia por geração, sem trocar sua política.
+
+5. OWNERSHIP E ISOLAMENTO
+Cache pertence ao único runtime/modelo/contexto nativo do processo, sob dispatcher
+serial e tickets da Etapa 2. Não há mapa de caches de várias conversas.
+Mudar de conversa descarta o estado anterior, mesmo que seus tokens sejam iguais.
+Reset explícito cancela/junta o pedido, incrementa revisão lógica e chama uma JNI
+normal no dispatcher para invalidar o KV antes de reutilizar a conversa.
+invalidatePrefixCache não carrega/troca modelo e não altera o system prompt.
+Unload/destroy/falha de prepare liberam o registro; sua capacidade é desalocada.
+Activity/WebView não possuem o cache nem o transferem para outra instância.
+O DBG recebe apenas slot C1/C2/etc. atribuído pelo processo, nunca o chat.id, título
+ou conversationKey. O slot não é identificador persistente ou dado do usuário.
+
+6. INVALIDAÇÃO / FALLBACK
+Nova conversa, reset, modelo/contexto diferente, template/opção diferente,
+identidade ausente, posições inconsistentes, poda não comprovada, erro nativo,
+unload e fluxo legado que limpa KV invalidam o estado correspondente.
+Mudança de memória, histórico editado/removido, regeneração, anexos e RAG passam
+pelo mesmo template/tokenização. Apenas o LCP real é mantido; qualquer sufixo
+divergente é removido. Motivo agregado tokens_changed não inventa se a origem foi
+memória, anexo ou RAG; isso exigiria guardar conteúdo desnecessário.
+Truncamento mantém a política anterior e revalida o prefixo dos tokens finais.
+Context shift invalida o registro; não tenta reutilizar posições deslocadas com
+RoPE/causalidade distintos. Não altera o algoritmo de shift existente.
+Estado recorrente/híbrido, modelo com encoder/difusão ou memória ausente usa
+prefill completo. Não se supõe que remoção parcial seja segura em todo modelo.
+SWA ou outro estado que não comprove posições desde zero também cai no fallback.
+
+7. CANCELAMENTO E ERRO
+Tickets, abort_callback, ordem de cleanup e ownership da Etapa 2 permanecem.
+Prefill: o registro só avança após retorno zero do batch completo. Um batch que
+abortou não é registrado, mesmo se o llama.cpp conseguiu processar ubatches.
+No cleanup remove-se tudo a partir do último prefixo confirmado e verificam-se
+as posições. Se isso não for comprovado, limpa-se todo o KV.
+Decode: só tokens decodificados com sucesso são registrados. Ao cancelar, todo
+o sufixo gerado é removido e fica no máximo o prompt confirmado desta geração.
+Isso é conservador: não se presume que o texto em buffers já tenha sido gravado
+ou apresentado. O próximo histórico real é novamente tokenizado e reconciliado.
+Cancelamento antes de preparar entrada pode preservar o prefixo anterior, sem
+atribuir a ele tokens de um novo prefill. Sem preparação, o DBG não simula input.
+Erro de prefill/decode/preparação/transporte incerto limpa o cache; não é sucesso.
+Falha de cleanup usa a liberação idempotente existente e estado conhecido do SDK.
+Cancelar e iniciar outra geração mantém o join do proprietário anterior; nenhum
+novo caminho concorrente de inferência foi criado.
+
+8. API NATIVA — EVIDÊNCIA DA REVISÃO FIXADA
+include/llama.h: llama_memory_seq_rm permite remover intervalos e devolve sucesso;
+llama_memory_seq_pos_min/max documentam as posições presentes no intervalo.
+O contrato de llama_decode informa que abort/fatal podem deixar ubatches
+concluídos no contexto. Por isso o retorno de erro não confirma o batch inteiro.
+src/llama-context.cpp trata GGML_STATUS_ABORTED e remove entradas da execução que
+falhou. A Haruna ainda poda/verifica seu próprio limite confirmado.
+src/llama-kv-cache.cpp implementa remoção por posição/seq. Estados recorrentes e
+híbridos possuem regras distintas; não foram habilitados para reuse nesta etapa.
+llama.cpp permanece 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10.
+
+9. MEMÓRIAS, ANEXOS, RAG E TEMPLATE
+Nenhum desses subsistemas foi desativado, simplificado ou reescrito. O prompt
+completo atual continua sendo a fonte de verdade, inclusive quando muda no início.
+Isso pode reduzir reuse a poucos tokens ou zero; o fallback correto tem prioridade.
+Generation markers, EOS, fronteiras de turnos, BPE e texto de thinking podem fazer
+o histórico reformatado diferir dos tokens gerados. O algoritmo não presume que
+o prompt/resposta anterior seja prefixo do próximo. Ele compara os IDs reais.
+RAG sem documentos mantém o fast path existente e não executa busca só por cache
+ou diagnóstico. Teste focado verificou zero chamadas de search nesse caminho.
+
+10. DBG — DADOS REAIS E LIMITES
+Preservadas métricas de memória/buffers/runtime, prefill/decode/TTFT, transporte,
+cancelamento, seed, logits/NaN/Inf/repetição/layouts das Etapas 1–3.
+Adicionados no card Contexto:
+- tokens totais do prompt e realmente avaliados em batches concluídos;
+- reuse efetivo e percentual (reused/input), LCP e hit de comparação;
+- posições antes/reconciliadas/após prefill/término, poda de reconciliação/cleanup;
+- prefill evitado em tokens (igual a reuse, não uma estimativa de segundos);
+- tempo monotônico de comparação + reconciliação;
+- validade e quantidade de tokens confirmados, suporte, slot opaco;
+- motivo da decisão/evento e prefixo/batches novos confirmados após cancelamento.
+Contadores de tokens são atualizados por commit confirmado; não há JSON por token.
+Snapshot usa cópias escalares protegidas/atômicas, nunca lê KV mutável do DBG.
+KV/posições são lógicas, não medição de bytes físicos ou porcentagem de RAM.
+Prefill tok/s usa tokens realmente avaliados, não o total do prompt reutilizado.
+Cache válido significa candidato confirmado no contexto; só é aplicável ao novo
+prompt depois da reconciliação. Métricas da última geração podem permanecer visíveis
+após resposta local/reset; ler serial nativo, motivo e validade separadamente.
+
+11. RAM E RISCOS
+n_ctx 8192 e KV F16/F16 continuam reservados como antes; não se promete RAM menor.
+O registro é um vector compacto de int32 token IDs, limitado às posições do contexto
+(ordem de 32 KiB de capacidade para 8192 IDs, além do overhead do container).
+Isso não duplica os tensores KV. Só há um registro; unload libera sua capacidade.
+Comparação é linear no prefixo; poda/verificação usa API de memória do runtime.
+O custo está medido em reconcileUs, sem benchmark artificial de dispositivo.
+Mudanças de forma dos batches e arredondamento numérico podem mudar resultados;
+sampling já usa seed aleatória. Não se promete resposta bit a bit idêntica.
+Ledger prova a sequência de entrada/posição, não diagnostica defeito numérico
+de um kernel. O problema degenerado do Samsung não foi mascarado nem declarado
+resolvido; suas sondas e saída continuam observáveis. Não inferir causalidade.
+Crash/assert/pressão de RAM e comportamento real no Android continuam exigindo
+validação no aparelho. Não há persistência do KV ou recovery de KV após morte do processo.
+
+12. ARQUIVOS
+Modificados:
+scripts/patch_android_loader.py
+patches/llama-android/haruna_chat.h
+patches/llama-android/haruna_metrics.h
+patches/llama-android/haruna_resources.h
+patches/llama-android/haruna_runtime_control.h
+app/src/main/java/com/proxyslabs/haruna/LlamaCppBackend.kt
+app/src/main/assets/haruna/diagnostics/runtime-report.js
+Novos:
+scripts/patch_android_prefix.py
+patches/llama-android/haruna_prefix_ledger.h
+patches/llama-android/haruna_prefix_cache.h
+scripts/check_prefix_cache.cpp
+scripts/check_prefix_rag.mjs
+docs/ETAPA_4_CONTEXT_KV_CACHE.txt
+O novo patch estende o SDK fixado durante o build: InferenceEngine.kt,
+InferenceEngineImpl.kt e ai_chat.cpp, na mesma cadeia de patches existente.
+Não há biblioteca nova de produção ou alteração do gitlink do llama.cpp.
+
+13. TESTES FOCADOS
+Teste C++ usa o ledger e hooks reais com um adaptador de memória de teste:
+A/B/C primeira entrada zero, segunda prefixo positivo, terceira prefixo crescente;
+D/E conversa diferente/retorno à conversa/model epoch diferente -> miss;
+F prefill parcial: batch concluído retido, posições de batch incompleto removidas;
+G decode cancelado: prompt confirmado preservado, sufixo removido;
+H/J histórico/tokens dinâmicos editados -> prefixo menor ou zero correto;
+também prompt idêntico com replay do último token, reset, mudança de template,
+falha de poda/posições, context shift, erro, identidade ausente, híbrido e unload.
+Executado com ASan/UBSan; LeakSanitizer desabilitado pela restrição ptrace do sandbox,
+não é auditoria de vazamentos. Não executa llama inference nem simula tok/s.
+Teste JS usa o código original de enriquecimento/roteamento com catálogo vazio e
+substitui só o armazenamento: zero buscas, sem alterar o fast path de produção.
+Patches aplicados ao fonte exato fixado e reaplicados para verificar idempotência;
+sintaxe Python/JS verificada. Resultado final do build/checks/commit/APK consta
+na entrega final. Não houve download de GGUF nem benchmark longo.
+
+14. TESTE MANUAL A–E
+Manter o mesmo Qwen 2.5 1.5B Q4_K_M e configurações. Em cada caso copiar DBG após
+o fim e snapshot atualizado (cache de diagnóstico de 5 s preservado).
+A conversa nova: 'Explique em três frases por que o céu parece azul.'
+Esperado: reuse zero e prefill completo, exceto respostas locais sem JNI.
+B mesma conversa: 'Agora explique isso de forma ainda mais simples.'
+Copiar input, avaliados, reuse/%, LCP/hit, posições/poda, motivo/slot, reconcileUs,
+prefill duração/tok/s, TTFT, decode e métricas de streaming/PSS/RSS.
+Esperado: reuse positivo quando os tokens anteriores permanecerem compatíveis.
+C mesma conversa: 'Dê um exemplo do cotidiano.' Repetir cópia e verificar crescimento
+quando aplicável. Mudança/truncamento do contexto pode reduzir prefixo corretamente.
+D nova conversa: 'Olá.' Confirmar invalidação e ausência de mistura. 'Olá' pode
+ser atendido pelo fluxo local/primeiro contato sem JNI; se serial nativo não mudar,
+isso não mede reuse. Enviar depois uma pergunta não local para exercitar o LLM.
+E cancelar antes do primeiro token e durante decode; enviar outra mensagem assim
+que finalizar o cancelamento. Conferir prefixo confirmado, poda/razão, resposta,
+nenhum lote antigo ou conteúdo de outra conversa. Repetir troca de modelo.
+No Samsung, guardar também seed, NaN/Inf/faixa, repetição, layouts e resultado
+textual se houver degeneração, sem alterar sampling entre os testes.
+
+15. PRESERVAÇÃO EXPLÍCITA
+Não foram deliberadamente alterados modelo padrão, quantização, sampling,
+seed policy, temperatura/top-k/top-p/min-p, limite normal de geração, n_ctx 8192,
+batch/ubatch 512/512, threads, KV F16/F16, Flash Attention, backend/variante CPU,
+afinidade, GPU layers/offload, mmap/mlock, OpenCL/Vulkan/Hexagon/GPU/NPU.
+Preservados system prompt/personalidade, memórias, RAG/Second Brain, anexos,
+STT/TTS, armazenamento, streaming/backpressure/RAF, cancelamento e ownership.
+Sem atualização de llama.cpp, filtro de saída, retry oculto, fallback de modelo
+ou novo treinamento. Etapa 5 não implementada.

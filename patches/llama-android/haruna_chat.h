@@ -33,7 +33,7 @@ static llama_tokens haruna_tokenize(const common_chat_prompt & prompt) {
 extern "C" JNIEXPORT jint JNICALL
 Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         JNIEnv * env, jobject, jobjectArray roles, jobjectArray contents,
-        jint n_predict, jboolean enable_thinking) {
+        jint n_predict, jboolean enable_thinking, jstring conversation_key, jlong conversation_revision) {
     hm_begin();
     haruna_input_tokens = -1; haruna_output_tokens = -1;
     haruna_history_messages = -1; haruna_template_from_gguf = -1; haruna_context_capacity = -1;
@@ -87,11 +87,14 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             messages.erase(messages.begin() + 1, messages.begin() + 1 + remove);
             hm_removed += remove;
         }
-        reset_long_term_states(); reset_short_term_states(); common_sampler_reset(g_sampler);
+        const auto key=haruna_jstring(env,conversation_key);
+        if (key.size()>160) throw std::runtime_error("Invalid conversation identity");
+        const size_t reuse=hk_reconcile(tokens,key,conversation_revision,enable_thinking);
+        reset_long_term_states(false); reset_short_term_states(); common_sampler_reset(g_sampler);
         hs_sampler_reset_observed();
-        hm_cleared = 1; hm_input = tokens.size(); hm_stage = 3;
+        hm_input = tokens.size(); hm_stage = 3;
         const auto prefill_start = hm_clock();
-        const auto prefill_result = decode_tokens_in_batches(g_context, g_batch, tokens, 0, true);
+        const auto prefill_result = decode_tokens_in_batches(g_context, g_batch, tokens, 0, true, static_cast<int>(reuse));
         hm_prefill = hm_clock() - prefill_start;
         if (prefill_result != 0) {
             if (hs_check_cancel()) return 5;
@@ -99,6 +102,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             throw std::runtime_error("Chat input decoding failed");
         }
         if (hs_check_cancel()) return 5;
+        hk_prefill_finished();
         chat_msgs = std::move(messages);
         current_position = static_cast<llama_pos>(tokens.size());
         hm_occupied = current_position;
@@ -113,7 +117,9 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
     } catch (...) {
         if (hm_reason.load()!=6 && hm_reason.load()!=5 && hm_reason.load()!=7 && hm_reason.load()!=8 && hm_reason.load()!=9) hm_finish(4);
         // Never propagate a template exception containing message text to Java/logcat.
-        if (g_context != nullptr) { reset_long_term_states(); reset_short_term_states(); }
+        try {
+            if (g_context != nullptr) { hk_invalidate(HkReason::native_error,true); reset_long_term_states(false); reset_short_term_states(); }
+        } catch (...) { hk_ledger.invalidate(HkReason::native_error); hk_publish(); }
         return 3;
     }
 }
@@ -125,4 +131,14 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_chatMetrics(JNIEnv * env, jobje
     auto result = env->NewIntArray(5);
     if (result != nullptr) env->SetIntArrayRegion(result, 0, 5, values);
     return result;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_arm_aichat_internal_InferenceEngineImpl_invalidatePrefix(JNIEnv *,jobject) {
+    if (hs_ticket.load()!=0) return 1;
+    try {
+        hk_invalidate(HkReason::explicit_reset,true);
+        reset_long_term_states(false); reset_short_term_states();
+        return 0;
+    } catch (...) { haruna_release_resources(); return 2; }
 }

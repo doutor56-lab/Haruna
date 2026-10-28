@@ -13,6 +13,7 @@
 extern "C" LLAMA_API int haruna_observed_flash(const llama_context * ctx);
 extern "C" LLAMA_API int haruna_observed_gpu_layers(const llama_context * ctx);
 using HarunaJson = nlohmann::ordered_json;
+static HarunaJson hk_snapshot();
 static int64_t hm_clock() {
     timespec now{}; clock_gettime(CLOCK_BOOTTIME, &now);
     return static_cast<int64_t>(now.tv_sec)*1000000 + now.tv_nsec/1000;
@@ -120,6 +121,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_runtimeMetrics(JNIEnv * env,job
     HarunaJson result;
     { std::lock_guard<std::mutex> guard(hm_lock); result["runtime"]=hm_runtime; }
     result["stability"]=hs_snapshot();
+    result["prefix"]=hk_snapshot();
     result["generation"]={{"serial",hm_serial.load()},{"nativeStartBootUs",hm_start.load()},{"templateUs",hm_template.load()},
         {"tokenizeUs",hm_tokenize.load()},{"prefillUs",hm_prefill.load()},
         {"firstDeltaUs",hm_first_delta.load()},{"firstSampleUs",hm_first_sample.load()},

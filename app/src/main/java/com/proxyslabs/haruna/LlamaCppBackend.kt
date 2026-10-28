@@ -53,6 +53,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     @Volatile private var lastError: String? = null
     @Volatile private var resetRequired = false
     @Volatile private var conversationId: String? = null
+    @Volatile private var conversationRevision = 0L
 
     override fun contextMetrics(): Map<String, Int> = runCatching {
         val values = engine.chatMetrics()
@@ -172,6 +173,8 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             maintenance(5) {
                 validateModel(File(requireNotNull(modelPath) { "Nenhum modelo carregado" }))
                 resetRequired = true; lastError = null
+                conversationRevision++
+                runBlocking(Dispatchers.IO) { engine.invalidatePrefixCache() }
             }
         }
     }
@@ -206,7 +209,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     val root = JSONObject(payloadJson)
                     val messages = requireNotNull(root.optJSONArray("messages")) { "Prompt vazio" }
                     val options = root.optJSONObject("options")
-                    val nextConversation = options?.optString("conversationId")?.takeIf { it.isNotBlank() } ?: "legacy"
+                    val nextConversation = options?.optString("conversationId")?.takeIf { it.isNotBlank() } ?: ""
                     if (!engine.state.value.isModelLoaded || engine.state.value is InferenceEngine.State.Error) {
                         loading = true
                         try {
@@ -232,7 +235,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     resetRequired = false
                     val predictLength = options?.optInt("maxTokens", 512)?.coerceIn(16, 1024) ?: 512
                     val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; var outputChars = 0L
-                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial).collect { token ->
+                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial, nextConversation, conversationRevision).collect { token ->
                         if (firstTokenAt == 0L) { firstTokenAt = System.currentTimeMillis(); Log.i(TAG, "first_token_ms=${firstTokenAt - generationStart}") }
                         outputChars += token.length
                         // The bridge owns a bounded ordered buffer; no Main-thread hop per delta.

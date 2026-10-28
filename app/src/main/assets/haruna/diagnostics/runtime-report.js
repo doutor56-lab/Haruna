@@ -2,6 +2,7 @@
 export function runtimeCards(native,local,f){
  const {section,row,number,bytes,duration,clean,valid}=f;
  const obs=native.llm?.observation||{},r=obs.runtime||{},g=obs.generation||{};
+ const k=obs.prefix||{},planned=k.planned===true;
  const p=native.session?.pipeline||{},v=local.inference||p.visual||{},t=p.transport||{};
  const has=valid(g.serial)&&g.serial>0;
  const us=n=>valid(n)?duration(n/1000):'Indisponível';
@@ -70,11 +71,28 @@ export function runtimeCards(native,local,f){
  section('context','Contexto',[
   row('Capacidade configurada',number(r.nCtx)),row('Entrada atual / última · tokens',has?number(g.inputTokens):'Indisponível'),
   row('Posição de escrita observada',has?number(g.occupied):'Indisponível'),
-  row('Tokens reaproveitados',has&&g.cacheCleared===1?'0 · limpeza de KV observada':'Indisponível'),
+  row('Tokens reaproveitados',planned?number(k.reusedTokens):'Indisponível · não reconciliado'),
+  row('Prompt total / realmente avaliado no prefill',planned?`${number(k.inputTokens)} / ${number(g.prefillTokens)}`:'Indisponível'),
+  row('Reaproveitamento do prompt',planned&&k.inputTokens>0?`${(100*k.reusedTokens/k.inputTokens).toLocaleString('pt-BR',{maximumFractionDigits:1})}%`:'Indisponível'),
+  row('Maior prefixo comum · igualdade de tokens',planned?number(k.commonPrefixTokens):'Indisponível'),
+  row('Hit de comparação',planned?(k.fullTokenMatch?'Completo · último token reavaliado':k.reusedTokens>0?'Parcial':'Miss'):'Indisponível'),
+  row('KV · posições antes / reconciliadas',planned?`${number(k.kvBefore)} / ${number(k.kvReconciled)}`:'Indisponível'),
+  row('KV · após prefill / término',planned?`${k.kvAfterPrefill>0?number(k.kvAfterPrefill):'Não concluído'} / ${g.stage===5?number(k.kvAfter):'Em andamento'}`:'Indisponível'),
+  row('Posições podadas · reconciliação / cleanup',planned?`${number(k.prunedTokens)} / ${number(k.cleanupPrunedTokens)}`:'Indisponível'),
+  row('Prefill evitado · tokens',planned?number(k.reusedTokens):'Indisponível'),
+  row('Comparação e reconciliação',planned?us(k.reconcileUs):'Indisponível'),
+  row('Cache · prefixo confirmado válido',yes(k.valid)),
+  row('Tokens confirmados no cache',number(k.confirmedTokens)),
+  row('Reuse suportado nesta solicitação',planned?yes(k.supported):'Indisponível'),
+  row('Conversa · slot opaco no processo',k.conversationSlot>0?`C${k.conversationSlot}`:'Indisponível'),
+  row('Motivo da decisão',planned?prefixReason(k.reason):'Não reconciliado'),
+  row('Último evento do cache',prefixReason(k.invalidation)),
+  row('Prefixo confirmado após cancelamento',[5,9].includes(g.nativeStopCode)?number(k.confirmedAfterCancel):'Não se aplica'),
+  row('Prefill novo concluído antes de cancelar',[5,9].includes(g.nativeStopCode)?number(k.evaluatedBeforeCancel):'Não se aplica'),
   row('Context shifts observados',has?number(g.shifts):'Indisponível'),
   row('Histórico removido · mensagens',has?number(g.removedMessages):'Indisponível'),
   row('Motivo da redução',has?(g.removedMessages>0?'Entrada + saída reservada excederam a capacidade':'Nenhuma redução nativa observada'):'Indisponível')
- ],'Posição é observada após prefill/passos de decode, não tamanho alocado nem prova de ocupação física. Redução refere-se ao limite nativo; seleção prévia de histórico no JS mantém a política anterior. Dados da última solicitação nativa podem sobreviver à troca de modelo; serial e configuração atual devem ser lidos separadamente.')
+ ],'Tokens atuais do mesmo template são comparados um a um com o registro confirmado no mesmo modelo/conversa. Coincidência completa do prompt ainda reavalia seu último token para obter logits atuais: não significa 100% de KV reutilizado. Novo prefill conta só batches concluídos. Cancelamento no decode volta ao prompt confirmado; sufixos não apresentados não são presumidos como histórico. Estado inválido ou memória sem poda segura faz prefill completo. Slot opaco não revela ID/título. Posições são lógicas, não bytes/RAM. Snapshot mostra última solicitação nativa; respostas locais podem não chamar o LLM. Truncamento, sampling e orçamento existentes foram preservados.')
  ];
 }
 
@@ -103,3 +121,7 @@ function stabilityCards(obs,session,f){
  ],'Cancelamento usa ticket: pedido antigo não afeta o novo. Reconhecimento é observado entre nós do grafo CPU ou fronteiras seguras; não é tempo até todos os callbacks terminarem. Modelos são do processo; bridges e executores pertencem à tela. Repetição é somente agregada, sem filtros ou IDs exportados. Até duas sondas de logits, primeira amostragem/final EOG ou limite; infinitos podem ser legítimos, NaN merece investigação. Seed automática é lida, não fixada. Nenhum prompt/texto é retido no diagnóstico.')];
 }
 function validSigned(v){return typeof v==='number'&&Number.isFinite(v)}
+function prefixReason(value){
+ const labels={empty:'Cache vazio',match:'Prefixo confirmado compatível',tokens_changed:'Tokens divergentes · sufixo removido',conversation_changed:'Outra conversa',explicit_reset:'Contexto de conversa reiniciado',model_changed:'Modelo/contexto mudou',template_changed:'Template/opção mudou',missing_identity:'Sem identidade de conversa · reuse desativado',unsupported:'Estado recorrente/híbrido ou memória não suportada',memory_mismatch:'Posições de memória incompatíveis',prune_failed:'Poda não comprovada · fallback completo',native_error:'Erro nativo · cache invalidado',cancelled_prefill:'Cancelado no prefill · só batches concluídos',cancelled_decode:'Cancelado no decode · prompt preservado',history_trimmed:'Histórico truncado · prefixo revalidado',context_shift:'Context shift · registro invalidado',unloaded:'Modelo/contexto liberado',legacy_reset:'Fluxo legado limpou o contexto',full_match_replay:'Prompt idêntico · último token reavaliado',cancelled_before_prepare:'Cancelado antes de alterar o KV'};
+ return labels[value]||'Indisponível';
+}

@@ -3,6 +3,7 @@
 #include <limits>
 #include <cmath>
 static void haruna_release_resources();
+static void hk_begin_request();
 static std::atomic<int64_t> hs_ticket{0};
 static std::mutex hs_mutex;
 struct HarunaControlObservation {
@@ -45,6 +46,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_reserveGeneration(JNIEnv *,jobj
     hs_max_run=0; hs_period2=0; hs_logit_checks=0; hs_nan=0; hs_inf=0; hs_logit_us=0;
     hs_recent.fill(LLAMA_TOKEN_NULL); hs_recent_count=0; hs_run=0;
     hs_ticket.store(ticket,std::memory_order_release);
+    hk_begin_request();
     return 0;
 }
 extern "C" JNIEXPORT jboolean JNICALL

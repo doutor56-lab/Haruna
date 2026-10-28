@@ -102,4 +102,6 @@ from patch_android_metrics import apply_metrics_patch
 apply_metrics_patch()
 from patch_android_stability import apply_stability_patch
 apply_stability_patch()
+from patch_android_prefix import apply_prefix_patch
+apply_prefix_patch()
 
