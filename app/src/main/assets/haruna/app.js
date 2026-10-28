@@ -206,7 +206,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
   try{
    const result=await llm.generate(messages,{conversationId:chat.id,essentialContext:profile,enableThinking:thinkMode,maxTokens:thinkMode?512:256,onToken:(_,all)=>{
     draft.content=cleanThink(all);const visible=previewThink(all);out.textContent=visible||'✦';messagesEl.scrollTop=messagesEl.scrollHeight;
-    domUpdated(all.length,!!visible);
+    domUpdated(all.length,/\S/.test(visible));
     if(now()-lastSaved>1000){lastSaved=now();persist()}
    }});
    draft.content=cleanThink(result.text)||'Não consegui formular uma resposta.';delete draft.interrupted;

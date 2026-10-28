@@ -6,6 +6,7 @@
 #include <sched.h>
 #include <dlfcn.h>
 #include <time.h>
+#include <nlohmann/json.hpp>
 #include "llama-ext.h"
 #include "ggml-feats.h"
 
@@ -40,6 +41,7 @@ static void hm_begin() {
 }
 static void hm_finish(int reason) { hm_reason=reason; hm_end=hm_clock()-hm_start.load(); hm_stage=5; }
 static void hm_context(const llama_context_params * requested = nullptr) {
+    try {
     // Called only on the serialized inference thread, at preparation/prefill boundaries.
     if (!g_context || !g_model) return;
     HarunaJson value;
@@ -96,8 +98,9 @@ static void hm_context(const llama_context_params * requested = nullptr) {
 #endif
     value["llamaCommit"]=HARUNA_LLAMA_COMMIT;
     { std::lock_guard<std::mutex> guard(hm_lock); hm_runtime=std::move(value); }
+    } catch (...) { /* Optional observation must not fail model preparation/generation. */ }
 }
-static void hm_unloaded() { std::lock_guard<std::mutex> guard(hm_lock); hm_runtime=HarunaJson::object(); }
+static void hm_unloaded() { std::lock_guard<std::mutex> guard(hm_lock); hm_runtime.clear(); }
 static void hm_delta(size_t bytes) {
     const auto elapsed=hm_clock()-hm_start.load();
     int64_t missing=-1; hm_first_delta.compare_exchange_strong(missing,elapsed);
@@ -109,6 +112,7 @@ struct HarunaDecodeTimer {
 };
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_arm_aichat_internal_InferenceEngineImpl_runtimeMetrics(JNIEnv * env,jobject) {
+    try {
     HarunaJson result;
     { std::lock_guard<std::mutex> guard(hm_lock); result["runtime"]=hm_runtime; }
     result["generation"]={{"serial",hm_serial.load()},{"nativeStartBootUs",hm_start.load()},{"templateUs",hm_template.load()},
@@ -123,4 +127,5 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_runtimeMetrics(JNIEnv * env,job
         {"endUs",hm_end.load()},{"nativeStopCode",hm_reason.load()}};
     // Last/current scalars only; this getter never reads mutable model/context objects.
     return env->NewStringUTF(result.dump().c_str());
+    } catch (...) { return env->NewStringUTF("{}"); }
 }
