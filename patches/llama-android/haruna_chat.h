@@ -39,6 +39,7 @@ extern "C" JNIEXPORT jint JNICALL
 Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         JNIEnv * env, jobject, jobjectArray roles, jobjectArray contents,
         jint n_predict, jboolean enable_thinking) {
+    hm_begin();
     haruna_input_tokens = -1; haruna_output_tokens = -1;
     haruna_history_messages = -1; haruna_template_from_gguf = -1; haruna_context_capacity = -1;
     try {
@@ -70,26 +71,42 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             input.add_generation_prompt = true;
             input.enable_thinking = enable_thinking;
             // No override: common_chat_templates_init(g_model, "") reads this GGUF's metadata.
-            tokens = haruna_tokenize(common_chat_templates_apply(g_chat_templates.get(), input).prompt);
+            const auto template_start = hm_clock();
+            hm_stage = 1;
+            auto formatted = common_chat_templates_apply(g_chat_templates.get(), input);
+            hm_template += hm_clock() - template_start;
+            const auto tokenize_start = hm_clock();
+            hm_stage = 2;
+            tokens = haruna_tokenize(formatted.prompt);
+            hm_tokenize += hm_clock() - tokenize_start;
             if (!tokens.empty() && static_cast<int>(tokens.size()) + predict <= limit) break;
             if (messages.size() <= 2) throw std::runtime_error("Chat input exceeds context capacity");
             // Evict only oldest history, never identity, current profile or current user input.
             const size_t remove = messages[1].role == ROLE_USER && messages.size() > 3 &&
                                   messages[2].role == ROLE_ASSISTANT ? 2 : 1;
             messages.erase(messages.begin() + 1, messages.begin() + 1 + remove);
+            hm_removed += remove;
         }
         reset_long_term_states(); reset_short_term_states(); common_sampler_reset(g_sampler);
-        if (decode_tokens_in_batches(g_context, g_batch, tokens, 0, true) != 0)
+        hm_cleared = 1; hm_input = tokens.size(); hm_stage = 3;
+        const auto prefill_start = hm_clock();
+        const auto prefill_result = decode_tokens_in_batches(g_context, g_batch, tokens, 0, true);
+        hm_prefill = hm_clock() - prefill_start;
+        if (prefill_result != 0)
             throw std::runtime_error("Chat input decoding failed");
         chat_msgs = std::move(messages);
         current_position = static_cast<llama_pos>(tokens.size());
+        hm_occupied = current_position;
         stop_generation_position = current_position + predict;
         haruna_input_tokens = static_cast<int>(tokens.size()); haruna_output_tokens = 0;
         haruna_history_messages = static_cast<int>(chat_msgs.size()) - 2;
         haruna_template_from_gguf = common_chat_templates_was_explicit(g_chat_templates.get()) ? 1 : 0;
         haruna_context_capacity = llama_n_ctx(g_context);
+        hm_context();
+        hm_stage = 4;
         return 0;
     } catch (...) {
+        hm_finish(4);
         // Never propagate a template exception containing message text to Java/logcat.
         if (g_context != nullptr) { reset_long_term_states(); reset_short_term_states(); }
         return 3;

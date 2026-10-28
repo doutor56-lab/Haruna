@@ -1,3 +1,4 @@
+import {inferenceMetrics} from './inference.js';
 import {summary as learnedSummary} from '../learned/store.js';
 import knowledge from '../knowledge-store.js';
 import {essentialSummary} from '../essential/store.js';
@@ -37,7 +38,7 @@ export function knowledgeMetrics(){
   }catch{metadata=null}
   dirty=false;
  }
- return {...(metadata||{}),essential:essentialSummary(),learned:learnedSummary(),routing:{...routing},searchCount:searches.count,failedSearches:searches.failures,lastMs:searches.lastMs,
+ return {...(metadata||{}),inference:inferenceMetrics(),essential:essentialSummary(),learned:learnedSummary(),routing:{...routing},searchCount:searches.count,failedSearches:searches.failures,lastMs:searches.lastMs,
   meanMs:searches.count?searches.totalMs/searches.count:null,lastRequest:lastRequest?{...lastRequest}:null};
 }
 

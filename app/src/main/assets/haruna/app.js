@@ -1,3 +1,4 @@
+import {preparationStarted,contextPrepared,domUpdated,presentationFinished} from './diagnostics/inference.js';
 import {observe as observeExperience} from './learned/store.js';import {learnedContext} from './learned/context.js';
 import {directIdentityReply} from './identity/direct-replies.js';
 import * as firstContact from './essential/first-contact.js';import {essentialContext,recentMessages,referenceContent,fitReferences,conversationMessages} from './context/messages.js';
@@ -198,11 +199,14 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
   const out=add('assistant','✦');
   const draft={role:'assistant',content:'',at:now(),interrupted:true};
   let lastSaved=0;
+  preparationStarted();
   const {prompt,profile}=await enriched(text,files),messages=conversationMessages(chat,prompt,profile);
+  contextPrepared();
   chat.messages.push(draft);
   try{
    const result=await llm.generate(messages,{conversationId:chat.id,essentialContext:profile,enableThinking:thinkMode,maxTokens:thinkMode?512:256,onToken:(_,all)=>{
-    draft.content=cleanThink(all);out.textContent=previewThink(all)||'✦';messagesEl.scrollTop=messagesEl.scrollHeight;
+    draft.content=cleanThink(all);const visible=previewThink(all);out.textContent=visible||'✦';messagesEl.scrollTop=messagesEl.scrollHeight;
+    domUpdated(all.length,!!visible);
     if(now()-lastSaved>1000){lastSaved=now();persist()}
    }});
    draft.content=cleanThink(result.text)||'Não consegui formular uma resposta.';delete draft.interrupted;
@@ -212,6 +216,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
    if(!cancelled)draft.error=true;
   }
   chat.updatedAt=now();persist();render();
+  presentationFinished(draft.content.length,!!draft.content);
   return {chatId:chat.id,text:draft.content,error:!!draft.error,interrupted:!!draft.interrupted};
  }catch(error){
   push('assistant',`Não consegui concluir a mensagem: ${error.message}`,chat,{error:true});render();return {chatId:chat.id,error:true,text:error.message};

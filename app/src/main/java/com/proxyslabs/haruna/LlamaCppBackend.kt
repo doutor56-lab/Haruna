@@ -46,6 +46,8 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         keys.mapIndexedNotNull { i, key -> values.getOrNull(i)?.takeIf { it >= 0 }?.let { key to it } }.toMap()
     }.getOrDefault(emptyMap())
 
+    override fun runtimeMetrics(): String = runCatching { engine.runtimeMetrics() }.getOrDefault("{}")
+
     override fun status(): LlmBackend.Status {
         val engineState = engine.state.value
         val loaded = engineState.isModelLoaded

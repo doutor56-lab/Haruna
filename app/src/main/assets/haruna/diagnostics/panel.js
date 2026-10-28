@@ -39,7 +39,7 @@ function open(){
  savedScroll=settings.scrollTop;returnFocus=document.activeElement;ticket++;native={};
  const element=document.createElement('dialog');element.className='haruna-dbg-sheet';element.setAttribute('aria-labelledby','harunaDbgTitle');
  element.innerHTML='<div class="haruna-dbg-handle" aria-hidden="true"></div><header class="haruna-dbg-head"><div class="haruna-dbg-brand">'+activityIcon+'</div><div><h2 id="harunaDbgTitle">DBG · Diagnóstico da Haruna</h2><p data-dbg-status aria-live="polite">Obtendo informações disponíveis…</p></div><button class="haruna-dbg-close" type="button" aria-label="Fechar diagnóstico" autofocus><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></header><div class="haruna-dbg-content"></div><footer class="haruna-dbg-footer"><button type="button" data-dbg-copy><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg>Copiar diagnóstico</button><span data-dbg-feedback role="status"></span><button type="button" class="haruna-dbg-done">Fechar</button></footer>';
- const icons={memory:'memory',llm:'brain',knowledge:'memory',voice:'volume',subsystems:'layers',device:'device'};
+ const icons={runtime:'brain',configuration:'layers',generation:'brain',streaming:'layers',context:'layers',memory:'memory',llm:'brain',knowledge:'memory',voice:'volume',subsystems:'layers',device:'device'};
  cards=diagnosticCards({},{});
  const content=element.querySelector('.haruna-dbg-content');
  for(const card of cards){

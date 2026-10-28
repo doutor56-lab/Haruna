@@ -24,6 +24,13 @@ class DiagnosticBridge(
     private var cached: JSONObject? = null
     init { DiagnosticSession.clock() }
 
+    // Two acknowledgements per request at most (first non-placeholder DOM text / final DOM).
+    // Scalars only. Receipt is an upper bound on the DOM timestamp, never proof of pixels.
+    @JavascriptInterface fun observePresentation(id: String, payload: String) {
+        if (closed.get() || id.length > 160 || payload.length > 1200) return
+        runCatching { DiagnosticSession.presentation(id, JSONObject(payload)) }
+    }
+
     @JavascriptInterface fun requestSnapshot(ticket: Int) {
         if (closed.get() || !pending.compareAndSet(false, true)) return
         runCatching { worker.execute {
@@ -39,7 +46,8 @@ class DiagnosticBridge(
                             .put("state", status.state).put("name", status.modelName?.let { File(it).name.take(180) } ?: JSONObject.NULL)
                             .put("fileBytes", file?.takeIf { it.isFile }?.length() ?: JSONObject.NULL)
                             .put("backend", backend.javaClass.simpleName)
-                            .put("context", JSONObject(backend.contextMetrics())))
+                            .put("context", JSONObject(backend.contextMetrics()))
+                            .put("observation", JSONObject(backend.runtimeMetrics())))
                     }
                     fun voice(source: () -> String): JSONObject = runCatching {
                         val value = JSONObject(source())

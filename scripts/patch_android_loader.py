@@ -98,4 +98,6 @@ print('Patched llama.cpp Android loader diagnostics.')
 # Extend the same pinned binding; no separate backend or model-specific pipeline.
 from patch_android_chat import apply_chat_patch
 apply_chat_patch()
+from patch_android_metrics import apply_metrics_patch
+apply_metrics_patch()
 

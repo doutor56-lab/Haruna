@@ -48,6 +48,11 @@ class AndroidMetricsCollector(context: Context) {
                 values.put("systemTotalBytes", info.totalMem).put("systemAvailableBytes", info.availMem)
             }
             runCatching {
+                File("/proc/self/status").useLines { lines ->
+                    lines.firstOrNull { it.startsWith("VmRSS:") }
+                        ?.substringAfter(':')?.trim()?.substringBefore(' ')?.toLongOrNull()
+                        ?.let { values.put("rssBytes", it * 1024) }
+                }
                 val peakKiB = File("/proc/self/status").useLines { lines ->
                     lines.firstOrNull { it.startsWith("VmHWM:") }
                         ?.substringAfter(':')?.trim()?.substringBefore(' ')?.toLongOrNull()

@@ -11,6 +11,7 @@ interface LlmBackend {
 
     fun status(): Status
     fun contextMetrics(): Map<String, Int> = emptyMap()
+    fun runtimeMetrics(): String = "{}"
     fun loadModel(localPath: String): Result<Unit>
     fun unloadModel(): Result<Unit>
     fun resetConversation(): Result<Unit>

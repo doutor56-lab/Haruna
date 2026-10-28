@@ -1,0 +1,68 @@
+// Explicit scalar allowlist, shared by the existing DBG cards and clipboard report.
+export function runtimeCards(native,local,f){
+ const {section,row,number,bytes,duration,clean,valid}=f;
+ const obs=native.llm?.observation||{},r=obs.runtime||{},g=obs.generation||{};
+ const p=native.session?.pipeline||{},v=local.inference||p.visual||{};
+ const has=valid(g.serial)&&g.serial>0;
+ const us=n=>valid(n)?duration(n/1000):'Indisponível';
+ const rate=(n,t)=>valid(n)&&valid(t)&&t>0?`${(n*1e6/t).toLocaleString('pt-BR',{maximumFractionDigits:2})} tokens/s`:'Indisponível';
+ const yes=x=>typeof x==='boolean'?(x?'Sim':'Não'):'Indisponível';
+ const stages={1:'Template',2:'Tokenização',3:'Prefill',4:'Decode / transporte',5:'Finalizado no native'};
+ const stop={0:'Desconhecido / ainda sem parada nativa',1:'EOG do vocabulário',2:'Limite de tokens',3:'Erro no decode nativo',4:'Erro ao preparar entrada'};
+ const same=has&&valid(p.bridgeStartBootUs)&&g.nativeStartBootUs>=p.bridgeStartBootUs;
+ const gap=same&&valid(g.firstDeltaUs)&&valid(p.firstDomAckBootUs)?p.firstDomAckBootUs-g.nativeStartBootUs-g.firstDeltaUs:null;
+ const sendGap=same&&valid(g.firstDeltaUs)&&valid(p.firstWebViewSendBootUs)?p.firstWebViewSendBootUs-g.nativeStartBootUs-g.firstDeltaUs:null;
+ return [
+ section('runtime','Runtime',[
+  row('llama.cpp · commit compilado',clean(r.llamaCommit)),row('ABI nativa',clean(r.abi)),
+  row('Dispositivos dos buffers efetivos',clean(r.bufferDevices)),row('Variante CPU carregada · dladdr',clean(r.cpuVariant)),
+  row('ARM · DOTPROD detectado',yes(r.dotprod)),row('ARM · FP16 vetorial detectado',yes(r.fp16)),row('ARM · I8MM detectado',yes(r.i8mm)),
+  row('CPUs online / permitidas à thread',`${number(r.cpuOnline)} / ${number(r.cpuAllowed)}`)
+ ],'Variante vem do símbolo do backend CPU registrado, sem caminhos. Features vêm de HWCAP/HWCAP2: disponibilidade não comprova uso em cada kernel. Dispositivos são os que possuem buffers alocados; não é um profiler de operações. CPU permitida é amostrada na thread de inferência. Dados da preparação/prefill, sem polling do contexto.'),
+ section('configuration','Configuração aplicada',[
+  row('Threads · decode / batch',`${number(r.threads)} / ${number(r.threadsBatch)}`),row('Contexto configurado',number(r.nCtx)),
+  row('Batch / ubatch',`${number(r.nBatch)} / ${number(r.nUbatch)}`),row('Sequências · capacidade',number(r.nSeqMax)),
+  row('K / V · tipos aplicados na criação',`${clean(r.kvK)} / ${clean(r.kvV)}`),
+  row('Flash Attention · solicitada',clean(r.flashRequested)),
+  row('Flash Attention · efetiva',r.flashEffective===1?'Ativa':r.flashEffective===0?'Inativa':'Indisponível / negociação pendente'),
+  row('Camadas transformer atribuídas à GPU',number(r.gpuTransformerLayers))
+ ],'Configuração lida do contexto criado. K/V são os tipos encaminhados à criação da memória de atenção; estados recorrentes de modelos híbridos podem ter outros tipos. GPU conta camadas transformer, exclui a projeção de saída. Nenhum parâmetro é alterado pelo DBG.'),
+ section('generation','Última geração / atual',[
+  row('Serial nativo · apenas correlação',has?number(g.serial):'Indisponível'),row('Fase nativa',has?stages[g.stage]||'Desconhecida':'Indisponível'),
+  row('Preparação de referências/contexto · JS',duration(v.contextMs)),
+  row('Template · tempo acumulado',has?us(g.templateUs):'Indisponível'),row('Tokenização · tempo acumulado',has?us(g.tokenizeUs):'Indisponível'),
+  row('Entrada · tokens selecionados',has?number(g.inputTokens):'Indisponível'),
+  row('Prefill · tokens avaliados com sucesso',has?number(g.prefillTokens):'Indisponível'),
+  row('Prefill · duração',has&&g.stage>=4?us(g.prefillUs):'Indisponível / em andamento'),
+  row('Prefill · velocidade',has&&g.stage>=4?rate(g.prefillTokens,g.prefillUs):'Indisponível'),
+  row('TTFT nativo · primeiro delta UTF-8',has?us(g.firstDeltaUs):'Indisponível'),
+  row('Primeiro token amostrado · nativo',has?us(g.firstSampleUs):'Indisponível'),
+  row('Primeiro envio à WebView · desde ponte',duration(p.firstWebViewSendMs)),
+  row('Primeiro texto da resposta no DOM · JS',duration(v.clientFirstVisibleMs)),
+  row('Primeiro texto DOM · ack na ponte (limite superior)',duration(p.firstDomAckMs)),
+  row('Saída · tokens gerados sem EOG',has?number(g.outputTokens):'Indisponível'),
+  row('Decode · trabalho nativo acumulado',has&&g.decodeSteps>0?us(g.decodeUs):'Indisponível'),
+  row('Decode · velocidade do trabalho nativo',has&&g.decodeSteps>0?rate(g.outputTokens,g.decodeUs):'Indisponível'),
+  row('Native · até parada observada',has?us(g.endUs):'Indisponível / em andamento'),
+  row('Ponte · duração / andamento',duration(p.elapsedMs)),
+  row('Parada nativa',has?stop[g.nativeStopCode]||'Desconhecido':'Indisponível'),
+  row('Conclusão Kotlin',p.active?'Em andamento':({completed:'Flow concluído',cancelled:'Cancelamento Kotlin',error:'Erro'}[native.session?.lastOutcome]||'Indisponível'))
+ ],'TTFT nativo começa ao entrar no JNI estruturado; ponte começa ao receber o pedido; JS começa antes de chamar a bridge. Preparação JS é anterior e separada. DOM significa textContent atribuído, não pixels confirmados. Decode soma sampling/decode/conversão por chamada, incluindo passo EOG; exclui espera entre chamadas e prefill. Velocidades de trabalho não são throughput ponta a ponta. No erro de decode o Flow antigo pode concluir normalmente; os dois resultados ficam separados.'),
+ section('streaming','Streaming',[
+  row('Deltas UTF-8 nativos',has?number(g.nativeDeltas):'Indisponível'),row('Eventos token enviados Kotlin → WebView',number(p.bridgeEvents)),
+  row('Deltas recebidos no JS',number(v.receivedDeltas)),row('Atualizações da resposta no DOM',number(v.visualUpdates)),
+  row('Saída bruta nativa · bytes UTF-8',has?bytes(g.outputBytes):'Indisponível'),row('Último tamanho observado · UTF-16',number(v.outputUtf16)),
+  row('Primeiro delta nativo → envio WebView',us(sendGap)),
+  row('Primeiro delta nativo → ack DOM (limite superior)',us(gap)),
+  row('Apresentação · primeiro texto até DOM final',duration(v.presentationSpanMs)),row('JS · pedido até DOM final',duration(v.clientTotalMs))
+ ],'Sem batching: contam-se os eventos e atualizações existentes. Uma atualização final também é contada após render(). Tamanho UTF-16 é o acumulado bruto durante streaming e o texto persistido ao finalizar. Ack DOM inclui a travessia de retorno Android e é um limite superior; não mede rasterização/compositor. Relógios Android e native usam BOOTTIME. Cancelamento pode deixar contadores diferentes, pois eventos tardios são ignorados pelo fluxo existente.'),
+ section('context','Contexto',[
+  row('Capacidade configurada',number(r.nCtx)),row('Entrada atual / última · tokens',has?number(g.inputTokens):'Indisponível'),
+  row('Posição de escrita observada',has?number(g.occupied):'Indisponível'),
+  row('Tokens reaproveitados',has&&g.cacheCleared===1?'0 · limpeza de KV observada':'Indisponível'),
+  row('Context shifts observados',has?number(g.shifts):'Indisponível'),
+  row('Histórico removido · mensagens',has?number(g.removedMessages):'Indisponível'),
+  row('Motivo da redução',has?(g.removedMessages>0?'Entrada + saída reservada excederam a capacidade':'Nenhuma redução nativa observada'):'Indisponível')
+ ],'Posição é observada após prefill/passos de decode, não tamanho alocado nem prova de ocupação física. Redução refere-se ao limite nativo; seleção prévia de histórico no JS mantém a política anterior. Dados da última solicitação nativa podem sobreviver à troca de modelo; serial e configuração atual devem ser lidos separadamente.')
+ ];
+}

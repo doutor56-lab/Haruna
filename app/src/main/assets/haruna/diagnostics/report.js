@@ -1,3 +1,4 @@
+import {runtimeCards} from './runtime-report.js';
 const unavailable='Indisponível';
 const valid=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
 const clean=value=>typeof value==='string'&&value.trim()?value.replace(/[\u0000-\u001f\u007f]/g,' ').slice(0,200):unavailable;
@@ -39,7 +40,7 @@ export function diagnosticCards(native={},knowledge={}){
  const age=valid(m.sampleAgeMs)?m.sampleAgeMs+(valid(native.snapshotAgeMs)?native.snapshotAgeMs:0):null;
  return [
   section('memory','Memória',[
-   row('RAM do processo · PSS',bytes(m.pssBytes)),row('Heap Java/Kotlin alocado',bytes(m.javaHeapBytes)),
+   row('RAM do processo · PSS',bytes(m.pssBytes)),row('RSS do processo · /proc',bytes(m.rssBytes)),row('Heap Java/Kotlin alocado',bytes(m.javaHeapBytes)),
    row('Heap nativo alocado',bytes(m.nativeHeapBytes)),row('PSS Java/VM',bytes(m.javaPssBytes)),
    row('PSS nativo',bytes(m.nativePssBytes)),row('PSS de outras áreas',bytes(m.otherPssBytes)),
    row('RAM disponível no sistema',bytes(m.systemAvailableBytes)),row('Pico PSS observado pelo DBG',bytes(m.observedPeakPssBytes)),
@@ -47,15 +48,13 @@ export function diagnosticCards(native={},knowledge={}){
   ],'PSS divide páginas compartilhadas proporcionalmente. Heaps alocados e PSS são medições diferentes: não devem ser somados. O pico PSS só considera amostras com DBG aberto; o pico RSS vem do kernel quando disponível. Não inclui processos separados do renderizador WebView.'),
   section('llm','Modelo LLM',[
    row('Modelo',modelName(llm.name)),row('Estado',state(llm.state)),row('Arquivo instalado',bytes(llm.fileBytes)),
-   row('Backend',clean(llm.backend)),row('Entrada · tokens avaliados',number(llm.context?.inputTokens)),
-   row('Capacidade do contexto · última solicitação',number(llm.context?.contextCapacity)),
-   row('Histórico · mensagens enviadas',number(llm.context?.historyMessages)),
-   row('Saída · tokens gerados',number(llm.context?.generatedTokens)),
-   row('Template · última solicitação',llm.context?.ggufTemplate===1?'Metadados do GGUF · Jinja':llm.context?.ggufTemplate===0?'Padrão da biblioteca · GGUF sem template':unavailable),
-   row('Velocidade · tokens/s',unavailable),
-   row('Até a primeira saída · última solicitação',duration(session.firstOutputMs)),
-   row('Duração · última solicitação',duration(session.generationMs)),row('Threads / CPU ou GPU',unavailable)
-  ],'TTFT observado na ponte, incluindo preparação. Contadores de entrada/saída vêm dos IDs reais de tokens nativos, não dos fragmentos de texto da bridge. Entrada inclui system, histórico, referências e prefixo de geração do template; saída exclui EOG. Histórico conta as mensagens mantidas após o limite real do contexto. Template vem dos metadados do GGUF ou do padrão oficial da biblioteca, sem override da Haruna. Dados da última solicitação, sem conteúdo pessoal; tokens/s e executor efetivo permanecem indisponíveis.'),
+   row('Arquitetura · metadata GGUF',clean(llm.observation?.runtime?.architecture)),
+   row('Descrição técnica · runtime',clean(llm.observation?.runtime?.description)),
+   row('Quantização · file_type GGUF/runtime',number(llm.observation?.runtime?.fileType)),
+   row('Contexto de treinamento reportado',number(llm.observation?.runtime?.trainedContext)),
+   row('Template · última solicitação',llm.context?.ggufTemplate===1?'Metadados do GGUF · Jinja':llm.context?.ggufTemplate===0?'Padrão da biblioteca · GGUF sem template':unavailable)
+  ],'Arquitetura e tipo não são inferidos do nome do arquivo. Descrição técnica inclui a classificação de quantização do runtime; file_type é o enum GGUF (misturas de tensores podem existir). Contexto reportado pelo modelo não é garantia de capacidade prática de RAM. A configuração atual e a última geração aparecem separadas.'),
+  ...runtimeCards(native,knowledge,{section,row,number,bytes,duration,clean,valid}),
   section('knowledge','Segundo Cérebro',[
    row('Estado',valid(knowledge.activeDocuments)?knowledge.activeDocuments>0?'Ativo':'Inativo / sem documentos ativos':unavailable),
    row('Documentos registrados',number(knowledge.documents)),row('Documentos ativos',number(knowledge.activeDocuments)),
@@ -73,8 +72,8 @@ export function diagnosticCards(native={},knowledge={}){
    ...voiceRows('stt','STT · fala → texto','Whisper Tiny INT8'),...voiceRows('tts','TTS · texto → fala','Supertonic 3 INT8')
   ],'STT: a duração antiga inclui criação e liberação do recognizer; decode/RTF medem apenas a inferência, sem carregamento. Áudio é o trecho após remoção de silêncio inicial. Sucesso significa saída estruturalmente válida, não confiança ou precisão medida. TTS mede segmentos sintetizados, sem reprodução/fila/carregamento. Ler diagnóstico não carrega motores nem guarda texto/áudio.'),
   section('subsystems','Uso por subsistema',[
-   row('Haruna / base',unavailable),row('LLM',unavailable),row('Segundo Cérebro',unavailable),row('STT',unavailable),row('TTS',unavailable)
-  ],'Sem atribuição confiável de RAM por subsistema neste runtime. Nenhuma estimativa numérica é apresentada. Memória nativa inclui bibliotecas e alocações compartilhadas; tamanho dos pesos em disco não é consumo de RAM.'),
+   row('Haruna / base',unavailable),row('LLM · buffers modelo',bytes(llm.observation?.runtime?.modelBufferBytes)),row('LLM · cache/contexto',bytes(llm.observation?.runtime?.contextBufferBytes)),row('LLM · computação',bytes(llm.observation?.runtime?.computeBufferBytes)),row('Segundo Cérebro',unavailable),row('STT',unavailable),row('TTS',unavailable)
+  ],'Buffers LLM vêm de llama_get_memory_breakdown(), amostrados em preparação/prefill. Contexto inclui KV e/ou estados recorrentes; não há separação adicional confiável. São bytes de buffers, não RAM residente exclusiva: não somar a PSS/RSS/heaps. Não há atribuição confiável aos demais subsistemas.'),
   section('device','Dispositivo e sessão',[
    row('Memória Essencial · acesso direto',knowledge.essential?.available===true?'Ativa':unavailable),row('Memória Essencial · campos definidos',number(knowledge.essential?.fields)),
    row('Memória Aprendida · experiências',number(knowledge.learned?.stored)),row('Memória Aprendida · em avaliação',number(knowledge.learned?.observed)),

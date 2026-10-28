@@ -54,7 +54,7 @@ class HarunaAndroidBridge(private val activity:MainActivity,private val webView:
  private fun statusJson():JSONObject{val s=backend.status();return JSONObject().put("available",s.available).put("modelLoaded",s.modelLoaded).put("state",s.state).put("modelName",s.modelName).put("error",s.error)}
  private fun emitStatus()=emit(statusJson().put("type","status"))
  private fun emitError(id:String,code:String,message:String)=emit(JSONObject().put("requestId",id).put("type","error").put("error",JSONObject().put("code",code).put("message",message)))
- private fun emit(event:JSONObject){webView.post{webView.evaluateJavascript("window.harunaAndroidOnEvent(${JSONObject.quote(event.toString())})",null)}}
+ private fun emit(event:JSONObject){webView.post{if(event.optString("type")=="token")DiagnosticSession.llmEventSent(event.optString("requestId"));webView.evaluateJavascript("window.harunaAndroidOnEvent(${JSONObject.quote(event.toString())})",null)}}
 }
 
 
