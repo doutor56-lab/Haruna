@@ -1,5 +1,6 @@
 // Scalar observations for the existing DBG. No text, IDs in reports, audio or documents.
-let prep=null,current=null;
+let prep=null,current=null,discarded=0;
+export function discardedStreamEvent(){discarded++}
 const clock=()=>performance.now();
 export function preparationStarted(){prep={started:clock(),contextMs:null}}
 export function contextPrepared(){if(prep)prep.contextMs=clock()-prep.started}
@@ -38,4 +39,4 @@ export function presentationFinished(length,visible){
  if(current.clientFirstVisibleMs!==null)current.presentationSpanMs=current.clientTotalMs-current.clientFirstVisibleMs;
  current.finalAck=true;ack('final');
 }
-export function inferenceMetrics(){return scalars()}
+export function inferenceMetrics(){return {...scalars(),discardedStreamEvents:discarded}}

@@ -2,7 +2,7 @@
 export function runtimeCards(native,local,f){
  const {section,row,number,bytes,duration,clean,valid}=f;
  const obs=native.llm?.observation||{},r=obs.runtime||{},g=obs.generation||{};
- const p=native.session?.pipeline||{},v=local.inference||p.visual||{};
+ const p=native.session?.pipeline||{},v=local.inference||p.visual||{},t=p.transport||{};
  const has=valid(g.serial)&&g.serial>0;
  const us=n=>valid(n)?duration(n/1000):'Indisponível';
  const rate=(n,t)=>valid(n)&&valid(t)&&t>0?`${(n*1e6/t).toLocaleString('pt-BR',{maximumFractionDigits:2})} tokens/s`:'Indisponível';
@@ -49,13 +49,23 @@ export function runtimeCards(native,local,f){
   row('Conclusão Kotlin',p.active?'Em andamento':({completed:'Flow concluído',cancelled:'Cancelamento Kotlin',error:'Erro'}[native.session?.lastOutcome]||'Indisponível'))
  ],'TTFT nativo começa ao entrar no JNI estruturado; ponte começa ao receber o pedido; JS começa antes de chamar a bridge. Preparação JS é anterior e separada. DOM significa textContent atribuído, não pixels confirmados. Decode soma sampling/decode/conversão por chamada, incluindo passo EOG; exclui espera entre chamadas e prefill. Velocidades de trabalho não são throughput ponta a ponta. Erros nativos agora são propagados ao Flow; cancelamento e EOG continuam sendo eventos distintos.'),
  section('streaming','Streaming',[
-  row('Deltas UTF-8 nativos',has?number(g.nativeDeltas):'Indisponível'),row('Eventos token enviados Kotlin → WebView',number(p.bridgeEvents)),
+  row('Deltas UTF-8 nativos',has?number(g.nativeDeltas):'Indisponível'),row('Lotes com texto enviados Kotlin → WebView',number(p.bridgeEvents)),
+  row('Entregas de stream / confirmadas pelo JS',`${number(t.batches)} / ${number(t.acknowledgedBatches)}`),
+  row('Deltas aceitos pelo buffer Android',number(t.acceptedDeltas)),
+  row('Média de deltas / lote com texto',valid(t.textBatches)&&t.textBatches>0?(t.acceptedDeltas/t.textBatches).toLocaleString('pt-BR',{maximumFractionDigits:2}):'Indisponível'),
+  row('Maior lote · deltas / UTF-16',`${number(t.maxBatchDeltas)} / ${number(t.maxBatchChars)}`),
+  row('Texto enviado · unidades UTF-16',number(t.charsSent)),
+  row('Pico do backlog · UTF-16 pendente + em voo',number(t.peakBacklogChars)),
+  row('Finalizações forçadas',number(t.forcedFinal)),
+  row('Deltas recusados / UTF-16 liberado sem confirmação',`${number(t.droppedDeltas)} / ${number(t.discardedChars)}`),
+  row('Final confirmado / falha de entrega / limite do backlog',`${yes(t.terminalDelivered)} / ${yes(t.deliveryFailed)} / ${yes(t.backlogLimitReached)}`),
+  row('Eventos de stream inválidos no JS · sessão',number(v.discardedStreamEvents)),
   row('Deltas recebidos no JS',number(v.receivedDeltas)),row('Atualizações da resposta no DOM',number(v.visualUpdates)),
   row('Saída bruta nativa · bytes UTF-8',has?bytes(g.outputBytes):'Indisponível'),row('Último tamanho observado · UTF-16',number(v.outputUtf16)),
   row('Primeiro delta nativo → envio WebView',us(sendGap)),
   row('Primeiro delta nativo → ack DOM (limite superior)',us(gap)),
   row('Apresentação · primeiro texto até DOM final',duration(v.presentationSpanMs)),row('JS · pedido até DOM final',duration(v.clientTotalMs))
- ],'Sem batching: contam-se os eventos e atualizações existentes. Uma atualização final também é contada após render(). Tamanho UTF-16 é o acumulado bruto durante streaming e o texto persistido ao finalizar. Ack DOM inclui a travessia de retorno Android e é um limite superior; não mede rasterização/compositor. Relógios Android e native usam BOOTTIME. Cancelamento pode deixar contadores diferentes, pois eventos tardios são ignorados pelo fluxo existente.'),
+ ],'Android agrupa deltas antes da WebView: janela base 45 ms, até 350 ms para um delta isolado, primeiro lote imediato e até 4096 unidades UTF-16 por lote. Uma única entrega fica em voo até ACK do JS; a confirmação não prova pixels. Final vazio também conta como entrega. A média usa deltas aceitos/lotes com texto e é definitiva após escoamento. DOM progressivo usa RAF; render final também é contado. Pico do backlog não é RAM nem bytes. Fechamento de uma WebView morta descarta buffers explicitamente; cancelamento em tela viva escoa o texto aceito. Ack DOM é limite superior. BOOTTIME Android/native continua preservado. Sem mudança em sampling ou inferência.'),
  ...stabilityCards(obs,native.session||{},f),
  section('context','Contexto',[
   row('Capacidade configurada',number(r.nCtx)),row('Entrada atual / última · tokens',has?number(g.inputTokens):'Indisponível'),

@@ -188,7 +188,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         }
     }
 
-    override fun generate(requestId: String, payloadJson: String, onToken: (String) -> Unit, onComplete: (String) -> Unit, onError: (String, String) -> Unit) {
+    override fun generate(requestId: String, payloadJson: String, onToken: (String) -> Unit, onComplete: () -> Unit, onError: (String, String) -> Unit) {
         if (!engine.state.value.isModelLoaded && !resetRequired) { onError("model_not_loaded", "Nenhum modelo GGUF carregado"); return }
         synchronized(jobs) {
             if (destroyed || loading || jobs.size >= 4 || jobs.values.any { !it.cancelled.get() && !it.finishing.get() }) {
@@ -231,17 +231,17 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     conversationId = nextConversation
                     resetRequired = false
                     val predictLength = options?.optInt("maxTokens", 512)?.coerceIn(16, 1024) ?: 512
-                    val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; val output = StringBuilder()
+                    val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; var outputChars = 0L
                     engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial).collect { token ->
                         if (firstTokenAt == 0L) { firstTokenAt = System.currentTimeMillis(); Log.i(TAG, "first_token_ms=${firstTokenAt - generationStart}") }
-                        output.append(token); withContext(Dispatchers.Main) {
-                            if (!request.cancelled.get() && jobs[requestId] === request) onToken(token)
-                        }
+                        outputChars += token.length
+                        // The bridge owns a bounded ordered buffer; no Main-thread hop per delta.
+                        if (!request.cancelled.get() && jobs[requestId] === request) onToken(token)
                     }
-                    Log.i(TAG, "generation_ms=${System.currentTimeMillis() - generationStart} chars=${output.length}")
+                    Log.i(TAG, "generation_ms=${System.currentTimeMillis() - generationStart} chars=$outputChars")
                     request.finishing.set(true)
                     withContext(Dispatchers.Main) {
-                        if (!request.cancelled.get() && jobs[requestId] === request) onComplete(output.toString())
+                        if (!request.cancelled.get() && jobs[requestId] === request) onComplete()
                     }
                 } catch (e: CancellationException) {
                     request.finishing.set(true)

@@ -1,3 +1,4 @@
+import {createMessageView} from './streaming/message-view.js';
 import {preparationStarted,contextPrepared,domUpdated,presentationFinished} from './diagnostics/inference.js';
 import {observe as observeExperience} from './learned/store.js';import {learnedContext} from './learned/context.js';
 import {directIdentityReply} from './identity/direct-replies.js';
@@ -64,7 +65,7 @@ function bindMessageMenu(bubble,chat,message){
  bubble.addEventListener('keydown',e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')||e.key==='Enter'){e.preventDefault();openMessageMenu(chat,message,bubble)}});
 }
 
-function cleanThink(t=''){return t.replace(/<think>[\s\S]*?<\/think>/gi,'').replace(/<think>[\s\S]*$/gi,'').trimStart()}function previewThink(t=''){const closed=t.lastIndexOf('</think>');if(closed>=0)return t.slice(closed+8).trimStart();if(/<think>/i.test(t))return '';return t}function add(role,text,message=null,chat=null){const el=document.createElement('div');el.className=`msg ${role}`;if(role==='assistant'){const a=document.createElement('div');a.className='avatar';a.textContent='H';el.appendChild(a)}const b=document.createElement('div');b.className='bubble';b.textContent=text;if(message&&chat){for(const file of message.attachments||[]){const label=document.createElement('span');label.className='sent-file';label.textContent=file.name;b.prepend(label)}bindMessageMenu(b,chat,message)}el.appendChild(b);messagesEl.appendChild(el);messagesEl.scrollTop=messagesEl.scrollHeight;return b}function render(){messagesEl.innerHTML='';const c=active();maybeEssentialOpening(c);if(!c.messages.length){messagesEl.innerHTML='<div class="empty"><div class="orb">H✦</div><strong>Olá, eu sou a Haruna.</strong><span>Converse comigo. Suas conversas e memórias ficam salvas localmente neste dispositivo.</span></div>';renderAttachments();return}c.messages.forEach(m=>add(m.role,m.display||m.content,m,c));renderAttachments()}
+function add(role,text,message=null,chat=null,autoScroll=true){const el=document.createElement('div');el.className=`msg ${role}`;if(role==='assistant'){const a=document.createElement('div');a.className='avatar';a.textContent='H';el.appendChild(a)}const b=document.createElement('div');b.className='bubble';b.textContent=text;if(message&&chat){for(const file of message.attachments||[]){const label=document.createElement('span');label.className='sent-file';label.textContent=file.name;b.prepend(label)}bindMessageMenu(b,chat,message)}el.appendChild(b);messagesEl.appendChild(el);if(autoScroll)messagesEl.scrollTop=messagesEl.scrollHeight;return b}function render({followEnd=true}={}){const oldTop=messagesEl.scrollTop;messagesEl.innerHTML='';const c=active();maybeEssentialOpening(c);if(!c.messages.length){messagesEl.innerHTML='<div class="empty"><div class="orb">H✦</div><strong>Olá, eu sou a Haruna.</strong><span>Converse comigo. Suas conversas e memórias ficam salvas localmente neste dispositivo.</span></div>';renderAttachments();return}c.messages.forEach(m=>add(m.role,m.display||m.content,m,c,false));messagesEl.scrollTop=followEnd?messagesEl.scrollHeight:oldTop;renderAttachments()}
 function maybeEssentialOpening(chat){
  if(!essentialReady||generating||activeGeneration||onboarding&&!onboarding.hidden)return;
  const opening=firstContact.openingFor(chat,{ready:true,chatIds:chats.map(c=>c.id),hasDraft:!!(input.value.trim()||attachments.pending(chat.id).length)});
@@ -198,24 +199,27 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
   if(!status.modelLoaded){push('assistant',basic(text),chat);render();return {chatId:chat.id,error:true,text:'Nenhum modelo GGUF carregado'}}
   const out=add('assistant','✦');
   const draft={role:'assistant',content:'',at:now(),interrupted:true};
-  let lastSaved=0;
   preparationStarted();
   const {prompt,profile}=await enriched(text,files),messages=conversationMessages(chat,prompt,profile);
   contextPrepared();
   chat.messages.push(draft);
+  const view=createMessageView({bubble:out,container:messagesEl,onVisual:domUpdated,
+   checkpoint:content=>{draft.content=content;chat.updatedAt=now();localStorage.setItem(CHATS_KEY,JSON.stringify(chats))}});
+  let generationError=null,followEnd=true;
   try{
-   const result=await llm.generate(messages,{conversationId:chat.id,essentialContext:profile,enableThinking:thinkMode,maxTokens:thinkMode?512:256,onToken:(_,all)=>{
-    draft.content=cleanThink(all);const visible=previewThink(all);out.textContent=visible||'✦';messagesEl.scrollTop=messagesEl.scrollHeight;
-    domUpdated(all.length,/\S/.test(visible));
-    if(now()-lastSaved>1000){lastSaved=now();persist()}
-   }});
-   draft.content=cleanThink(result.text)||'Não consegui formular uma resposta.';delete draft.interrupted;
-  }catch(error){
-   const cancelled=error.message?.includes('interrompida');
-   if(!draft.content){draft.content=cancelled?'Geração interrompida.':`Falha local: ${error.message}`;draft.error=true}
-   if(!cancelled)draft.error=true;
+   await llm.generate(messages,{conversationId:chat.id,essentialContext:profile,enableThinking:thinkMode,maxTokens:thinkMode?512:256,
+    streamOnly:true,onToken:delta=>view.push(delta)});
+   delete draft.interrupted;
+  }catch(error){generationError=error}
+  finally{
+   const finished=view.finish();draft.content=finished.text;followEnd=finished.follow;
   }
-  chat.updatedAt=now();persist();render();
+  if(generationError){
+   const cancelled=generationError.code==='cancelled'||generationError.message?.includes('interrompida');
+   if(!draft.content){draft.content=cancelled?'Geração interrompida.':`Falha local: ${generationError.message}`;draft.error=true}
+   if(!cancelled)draft.error=true;
+  }else if(!draft.content)draft.content='Não consegui formular uma resposta.';
+  chat.updatedAt=now();persist();render({followEnd});
   presentationFinished(draft.content.length,!!draft.content);
   return {chatId:chat.id,text:draft.content,error:!!draft.error,interrupted:!!draft.interrupted};
  }catch(error){

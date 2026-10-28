@@ -21,7 +21,7 @@ interface LlmBackend {
         requestId: String,
         payloadJson: String,
         onToken: (String) -> Unit,
-        onComplete: (String) -> Unit,
+        onComplete: () -> Unit,
         onError: (String, String) -> Unit
     )
     fun stop(requestId: String): Result<Unit>

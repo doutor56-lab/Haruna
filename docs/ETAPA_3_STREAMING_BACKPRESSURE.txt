@@ -1,0 +1,192 @@
+ETAPA_3_STREAMING_BACKPRESSURE
+
+1. ESCOPO E ESTADO
+Base funcional: 03188bfaa344c7cdb5796588113c396fe2b6e97c, branch ui-polish-icons.
+Checkpoint preservado: checkpoint/haruna-before-streaming-03188bf.
+Implementação exclusivamente de transporte, apresentação e checkpoints do chat.
+O usuário informou que o cancelamento da Etapa 2 funcionou em prefill e decode;
+esta execução não substitui a repetição desses testes no telefone.
+
+2. ANTES / DEPOIS
+Antes: Flow -> salto para Main por delta -> JSONObject/evaluateJavascript por
+delta -> concatenação da resposta inteira na bridge JS -> cleanThink e
+previewThink no acumulado -> textContent da bolha inteira -> scroll -> persist
+da conversa/listas/memórias a cada segundo durante geração.
+
+Agora: mesmo Flow -> callback leve no collector -> StreamDelivery por request ->
+fila ordenada limitada -> lotes de deltas -> uma entrega evaluateJavascript em
+voo -> ACK do receptor JS -> próximo lote -> parser incremental -> RAF -> append
+no único Text node da bolha ativa. Conclusão transporta estado, não a resposta
+inteira novamente. O resultado não sofre filtro de repetição nem correção textual.
+O StringBuilder completo do backend foi removido; o backend conta caracteres.
+O app usa streamOnly no JS: a bridge não guarda outra cópia integral da resposta.
+Clientes que não usam streamOnly ainda podem obter text por join único ao final.
+O callback interno onComplete do LlmBackend passa a não transportar texto.
+
+3. POLÍTICA TEMPO / TAMANHO
+StreamDelivery.kt é Kotlin puro, sem objetos Android, um controlador por pedido.
+Primeiro lote: agendado imediatamente, sem esperar janela de coalescência.
+Janela base: 45 ms. Quando há somente um delta, espera até 350 ms para permitir
+agrupar o próximo; o segundo pode antecipar o prazo, respeitando a janela base.
+Tamanho máximo de lote: 4096 unidades UTF-16, sem separar pares de surrogates.
+Prazo e tamanho são constantes internas; não há número-alvo de lotes.
+Justificativa: na baseline real de 3,5–8 tokens/s, deltas podem chegar separados
+por aproximadamente 125–286 ms. Só 45 ms manteria quase um envio por delta.
+O teto de 350 ms é tempo de coalescência, não garantia de latência total: espera
+por Main/WebView/ACK pode adicionar tempo. Primeiro conteúdo não paga esse teto.
+Se deltas forem mais espaçados que esse teto, ainda pode existir um lote por
+delta. Não há promessa de redução fixa ou ganho medido sem teste no aparelho.
+
+4. BACKPRESSURE E LIMITE
+Existe um único batch em voo por pedido. Novos deltas ficam na fila enquanto
+evaluateJavascript não retornar ACK válido com requestId e sequence esperados.
+O ACK confirma processamento do receptor, não rasterização nem frame exibido.
+Não há polling, espera bloqueante por WebView, thread/timer criado por token
+ou fila livre de evaluateJavascript. Um Handler Main por ponte agenda os lotes;
+cada pedido mantém no máximo um timer relevante, com versão para invalidar
+callbacks agendados antigos. Deadlines só são antecipados quando necessário.
+O collector pode disputar um lock curto com montagem de lote de até 4096 chars,
+mas não espera a WebView processar a resposta.
+
+Backlog: limite de admissão de 256 Ki unidades UTF-16 pendentes, mais um lote em
+voo. O delta que cruza o limite é retido integralmente; a admissão fecha, a
+inferência recebe cancelamento e a finalização é erro explícito stream_backlog.
+Portanto o teto técnico é limite + delta de cruzamento + lote em voo, não uma
+promessa exata de bytes de RAM. Não há truncamento silencioso ou spill em disco.
+Quando o receptor voltar a confirmar, todo texto aceito escoa antes do erro.
+Esse limite excepcional não altera o limite normal de tokens do modelo.
+
+5. FLUSH / ERRO / CANCELAMENTO
+EOG/limite: sela, entrega toda fila e só depois envia conclusão. O terminal pode
+ir no último lote; se ele já estava em voo, segue um terminal vazio após ACK.
+Erro: mesmo escoamento, preservando código de erro, sem converter em sucesso.
+Parar: congela admissão antes de sinalizar o backend, mantendo tickets da Etapa 2.
+Texto aceito antes do ponto de congelamento ainda chega em ordem. O JS aguarda
+esse escoamento e terminal; não apaga o pedido ao tocar Parar. Novos deltas são
+recusados. O texto parcial recebido é gravado na finalização. Não existe texto
+antigo depois do terminal; nova geração usa outro requestId/controlador.
+Cancelamento anterior ao primeiro token também produz terminal, inclusive se
+o trabalho ainda estava na fila do executor da ponte.
+Parar durante um terminal normal em voo vence no JS, sem mudar a parada nativa
+que já ocorreu. EOG nativo e cancelamento de apresentação podem ser distintos.
+Em falha de ACK/protocolo, a entrega é encerrada e o backend recebe cancelamento;
+o receptor JS rejeita o pedido quando detecta protocolo inválido. Não há retry,
+resposta pronta ou fallback de modelo.
+Cancelamento excepcional por transporte usa o mecanismo de stop existente; o
+motivo nativo pode ser cancelamento, enquanto DBG/JS registram falha de entrega
+ou limite de backlog. Isso não é classificado como EOG/sucesso no app.
+
+6. LIFECYCLE
+Process owner, singleton, JNI, abort_callback e cleanup da Etapa 2 não mudaram.
+Fechar ponte cancela seus pedidos, timers e buffers, invalida callbacks e mantém
+o modelo sob ownership do processo. Não envia para uma WebView morta.
+Não é possível garantir entrega/gravação do texto pendente depois que o Android
+destrói o receptor. Esse descarte é explícito/contado; checkpoints reduzem a
+janela de recuperação. pagehide/visibilitychange tentam gravar o que o JS já
+recebeu, sem prometer execução desses eventos na morte abrupta do processo.
+Uma WebView sem ACK não recebe novos evaluateJavascript de stream. Não há um
+watchdog que declare sucesso fictício: a apresentação depende de ela responder
+ou de seu proprietário fechá-la. O backlog limita a produção restante.
+
+7. PARSER INCREMENTAL
+ThinkParser mantém estado dentro/fora de <think>, pequena cauda de marcador
+incompleto e partes visíveis. Marcadores atravessando lotes são reconhecidos,
+incluindo variação de caixa. Não há regex no texto acumulado por chunk.
+Texto sem thinking, português, caracteres suplementares e saída repetitiva
+seguem intactos; trimStart preserva a preparação visual anterior.
+Fechamento sem abertura emitida termina bloco implícito e limpa o preview
+anterior, como fazia previewThink. Sem metadata específica não é possível
+saber antes desse fechamento que o trecho era um bloco implícito; essa etapa
+não adiciona política para Qwen 3.5. O parser opera somente marcadores de thinking,
+nunca palavras internas, repetição 1:1, conteúdo de prompts ou modelo/aparelho.
+Texto persistido e preview usam o mesmo estado, evitando duas passagens globais
+concorrentes. Join completo só em checkpoint/finalização, não por delta.
+
+8. DOM / SCROLL / PERSISTÊNCIA
+Uma RAF pendente por bolha; vários lotes JS no mesmo frame geram um appendData
+agrupado. Não se recria a conversa por chunk. Uma troca de estado do marcador
+implícito pode exigir limpar o Text node; é evento de markup, não filtro de saída.
+Finalização cancela a RAF, aplica o último texto e mantém o render final atual.
+Render final conta separadamente no DBG e pode executar fora do frame progressivo.
+Há no máximo uma decisão/atribuição de scroll por atualização visual. Scroll do
+usuário para cima desativa acompanhamento; voltar ao fim reativa. O render final
+preserva a posição se o usuário estava acima, sem puxá-lo ao fim por cada mensagem.
+
+Checkpoint: até um a cada 2 s enquanto chegam deltas, somente CHATS_KEY no formato
+existente. Não atualiza lista de conversas ou memórias a cada checkpoint.
+Conclusão/cancelamento/erro fazem a persistência final existente e render final.
+Persistência continua localStorage, síncrona: histórico enorme ainda pode custar
+no checkpoint/final. Não houve migração de banco nem mudança do formato dos dados.
+Perda abrupta do processo pode perder texto posterior ao último checkpoint.
+
+9. DBG — ORIGENS E SEMÂNTICA
+Métricas nativas/Etapas 1 e 2 preservadas sem editar seus patches.
+StreamDelivery observa deltas aceitos, lotes totais/com texto, ACKs, caracteres,
+maior lote (chars/deltas), final forçado, pico de backlog pendente+em voo,
+recusas, conteúdo liberado sem confirmação e falha/limite/terminal confirmado.
+DiagnosticSession só recebe snapshots escalares nos limites dos lotes, não JSON
+por token. As métricas de primeiro delta/envio continuam no mesmo relógio.
+JS conta chunks recebidos, atualizações DOM e eventos inválidos/antigos recusados.
+Média de deltas/lote = aceitos/lotes com texto; só é definitiva após escoamento.
+Uma entrega final vazia conta no total de evaluateJavascript, não em lotes com
+texto. UTF-16 é unidade de string, não byte de RAM; não se soma a PSS/RSS.
+ACK de envio não prova pixels; primeiro DOM continua observação de Text node,
+e o ACK DOM é limite superior. O cache de snapshot Android de 5 s foi mantido.
+Nenhum texto de conversa, chunk, prompt ou documento é gravado no diagnóstico.
+
+10. ARQUIVOS
+Modificados:
+app/src/main/java/com/proxyslabs/haruna/LlmBackend.kt
+app/src/main/java/com/proxyslabs/haruna/LlamaCppBackend.kt
+app/src/main/java/com/proxyslabs/haruna/HarunaAndroidBridge.kt
+app/src/main/java/com/proxyslabs/haruna/diagnostics/DiagnosticSession.kt
+app/src/main/assets/haruna/android-bridge.js
+app/src/main/assets/haruna/llm-engine.js
+app/src/main/assets/haruna/app.js
+app/src/main/assets/haruna/diagnostics/inference.js
+app/src/main/assets/haruna/diagnostics/runtime-report.js
+Novos:
+app/src/main/java/com/proxyslabs/haruna/StreamDelivery.kt
+app/src/main/assets/haruna/streaming/think-parser.js
+app/src/main/assets/haruna/streaming/message-view.js
+scripts/check_streaming.mjs
+scripts/check_stream_delivery.kt
+scripts/check_stream_delivery.py
+docs/ETAPA_3_STREAMING_BACKPRESSURE.txt
+Nenhuma nova dependência de produção.
+
+11. VERIFICAÇÃO E BUILD
+Checks JS focados: resposta curta/longa, texto repetitivo intacto, todas as
+fronteiras dos marcadores, português/Unicode, um RAF, scroll manual, checkpoint,
+limpeza de timers/listeners, ACK/ordem, cancelar antes de texto/durante resposta,
+novo request imediato, erro e request antigo rejeitado. Executados sem GGUF.
+Checks Kotlin puros usam o controlador real, relógio/scheduler/receptor de teste:
+retenção de ACK, ordem, tamanho/Unicode, janela, flush final, erro, cancelamento,
+fechamento, timer antigo e limite de backlog. Script usa apenas compiler Kotlin
+já baixado pelo build Android, sem instalar dependência no aplicativo.
+Não são benchmark de telefone nem prova de estabilidade na WebView Android real.
+APK, resultado final dos checks/assembleDebug, commit e artefato constam na
+entrega final. Sem testes longos, download de GGUF ou simulação de tok/s.
+
+12. ROTEIRO MANUAL
+A: Qwen 1.5B, conversa nova: 'Explique em três frases por que o céu parece azul.'
+Copiar DBG após terminal e snapshot atualizado. Registrar resultado textual.
+B: resposta longa próxima do limite; comparar deltas nativos, deltas aceitos,
+lotes com texto/totais, ACKs, média e maior lote, chars, chunks JS, DOM, backlog,
+TTFT nativo/primeiro envio/DOM e apresentação, além de PSS/RSS e métricas anteriores.
+Rolar para cima durante a resposta; não deve puxar ao fim nem perder texto.
+C: cancelar em prefill; repetir durante streaming; conferir texto parcial,
+terminal, nenhum atraso após terminal e nova mensagem funcional em seguida.
+D: Samsung SM-A155M: repetir 'Eai minha pequena' e a pergunta do céu. Não alterar
+sampling; registrar se saída degenerou, motivo final, seed/logits/repetição e
+transporte. Degeneração não foi mascarada nem declarada corrigida.
+Também fechar/reabrir a UI e verificar que lotes antigos não contaminam a nova.
+
+13. PRESERVAÇÃO EXPLÍCITA
+Não foram deliberadamente alterados contexto 8192, batch/ubatch 512, threads,
+KV F16/F16, Flash Attention, offload/GPU layers, mmap/mlock, quantização,
+sampling, temperatura/top-k/top-p/min-p, seed ou limite de tokens. Mantidos
+modelo padrão, GGUF/template, system prompt, identidade, personalidade, memórias,
+Segundo Cérebro/RAG, STT/TTS, banco, ícones e visual geral. llama.cpp segue fixado
+em 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10, sem atualização ou aceleração nova.
+Nenhum ganho real no aparelho é alegado. Etapa 4/Qwen 3.5/GPU/NPU não implementados.

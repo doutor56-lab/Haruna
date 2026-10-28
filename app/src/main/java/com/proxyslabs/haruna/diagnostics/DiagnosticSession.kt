@@ -2,13 +2,14 @@ package com.proxyslabs.haruna.diagnostics
 
 import android.os.SystemClock
 import org.json.JSONObject
+import com.proxyslabs.haruna.StreamDelivery
 
 /** Bounded, process-local counters. Never retains prompts, output, audio or document content. */
 object DiagnosticSession {
     private data class Generation(val started: Long, var first: Long? = null,
         var events: Long = 0, var firstSent: Long? = null, var finished: Long? = null,
         var firstDomAck: Long? = null, var finalDomAck: Long? = null,
-        var visual: JSONObject? = null)
+        var visual: JSONObject? = null, var transport: JSONObject? = null)
     private data class Voice(var loaded: Boolean = false, var count: Long = 0,
                              var totalMs: Double = 0.0, var lastMs: Double? = null)
     private val lock = Any()
@@ -39,6 +40,16 @@ object DiagnosticSession {
     fun llmEventSent(id: String) { synchronized(lock) {
         val g = generations[id] ?: lastGeneration?.takeIf { it.first == id }?.second ?: return
         g.events++; if (g.firstSent == null) g.firstSent = clock()
+    } }
+    internal fun transport(id: String, value: StreamDelivery.Stats) { synchronized(lock) {
+        val g = generations[id] ?: lastGeneration?.takeIf { it.first == id }?.second ?: return
+        g.transport = JSONObject().put("acceptedDeltas", value.acceptedDeltas)
+            .put("batches", value.batches).put("textBatches", value.textBatches).put("acknowledgedBatches", value.acknowledged)
+            .put("charsSent", value.charsSent).put("maxBatchChars", value.maxBatchChars)
+            .put("maxBatchDeltas", value.maxBatchDeltas).put("forcedFinal", value.forcedFinal)
+            .put("peakBacklogChars", value.peakBacklog).put("droppedDeltas", value.droppedDeltas)
+            .put("discardedChars", value.discardedChars).put("deliveryFailed", value.deliveryFailed)
+            .put("terminalDelivered", value.terminalDelivered).put("backlogLimitReached", value.backlogLimitReached)
     } }
     fun presentation(id: String, value: JSONObject) { synchronized(lock) {
         val g = generations[id] ?: lastGeneration?.takeIf { it.first == id }?.second ?: return
@@ -89,7 +100,7 @@ object DiagnosticSession {
                 .put("firstDomAckBootUs", g.firstDomAck?.div(1000) ?: JSONObject.NULL)
                 .put("firstWebViewSendBootUs", g.firstSent?.div(1000) ?: JSONObject.NULL)
                 .put("bridgeStartBootUs", g.started / 1000)
-                .put("visual", g.visual ?: JSONObject())
+                .put("visual", g.visual ?: JSONObject()).put("transport", g.transport ?: JSONObject())
         }
         JSONObject().put("sessionUptimeMs", SystemClock.elapsedRealtime() - started)
             .put("liveLlmBridges", liveBridges).put("closedLlmExecutors", closedExecutors).put("discardedLlmCallbacks", discardedCallbacks)
