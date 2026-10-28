@@ -8,7 +8,7 @@ export function runtimeCards(native,local,f){
  const rate=(n,t)=>valid(n)&&valid(t)&&t>0?`${(n*1e6/t).toLocaleString('pt-BR',{maximumFractionDigits:2})} tokens/s`:'Indisponível';
  const yes=x=>typeof x==='boolean'?(x?'Sim':'Não'):'Indisponível';
  const stages={1:'Template',2:'Tokenização',3:'Prefill',4:'Decode / transporte',5:'Finalizado no native'};
- const stop={0:'Desconhecido / ainda sem parada nativa',1:'EOG do vocabulário',2:'Limite de tokens',3:'Erro no decode nativo',4:'Erro ao preparar entrada'};
+ const stop={0:'Desconhecido / ainda sem parada nativa',1:'EOG do vocabulário',2:'Limite de tokens',3:'Erro no decode nativo',4:'Erro ao preparar entrada',5:'Cancelamento do usuário',6:'Erro de prefill',7:'Cancelamento para unload/troca',8:'Cancelamento para destroy',9:'Tela/bridge encerrada',10:'Erro de transporte UTF-8'};
  const same=has&&valid(p.bridgeStartBootUs)&&g.nativeStartBootUs>=p.bridgeStartBootUs;
  const gap=same&&valid(g.firstDeltaUs)&&valid(p.firstDomAckBootUs)?p.firstDomAckBootUs-g.nativeStartBootUs-g.firstDeltaUs:null;
  const sendGap=same&&valid(g.firstDeltaUs)&&valid(p.firstWebViewSendBootUs)?p.firstWebViewSendBootUs-g.nativeStartBootUs-g.firstDeltaUs:null;
@@ -47,7 +47,7 @@ export function runtimeCards(native,local,f){
   row('Ponte · duração / andamento',duration(p.elapsedMs)),
   row('Parada nativa',has?stop[g.nativeStopCode]||'Desconhecido':'Indisponível'),
   row('Conclusão Kotlin',p.active?'Em andamento':({completed:'Flow concluído',cancelled:'Cancelamento Kotlin',error:'Erro'}[native.session?.lastOutcome]||'Indisponível'))
- ],'TTFT nativo começa ao entrar no JNI estruturado; ponte começa ao receber o pedido; JS começa antes de chamar a bridge. Preparação JS é anterior e separada. DOM significa textContent atribuído, não pixels confirmados. Decode soma sampling/decode/conversão por chamada, incluindo passo EOG; exclui espera entre chamadas e prefill. Velocidades de trabalho não são throughput ponta a ponta. No erro de decode o Flow antigo pode concluir normalmente; os dois resultados ficam separados.'),
+ ],'TTFT nativo começa ao entrar no JNI estruturado; ponte começa ao receber o pedido; JS começa antes de chamar a bridge. Preparação JS é anterior e separada. DOM significa textContent atribuído, não pixels confirmados. Decode soma sampling/decode/conversão por chamada, incluindo passo EOG; exclui espera entre chamadas e prefill. Velocidades de trabalho não são throughput ponta a ponta. Erros nativos agora são propagados ao Flow; cancelamento e EOG continuam sendo eventos distintos.'),
  section('streaming','Streaming',[
   row('Deltas UTF-8 nativos',has?number(g.nativeDeltas):'Indisponível'),row('Eventos token enviados Kotlin → WebView',number(p.bridgeEvents)),
   row('Deltas recebidos no JS',number(v.receivedDeltas)),row('Atualizações da resposta no DOM',number(v.visualUpdates)),
@@ -56,6 +56,7 @@ export function runtimeCards(native,local,f){
   row('Primeiro delta nativo → ack DOM (limite superior)',us(gap)),
   row('Apresentação · primeiro texto até DOM final',duration(v.presentationSpanMs)),row('JS · pedido até DOM final',duration(v.clientTotalMs))
  ],'Sem batching: contam-se os eventos e atualizações existentes. Uma atualização final também é contada após render(). Tamanho UTF-16 é o acumulado bruto durante streaming e o texto persistido ao finalizar. Ack DOM inclui a travessia de retorno Android e é um limite superior; não mede rasterização/compositor. Relógios Android e native usam BOOTTIME. Cancelamento pode deixar contadores diferentes, pois eventos tardios são ignorados pelo fluxo existente.'),
+ ...stabilityCards(obs,native.session||{},f),
  section('context','Contexto',[
   row('Capacidade configurada',number(r.nCtx)),row('Entrada atual / última · tokens',has?number(g.inputTokens):'Indisponível'),
   row('Posição de escrita observada',has?number(g.occupied):'Indisponível'),
@@ -66,3 +67,29 @@ export function runtimeCards(native,local,f){
  ],'Posição é observada após prefill/passos de decode, não tamanho alocado nem prova de ocupação física. Redução refere-se ao limite nativo; seleção prévia de histórico no JS mantém a política anterior. Dados da última solicitação nativa podem sobreviver à troca de modelo; serial e configuração atual devem ser lidos separadamente.')
  ];
 }
+
+function stabilityCards(obs,session,f){
+ const {section,row,number,duration,valid}=f,s=obs.stability||{},o=obs.owner||{};
+ const yes=v=>typeof v==='boolean'?(v?'Sim':'Não'):'Indisponível';
+ const phases={0:'Antes da entrada',1:'Template',2:'Tokenização',3:'Prefill',4:'Decode / transporte',5:'Finalização'};
+ const resources=valid(s.resources)?['modelo','contexto','sampler','batch'].filter((_,i)=>(s.resources&(1<<i))!==0).join(' / ')||'Nenhum recurso de modelo':'Indisponível';
+ return [section('stability','JNI, cancelamento e lifecycle',[
+  row('Serial da solicitação nativa',number(s.requestSerial)),row('Ticket ativo (zero = ocioso)',number(s.activeTicket)),
+  row('Cancelamento solicitado / reconhecido',`${yes(s.cancelRequested)} / ${yes(s.cancelAcknowledged)}`),
+  row('Fase do reconhecimento',s.cancelAcknowledged?phases[s.cancelPhase]||'Desconhecida':'Indisponível'),
+  row('Pedido → reconhecimento',valid(s.cancelLatencyUs)?duration(s.cancelLatencyUs/1000):'Indisponível'),
+  row('Recursos ativos',resources),row('Backend nativo inicializado',yes(s.backendInitialized)),
+  row('Modelos carregados / liberados · processo',`${number(s.modelsLoaded)} / ${number(s.modelsReleased)}`),
+  row('Owner do modelo',o.scope==='process'?'Processo · sem Activity/WebView':'Indisponível'),
+  row('Requests / manutenção',`${number(o.requestsActive)} / ${yes(o.maintenance)}`),
+  row('Bridges LLM vivas / executores encerrados',`${number(session.liveLlmBridges)} / ${number(session.closedLlmExecutors)}`),
+  row('Callbacks antigos descartados',number(session.discardedLlmCallbacks)),row('Cancelamentos sem ticket correspondente',number(s.staleCancelIgnored)),
+  row('Sampler reset observado',yes(s.samplerReset)),row('Seed efetiva da geração',number(s.samplerSeed)),
+  row('Maior sequência do mesmo token',number(s.maxTokenRun)),row('Coincidências com dois tokens atrás',number(s.lag2Matches)),
+  row('Sondas de logits / NaNs / infinitos',`${number(s.logitProbes)} / ${number(s.nanLogits)} / ${number(s.infiniteLogits)}`),
+  row('Extremos da última sonda · min / max',validSigned(s.logitMin)&&validSigned(s.logitMax)?`${s.logitMin.toFixed(3)} / ${s.logitMax.toFixed(3)}`:'Indisponível'),
+  row('Custo das sondas de logits',valid(s.logitProbeUs)?duration(s.logitProbeUs/1000):'Indisponível'),
+  row('Layouts dos buffers',typeof obs.runtime?.bufferLayouts==='string'?obs.runtime.bufferLayouts:'Indisponível')
+ ],'Cancelamento usa ticket: pedido antigo não afeta o novo. Reconhecimento é observado entre nós do grafo CPU ou fronteiras seguras; não é tempo até todos os callbacks terminarem. Modelos são do processo; bridges e executores pertencem à tela. Repetição é somente agregada, sem filtros ou IDs exportados. Até duas sondas de logits, primeira amostragem/final EOG ou limite; infinitos podem ser legítimos, NaN merece investigação. Seed automática é lida, não fixada. Nenhum prompt/texto é retido no diagnóstico.')];
+}
+function validSigned(v){return typeof v==='number'&&Number.isFinite(v)}

@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var backend: LlmBackend
     private lateinit var bridge: HarunaAndroidBridge
     @Volatile private var modelImportBusy = false
+    @Volatile private var activityClosed = false
     private val modelExecutor = Executors.newSingleThreadExecutor()
     private var modelPickerOpen = false
     @Volatile private var activeModelPath: String? = null
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity() {
         val name = library.displayName(uri) ?: "haruna-model.gguf"
         bridge.notifyImportStarted("model", name)
         modelExecutor.execute {
+            if (activityClosed) return@execute
             var imported: File? = null
             val result = runCatching {
                 imported = library.importModel(uri) { progress -> bridge.notifyImportProgress("model", name, progress) }
@@ -90,7 +92,8 @@ class MainActivity : AppCompatActivity() {
         library = LocalLibrary(applicationContext)
         webView = WebView(this)
         setContentView(webView)
-        backend = LlamaCppBackend(applicationContext)
+        backend = HarunaRuntime.backend(applicationContext)
+        activeModelPath = backend.installedModelPath()
         bridge = HarunaAndroidBridge(this, webView, backend)
         val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this)).build()
         // Enables the existing JS confirm/alert/prompt dialogs, including deletion confirmations.
@@ -118,29 +121,30 @@ class MainActivity : AppCompatActivity() {
         // Diagnostics is optional: failure to create its bridge must not block the app.
         runCatching {
             diagnostics = com.proxyslabs.haruna.diagnostics.DiagnosticBridge(this, webView, backend,
-                { activeModelPath?.let { File(it) } }, { recognition.getStatus() }, { speech.getStatus() })
+                { backend.installedModelPath()?.let { File(it) } }, { recognition.getStatus() }, { speech.getStatus() })
             webView.addJavascriptInterface(diagnostics, "HarunaDiagnostics")
         }
         webView.loadUrl("https://appassets.androidplatform.net/assets/haruna/index.html")
     }
 
     private fun prepareModel(file: File) {
+        if (activityClosed) return
         bridge.notifyModelPreparing(file.name)
-        if (activeModelPath != file.absolutePath || !backend.status().modelLoaded) {
-            if (backend.status().modelLoaded) backend.unloadModel().getOrThrow()
-            activeModelPath = null
-            backend.loadModel(file.absolutePath).getOrThrow()
-            activeModelPath = file.absolutePath
-        }
+        // The process owner serializes replacement and reuses an already active installation.
+        backend.loadModel(file.absolutePath).getOrThrow()
+        if (activityClosed) return
+        activeModelPath = file.absolutePath
         library.rememberActive(file)
     }
 
-    fun activeModelPath(): String? = activeModelPath.takeIf { backend.status().modelLoaded }
+    fun activeModelPath(): String? = backend.installedModelPath()
 
     @Synchronized fun downloadRecommendedModel(url: String, name: String) {
+        if (activityClosed) return
         if (modelImportBusy) { bridge.notifyDownloadRejected(name, "Já existe uma instalação em andamento."); return }
         modelImportBusy = true; bridge.notifyDownloadStarted(name)
         modelExecutor.execute {
+            if (activityClosed) return@execute
             var downloaded: File? = null
             val result = runCatching {
                 val existing = library.installedModel(name)
@@ -166,17 +170,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Synchronized private fun autoLoadPrimaryModel() {
-        if (modelImportBusy) return
+        if (activityClosed || modelImportBusy) return
+        backend.installedModelPath()?.let { path ->
+            activeModelPath = path
+            bridge.notifyModelLoadResult(Result.success(Unit), File(path).name)
+            return
+        }
         val file = library.startupModel() ?: return
         modelImportBusy = true
         modelExecutor.execute {
+            if (activityClosed) return@execute
             val result = runCatching { prepareModel(file) }
             modelImportBusy = false
             bridge.notifyModelLoadResult(result, file.name)
         }
     }
     @Synchronized fun pickModel() {
-        if (modelImportBusy || modelPickerOpen) return
+        if (activityClosed || modelImportBusy || modelPickerOpen) return
         modelImportBusy = true
         modelPickerOpen = true
         try { modelPicker.launch(arrayOf("application/octet-stream", "*/*")) }
@@ -184,9 +194,11 @@ class MainActivity : AppCompatActivity() {
     }
     fun pickAttachment() = attachmentPicker.launch(arrayOf("text/plain", "text/markdown", "application/pdf", "image/*", "*/*"))
     @Synchronized fun useModel(path: String) {
+        if (activityClosed) return
         if (modelImportBusy) { bridge.notifyDownloadRejected(File(path).name, "Já existe uma instalação em andamento."); return }
         modelImportBusy = true
         modelExecutor.execute {
+            if (activityClosed) return@execute
             val file = File(path)
             val result = runCatching {
                 require(file.parentFile?.canonicalFile == library.modelsDir.canonicalFile && file.isFile) { "Modelo inválido" }
@@ -202,6 +214,18 @@ class MainActivity : AppCompatActivity() {
         if (::speech.isInitialized) { speech.stop(); speech.cancelInstallation() }
         super.onStop()
     }
-    override fun onDestroy() { if (::diagnostics.isInitialized) diagnostics.close(); webView.removeJavascriptInterface("HarunaDiagnostics"); recognition.close(); webView.removeJavascriptInterface("HarunaRecognition"); speech.close(); webView.removeJavascriptInterface("HarunaSpeech"); chromeClient.dispose(); modelExecutor.shutdown(); webView.removeJavascriptInterface("HarunaAndroid"); webView.stopLoading(); webView.destroy(); super.onDestroy() }
+    override fun onDestroy() {
+        activityClosed = true
+        if (::bridge.isInitialized) bridge.close()
+        if (::diagnostics.isInitialized) diagnostics.close()
+        webView.removeJavascriptInterface("HarunaDiagnostics"); recognition.close()
+        webView.removeJavascriptInterface("HarunaRecognition"); speech.close()
+        webView.removeJavascriptInterface("HarunaSpeech"); chromeClient.dispose()
+        // Do not interrupt runBlocking/native model load: let the process owner finish ownership transfer.
+        modelExecutor.shutdown()
+        webView.removeJavascriptInterface("HarunaAndroid"); webView.stopLoading(); webView.destroy()
+        // Process-owned GGUF runtime intentionally survives Activity recreation/background.
+        super.onDestroy()
+    }
 }
 

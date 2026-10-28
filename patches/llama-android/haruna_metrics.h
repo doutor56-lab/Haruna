@@ -65,8 +65,10 @@ static void hm_context(const llama_context_params * requested = nullptr) {
     value["gpuTransformerLayers"]=haruna_observed_gpu_layers(g_context);
     uint64_t model=0,context=0,compute=0;
     std::string executors;
+    std::string layouts;
     for (const auto & item : llama_get_memory_breakdown(g_context)) {
         model+=item.second.model; context+=item.second.context; compute+=item.second.compute;
+        if (layouts.size()<500) { if(!layouts.empty()) layouts+=" / "; layouts+=hm_identifier(ggml_backend_buft_name(item.first)); }
         auto dev=ggml_backend_buft_get_device(item.first);
         if (dev && (item.second.model || item.second.context || item.second.compute)) {
             const auto name=hm_identifier(ggml_backend_dev_name(dev));
@@ -77,6 +79,7 @@ static void hm_context(const llama_context_params * requested = nullptr) {
     }
     value["modelBufferBytes"]=model; value["contextBufferBytes"]=context;
     value["computeBufferBytes"]=compute; value["bufferDevices"]=executors;
+    value["bufferLayouts"]=layouts;
     value["cpuOnline"]=sysconf(_SC_NPROCESSORS_ONLN);
     cpu_set_t mask; CPU_ZERO(&mask);
     if (sched_getaffinity(0,sizeof(mask),&mask)==0) value["cpuAllowed"]=CPU_COUNT(&mask);
@@ -110,11 +113,13 @@ struct HarunaDecodeTimer {
     const int64_t started=hm_clock();
     ~HarunaDecodeTimer() { hm_decode+=hm_clock()-started; ++hm_steps; }
 };
+#include "haruna_runtime_control.h"
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_arm_aichat_internal_InferenceEngineImpl_runtimeMetrics(JNIEnv * env,jobject) {
     try {
     HarunaJson result;
     { std::lock_guard<std::mutex> guard(hm_lock); result["runtime"]=hm_runtime; }
+    result["stability"]=hs_snapshot();
     result["generation"]={{"serial",hm_serial.load()},{"nativeStartBootUs",hm_start.load()},{"templateUs",hm_template.load()},
         {"tokenizeUs",hm_tokenize.load()},{"prefillUs",hm_prefill.load()},
         {"firstDeltaUs",hm_first_delta.load()},{"firstSampleUs",hm_first_sample.load()},

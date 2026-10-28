@@ -23,16 +23,30 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.CopyOnWriteArraySet
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 class LlamaCppBackend(context: Context) : LlmBackend {
     companion object {
         private const val TAG = "HarunaLLM"
-
+        private val serials = AtomicLong()
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val engine: InferenceEngine = AiChat.getInferenceEngine(context.applicationContext)
-    private val jobs = ConcurrentHashMap<String, Job>()
+    private class Request(val serial: Long) {
+        lateinit var job: Job
+        val cancelled = AtomicBoolean(false)
+        val finishing = AtomicBoolean(false)
+        val started = AtomicBoolean(false)
+    }
+    private val jobs = ConcurrentHashMap<String, Request>()
+    private val lifecycle = ReentrantLock()
+    private val statusListeners = CopyOnWriteArraySet<() -> Unit>()
+    @Volatile private var destroyed = false
     @Volatile private var loading = false
     @Volatile private var modelName: String? = null
     @Volatile private var modelPath: String? = null
@@ -46,21 +60,47 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         keys.mapIndexedNotNull { i, key -> values.getOrNull(i)?.takeIf { it >= 0 }?.let { key to it } }.toMap()
     }.getOrDefault(emptyMap())
 
-    override fun runtimeMetrics(): String = runCatching { engine.runtimeMetrics() }.getOrDefault("{}")
+    override fun runtimeMetrics(): String = runCatching {
+        JSONObject(engine.runtimeMetrics()).put("owner", JSONObject()
+            .put("scope", "process").put("destroyed", destroyed).put("maintenance", loading)
+            .put("requestsActive", jobs.size)).toString()
+    }.getOrDefault("{}")
+    override fun installedModelPath(): String? = modelPath.takeIf { !loading && engine.state.value.isModelLoaded }
+    override fun subscribeStatus(listener: () -> Unit): () -> Unit {
+        statusListeners.add(listener)
+        return { statusListeners.remove(listener) }
+    }
+    private fun notifyStatus() { statusListeners.forEach { runCatching { it() } } }
+
+    private fun cancel(request: Request, reason: Int) {
+        request.cancelled.set(true)
+        // Signal directly, not through the dispatcher currently occupied by prefill/decode.
+        runCatching { engine.cancelGeneration(request.serial, reason) }
+        request.job.cancel()
+    }
+
+    private fun maintenance(reason: Int, action: () -> Unit) {
+        val active = synchronized(jobs) { loading = true; jobs.values.toList() }
+        try {
+            active.forEach { cancel(it, reason) }
+            runBlocking { active.forEach { it.job.cancelAndJoin() } }
+            action()
+        } finally { loading = false; notifyStatus() }
+    }
 
     override fun status(): LlmBackend.Status {
         val engineState = engine.state.value
         val loaded = engineState.isModelLoaded
         val state = when {
             loading || engineState is InferenceEngine.State.LoadingModel || engineState is InferenceEngine.State.ProcessingSystemPrompt -> "loading"
-            engineState is InferenceEngine.State.Generating || engineState is InferenceEngine.State.ProcessingUserPrompt -> "generating"
+            jobs.values.any { !it.cancelled.get() && !it.finishing.get() } || engineState is InferenceEngine.State.Generating || engineState is InferenceEngine.State.ProcessingUserPrompt -> "generating"
             loaded -> "active"
             engineState is InferenceEngine.State.Error -> "error"
             lastError != null -> "error"
             else -> "not_loaded"
         }
         val error = (engineState as? InferenceEngine.State.Error)?.exception?.let(::friendlyLoadError) ?: lastError
-        return LlmBackend.Status(true, loaded, state, modelName, error)
+        return LlmBackend.Status(!destroyed, loaded, state, modelName, error)
     }
 
     private fun friendlyLoadError(error: Throwable): String = when (error) {
@@ -109,39 +149,60 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     }
 
     override fun loadModel(localPath: String): Result<Unit> = runCatching {
-        check(jobs.isEmpty()) { "Há uma geração em andamento" }
-        val file = File(localPath); validateModel(file); loading = true; lastError = null
-        runBlocking(Dispatchers.IO) { loadAndPrime(file) }
-        modelName = file.name; modelPath = file.absolutePath
-        conversationId = null; resetRequired = false
-    }.onFailure { modelName = null; modelPath = null; lastError = friendlyLoadError(it) }.also { loading = false }
+        lifecycle.withLock {
+            check(!destroyed) { "Runtime encerrado" }
+            val file = File(localPath); validateModel(file)
+            if (modelPath == file.absolutePath && engine.state.value.isModelLoaded) return@withLock
+            maintenance(7) {
+                lastError = null
+                runBlocking(Dispatchers.IO) { loadAndPrime(file) }
+                modelName = file.name; modelPath = file.absolutePath
+                conversationId = null; resetRequired = false
+            }
+        }
+    }.onFailure {
+        if (!engine.state.value.isModelLoaded) { modelName = null; modelPath = null }
+        lastError = friendlyLoadError(it)
+        notifyStatus()
+    }
 
     override fun resetConversation(): Result<Unit> = runCatching {
-        check(!loading) { "Aguarde o carregamento do modelo" }
-        // Join cancelled work before allowing another conversation to use native state.
-        runBlocking { jobs.values.toList().forEach { it.cancelAndJoin() } }
-        val file = File(requireNotNull(modelPath) { "Nenhum modelo carregado" })
-        validateModel(file)
-        // The next structured request clears KV/sampler state without reloading weights.
-        resetRequired = true
-        lastError = null
+        lifecycle.withLock {
+            check(!destroyed) { "Runtime encerrado" }
+            maintenance(5) {
+                validateModel(File(requireNotNull(modelPath) { "Nenhum modelo carregado" }))
+                resetRequired = true; lastError = null
+            }
+        }
     }
 
     override fun unloadModel(): Result<Unit> = runCatching {
-        runBlocking { jobs.values.toList().forEach { it.cancelAndJoin() } }
-        val state = engine.state.value
-        if (state.isModelLoaded || state is InferenceEngine.State.Error) engine.cleanUp()
-        modelName = null; modelPath = null; lastError = null
-        conversationId = null; resetRequired = false
+        lifecycle.withLock {
+            check(!destroyed) { "Runtime encerrado" }
+            maintenance(7) {
+                val state = engine.state.value
+                if (state.isModelLoaded || state is InferenceEngine.State.Error || state is InferenceEngine.State.Initialized) engine.cleanUp()
+                modelName = null; modelPath = null; lastError = null
+                conversationId = null; resetRequired = false
+            }
+        }
     }
 
     override fun generate(requestId: String, payloadJson: String, onToken: (String) -> Unit, onComplete: (String) -> Unit, onError: (String, String) -> Unit) {
         if (!engine.state.value.isModelLoaded && !resetRequired) { onError("model_not_loaded", "Nenhum modelo GGUF carregado"); return }
         synchronized(jobs) {
-            if (loading || jobs.isNotEmpty()) { onError("generation_busy", "Há uma operação em andamento"); return }
+            if (destroyed || loading || jobs.size >= 4 || jobs.values.any { !it.cancelled.get() && !it.finishing.get() }) {
+                onError("generation_busy", "Há uma operação em andamento"); return
+            }
+            val predecessors = jobs.values.toList()
             // Reserve the request before starting it, including very short generations.
+            val request = Request(serials.incrementAndGet())
             val job = scope.launch(start = CoroutineStart.LAZY) {
+                request.started.set(true)
                 try {
+                    // A new request may arrive just after Parar/terminal callback. Join the old
+                    // owner before reserving another native ticket; never run two contexts.
+                    predecessors.forEach { it.job.join() }
                     val root = JSONObject(payloadJson)
                     val messages = requireNotNull(root.optJSONArray("messages")) { "Prompt vazio" }
                     val options = root.optJSONObject("options")
@@ -171,31 +232,50 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     resetRequired = false
                     val predictLength = options?.optInt("maxTokens", 512)?.coerceIn(16, 1024) ?: 512
                     val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; val output = StringBuilder()
-                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true).collect { token ->
+                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial).collect { token ->
                         if (firstTokenAt == 0L) { firstTokenAt = System.currentTimeMillis(); Log.i(TAG, "first_token_ms=${firstTokenAt - generationStart}") }
-                        output.append(token); withContext(Dispatchers.Main) { onToken(token) }
+                        output.append(token); withContext(Dispatchers.Main) {
+                            if (!request.cancelled.get() && jobs[requestId] === request) onToken(token)
+                        }
                     }
                     Log.i(TAG, "generation_ms=${System.currentTimeMillis() - generationStart} chars=${output.length}")
-                    withContext(Dispatchers.Main) { onComplete(output.toString()) }
+                    request.finishing.set(true)
+                    withContext(Dispatchers.Main) {
+                        if (!request.cancelled.get() && jobs[requestId] === request) onComplete(output.toString())
+                    }
                 } catch (e: CancellationException) {
+                    request.finishing.set(true)
                     resetRequired = true
                     withContext(NonCancellable + Dispatchers.Main) { onError("cancelled", "Geração interrompida") }
                     throw e
                 } catch (e: Throwable) {
+                    request.finishing.set(true)
                     resetRequired = true
                     lastError = e.message ?: e.javaClass.simpleName
                     withContext(Dispatchers.Main) { onError("generation_failed", lastError ?: "Falha na inferência local") }
-                } finally { jobs.remove(requestId) }
+                } finally { jobs.remove(requestId, request); notifyStatus() }
             }
-            jobs[requestId] = job
-            job.invokeOnCompletion { jobs.remove(requestId, job) }
+            request.job = job
+            jobs[requestId] = request
+            job.invokeOnCompletion { cause ->
+                jobs.remove(requestId, request)
+                if (cause is CancellationException && !request.started.get()) {
+                    scope.launch(Dispatchers.Main) { onError("cancelled", "Geração interrompida antes da entrada no runtime") }
+                }
+            }
             job.start()
         }
     }
 
-    override fun stop(requestId: String): Result<Unit> = runCatching { jobs[requestId]?.cancel() }
+    override fun stop(requestId: String): Result<Unit> = runCatching { jobs[requestId]?.let { cancel(it, 5) } }
 
-    fun destroy() { jobs.values.forEach { it.cancel() }; jobs.clear(); engine.destroy(); scope.cancel() }
+    fun detachRequest(requestId: String) { jobs[requestId]?.let { cancel(it, 9) } }
+
+    fun destroy() = lifecycle.withLock {
+        if (!destroyed) {
+            maintenance(8) { engine.destroy(); destroyed = true; scope.cancel(); modelPath = null; modelName = null }
+        }
+    }
 }
 
 

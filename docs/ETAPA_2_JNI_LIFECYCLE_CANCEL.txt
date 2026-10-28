@@ -1,0 +1,178 @@
+ETAPA_2_JNI_LIFECYCLE_CANCEL
+Implementação e roteiro de validação — sem alegação de teste no dispositivo.
+
+1. ESCOPO
+Infraestrutura JNI, cancelamento cooperativo, ownership e recuperação de erros.
+Base: f0a8544b1164d7b56c67ebc8f55d3354951069a0, branch ui-polish-icons.
+Checkpoint imutável: checkpoint/haruna-before-native-stability-f0a8544.
+llama.cpp preservado: 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10.
+Nenhuma alteração deliberada de threads, 8192 de contexto, batch/ubatch 512,
+KV F16, Flash Attention, GPU, sampling, limite de saída, template ou histórico.
+Limpeza integral de KV por pedido e streaming por delta continuam como baseline.
+STT, TTS, RAG, memórias, personalidade e layout geral não foram alterados.
+
+2. ARQUIVOS
+Modificados:
+scripts/patch_android_loader.py
+patches/llama-android/haruna_chat.h
+patches/llama-android/haruna_metrics.h
+app/src/main/java/com/proxyslabs/haruna/LlmBackend.kt
+app/src/main/java/com/proxyslabs/haruna/LlamaCppBackend.kt
+app/src/main/java/com/proxyslabs/haruna/HarunaAndroidBridge.kt
+app/src/main/java/com/proxyslabs/haruna/MainActivity.kt
+app/src/main/java/com/proxyslabs/haruna/diagnostics/DiagnosticSession.kt
+app/src/main/assets/haruna/diagnostics/runtime-report.js
+app/src/main/assets/haruna/diagnostics/panel.js
+Novos:
+scripts/patch_android_stability.py
+patches/llama-android/haruna_runtime_control.h
+patches/llama-android/haruna_resources.h
+patches/llama-android/haruna_strings.h
+app/src/main/java/com/proxyslabs/haruna/HarunaRuntime.kt
+docs/ETAPA_2_JNI_LIFECYCLE_CANCEL.txt
+O script estende os patches existentes no mesmo SDK fixado; modifica durante
+o build InferenceEngine.kt, InferenceEngineImpl.kt e ai_chat.cpp. Não troca SDK.
+
+3. FASTNATIVE
+Removido de init, load, prepare, systemInfo, lastLoadError, benchModel,
+processSystemPrompt, processUserPrompt, processChatMessages, generateNextToken,
+unload e shutdown. Computação, alocação, locks de duração variável ou liberação
+pesada tornam essas chamadas inadequadas para a anotação.
+Mantido em chatMetrics (cinco inteiros) e usado em nativeStopCode (leitura atômica).
+reserveGeneration, cancelGeneration, finishGeneration e runtimeMetrics são JNI
+normal: podem usar mutex, construir estruturas ou limpar recursos.
+
+4. CANCELAMENTO
+Cada pedido recebe um serial monotônico do processo. A reserva nativa é atômica
+e exclusiva: ticket positivo em execução; negativo cancelado; zero sem proprietário.
+Cancelamento antigo não corresponde a ticket novo. O primeiro motivo prevalece.
+A sinalização JNI é direta, fora do dispatcher ocupado pelo prefill/decode.
+O Job Kotlin também é cancelado; a finalização roda em NonCancellable no dispatcher
+serial do motor. Troca/unload/destroy cancelam e aguardam o proprietário terminar
+antes de liberar recursos. Pedido novo pode aguardar o cancelado finalizar, sem
+criar dois contextos simultâneos.
+
+Prefill: ctx_params.abort_callback usa a sinalização atômica. No backend CPU desta
+revisão, o GGML verifica aborto entre nós do grafo. Há também verificações antes
+de cada batch e entre preparação, template e tokenização. Não é necessário esperar
+um token de saída para reconhecer o pedido durante a execução do grafo.
+Limite: não há interrupção arbitrária dentro de um kernel/matmul único, chamada
+Jinja, tokenização única ou carregamento do modelo. A latência depende da próxima
+fronteira segura; não se promete um prazo em milissegundos sem medir no aparelho.
+
+Decode: verifica antes de amostrar e usa o mesmo abort_callback durante o grafo.
+Texto parcial já enviado permanece sob o fluxo atual da UI; deltas antigos após
+Parar são descartados. Não há filtro de conteúdo nem batching de streaming.
+
+5. OWNERSHIP / LIFECYCLE
+HarunaRuntime possui um LlamaCppBackend por processo, usando applicationContext.
+O backend possui SDK, supervisor de coroutines e registro de pedidos. O SDK
+possui dispatcher serial; os globais nativos representam um único modelo,
+contexto, sampler, templates e batch. Apenas o proprietário serial os libera.
+Activity possui sua ponte, executor de arquivos/modelos e listeners. Fechar a
+Activity encerra a ponte/executor, remove listeners e cancela seus pedidos, mas
+não chama destroy do singleton. Uma Activity recriada usa o backend do processo
+e recebe mudanças de estado sem referência à WebView antiga.
+Background normal não descarrega GGUF. Morte real do processo libera tudo pelo
+Android; a abertura seguinte usa a instalação privada e o autoload existentes.
+destroy explícito do backend aguarda gerações, libera SDK e zera o singleton do
+SDK; HarunaRuntime.shutdown também zera o proprietário. onDestroy não o invoca.
+O executor da ponte é encerrado; callbacks postados verificam fechamento e
+identidade do pedido antes de tocar na WebView. Executors de carregamento da
+Activity não são interrompidos no meio de load nativo: a tarefa em andamento
+termina no proprietário do processo; tarefas ainda na fila verificam fechamento.
+
+6. CLEANUP / ERROS
+O modelo é assumido imediatamente após load bem-sucedido; contexto, batch,
+templates e sampler são assumidos por etapas. Falha de prepare libera os recursos
+parciais. Ponteiros globais são anulados antes do free; unload é idempotente e
+recusa liberação enquanto existe ticket ativo. O batch/templates são liberados
+antes do contexto/modelo. Falhas e cancelamento limpam estado transitório, KV e
+sampler, mantendo pesos válidos. Falha excepcional no cleanup libera o conjunto
+e retorna estado Initialized, permitindo novo carregamento explícito.
+Exceções C++ na geração não atravessam JNI. Erro de prefill/decode deixa de ser
+interpretado como conclusão normal pelo Flow Kotlin.
+O getInstance do SDK verifica novamente o singleton dentro do synchronized.
+
+7. MOTIVOS FINAIS
+1 EOG/EOS; 2 limite de tokens; 3 erro de decode; 4 preparação;
+5 cancelamento do usuário; 6 erro de prefill; 7 unload/troca;
+8 destroy; 9 fechamento da ponte; 10 transporte UTF-8 inválido/incompleto.
+Zero permanece desconhecido/em andamento; nunca é sucesso por conveniência.
+O SDK distingue término 1/2, CancellationException 5/7/8/9 e IOException nos
+demais erros. A UI recebe seu protocolo existente de conclusão/erro/cancelamento.
+Cancelamento antes de reservar o native pode encerrar só o Job Kotlin; nesse
+caso não se inventa reconhecimento nativo nem substitui métricas do pedido anterior.
+
+8. SAMSUNG — EVIDÊNCIA E LIMITES
+Não foi possível reproduzir a degeneração no aparelho nesta execução.
+O código confirma common_sampler_reset por pedido. Com seed default aleatória,
+o reset sorteia seed efetiva; mesma configuração não implica mesma amostra.
+Não se alterou seed, cadeia de samplers ou penalidades. Input 415 vs 425 tokens
+também não prova prompts idênticos. Nome/quantização iguais não provam bytes GGUF
+idênticos. Velocidade baixa não explica a degeneração: o tablet lento gerou bem.
+Variantes ARM e features principais iguais não provam microarquitetura, kernels,
+temperatura ou estado de execução idênticos. Não há evidência para regra Samsung.
+Riscos de lifecycle/cancelamento foram corrigidos, sem alegar que eram a causa.
+
+Foi encontrado uso de NewStringUTF para bytes UTF-8 padrão do modelo e leitura
+sem limites suficientes em fragmentos incompletos. JNI espera Modified UTF-8.
+O caminho real agora converte UTF-16/UTF-8 padrão corretamente, incluindo pares
+surrogates e caracteres suplementares; valida fragmentos sem ler fora do buffer.
+Isso corrige transporte e segurança; não explica sozinho repetição ASCII 1:1.
+Não altera o texto via regex, não mascara saída e não muda o template.
+
+9. DBG ADICIONAL — SOMENTE TÉCNICO
+Preserva métricas completas da Etapa 1. Acrescenta ticket/serial, cancelamento
+solicitado/reconhecido, fase e latência monotônica em us, motivo final,
+bits dos recursos, estado do backend, cargas/liberações, pedidos pendentes,
+estado de manutenção, pontes ativas, executors fechados e callbacks descartados.
+Seed efetiva vem de common_sampler_get_seed após o reset existente.
+Repetição: maior sequência do mesmo token e coincidências de lag 2; janela
+interna de 16 IDs transitória, nunca exportada/persistida e zerada no término.
+Logits: no máximo duas sondagens por geração (primeira amostragem e término
+normal), contando NaN/Inf, faixa finita e custo acumulado da própria sondagem.
+Não há inferência diagnóstica adicional, logging por token ou resposta completa.
+Inf pode ser legítimo em máscaras; contagem isolada não prova kernel defeituoso.
+Layouts de buffers vêm do breakdown real já usado pela instrumentação.
+O pico observado da sessão continua amostrado, não pico absoluto do sistema.
+
+10. CUSTO E RISCOS
+Cancelamento: leitura atômica nas fronteiras seguras; mutex apenas no controle
+e reconhecimento. Contadores e janela limitada; nenhuma coleta de memória por
+token. Duas sondagens de vocabulário têm custo medido no DBG. Não se alega ganho
+de desempenho. O DBG mantém coleta e atualização conservadoras existentes.
+SIGSEGV, assert nativo, processo morto por pressão de RAM e falhas de driver não
+são recuperáveis com catch. O cancelamento é cooperativo, não preemptivo.
+Recriação da Activity, pressão de RAM, sequência de trocas e UI parcial precisam
+de validação real. Recursos válidos são mantidos em background deliberadamente.
+
+11. VERIFICAÇÃO
+Aplicação dos patches verificada no fonte exato do llama.cpp fixado, incluindo
+reaplicação idempotente. Sintaxe Python e JavaScript verificadas.
+Conversão Unicode verificada em teste C++ curto com ASan/UBSan: português,
+caractere suplementar, NUL, bytes incompletos/inválidos e surrogate inválido.
+LeakSanitizer foi desabilitado por incompatibilidade do sandbox com ptrace;
+isso não constitui auditoria de vazamentos nem teste do runtime no telefone.
+Resultado definitivo do build, commit e link do APK constam na entrega final.
+Não foram executados benchmarks nem baixados GGUFs.
+
+12. ROTEIRO MANUAL A–E
+Instalar o APK de atualização sem apagar dados; manter os mesmos GGUF e opções.
+Abrir Configurações > DBG > Copiar diagnóstico antes e depois de cada caso.
+A: Qwen 1.5B, enviar e tocar Parar antes do primeiro token; copiar reconhecimento,
+fase, latência, motivo, recursos e todas as métricas Etapa 1. Enviar novamente.
+B: esperar tokens, tocar Parar; verificar texto parcial e nova resposta.
+C: resposta curta, background/foreground, responder; observar pontes ativas,
+recursos, cargas/liberações, PSS/RSS/native e callbacks antigos.
+D: 1.5B -> 0.5B -> 1.5B; responder em cada modelo; comparar cargas/liberações,
+recursos, heap e estado. Não deve haver ticket anterior ativo após finalizar.
+E: no Samsung, sem alterar sampling, repetir 'Eai minha pequena' e
+'Explique em três frases por que o céu parece azul.'. Registrar manualmente
+resultado textual, motivo, seed, reset, repetição/lag2, NaN/Inf/faixa, custo das
+sondagens, variante/layout, input/output e métricas integrais da Etapa 1.
+Se houver travamento, copiar o diagnóstico disponível sem insistir no 1.5B.
+Enviar também se foi primeira carga, após cancelamento ou após troca. Não enviar
+conversas pessoais; o relatório automático contém apenas métricas técnicas.
+
+Encerramento desta etapa: nenhuma implementação das Etapas 3/4/5 foi incluída.

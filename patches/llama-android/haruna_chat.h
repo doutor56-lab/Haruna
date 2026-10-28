@@ -10,12 +10,7 @@ static std::atomic<int> haruna_template_from_gguf{-1};
 static std::atomic<int> haruna_context_capacity{-1};
 
 static std::string haruna_jstring(JNIEnv * env, jstring value) {
-    if (value == nullptr) throw std::runtime_error("Missing chat field");
-    const char * chars = env->GetStringUTFChars(value, nullptr);
-    if (chars == nullptr) throw std::runtime_error("Cannot read chat field");
-    std::string result(chars);
-    env->ReleaseStringUTFChars(value, chars);
-    return result;
+    return hs_from_java(env, value);
 }
 
 static llama_tokens haruna_tokenize(const common_chat_prompt & prompt) {
@@ -43,6 +38,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
     haruna_input_tokens = -1; haruna_output_tokens = -1;
     haruna_history_messages = -1; haruna_template_from_gguf = -1; haruna_context_capacity = -1;
     try {
+        if (hs_check_cancel()) return 5;
         if (g_model == nullptr || g_context == nullptr || g_sampler == nullptr || !g_chat_templates || roles == nullptr || contents == nullptr)
             throw std::runtime_error("Chat runtime unavailable");
         const int count = env->GetArrayLength(roles);
@@ -50,6 +46,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             throw std::runtime_error("Invalid chat message count");
         std::vector<common_chat_msg> messages;
         for (int i = 0; i < count; ++i) {
+            if (hs_check_cancel()) return 5;
             auto role = static_cast<jstring>(env->GetObjectArrayElement(roles, i));
             auto content = static_cast<jstring>(env->GetObjectArrayElement(contents, i));
             common_chat_msg message;
@@ -65,6 +62,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         const int predict = std::max(16, std::min(1024, static_cast<int>(n_predict)));
         llama_tokens tokens;
         while (true) {
+            if (hs_check_cancel()) return 5;
             common_chat_templates_inputs input;
             input.messages = messages;
             input.use_jinja = true;
@@ -75,10 +73,12 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             hm_stage = 1;
             auto formatted = common_chat_templates_apply(g_chat_templates.get(), input);
             hm_template += hm_clock() - template_start;
+            if (hs_check_cancel()) return 5;
             const auto tokenize_start = hm_clock();
             hm_stage = 2;
             tokens = haruna_tokenize(formatted.prompt);
             hm_tokenize += hm_clock() - tokenize_start;
+            if (hs_check_cancel()) return 5;
             if (!tokens.empty() && static_cast<int>(tokens.size()) + predict <= limit) break;
             if (messages.size() <= 2) throw std::runtime_error("Chat input exceeds context capacity");
             // Evict only oldest history, never identity, current profile or current user input.
@@ -88,12 +88,17 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             hm_removed += remove;
         }
         reset_long_term_states(); reset_short_term_states(); common_sampler_reset(g_sampler);
+        hs_sampler_reset_observed();
         hm_cleared = 1; hm_input = tokens.size(); hm_stage = 3;
         const auto prefill_start = hm_clock();
         const auto prefill_result = decode_tokens_in_batches(g_context, g_batch, tokens, 0, true);
         hm_prefill = hm_clock() - prefill_start;
-        if (prefill_result != 0)
+        if (prefill_result != 0) {
+            if (hs_check_cancel()) return 5;
+            hm_finish(6);
             throw std::runtime_error("Chat input decoding failed");
+        }
+        if (hs_check_cancel()) return 5;
         chat_msgs = std::move(messages);
         current_position = static_cast<llama_pos>(tokens.size());
         hm_occupied = current_position;
@@ -106,7 +111,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         hm_stage = 4;
         return 0;
     } catch (...) {
-        hm_finish(4);
+        if (hm_reason.load()!=6 && hm_reason.load()!=5 && hm_reason.load()!=7 && hm_reason.load()!=8 && hm_reason.load()!=9) hm_finish(4);
         // Never propagate a template exception containing message text to Java/logcat.
         if (g_context != nullptr) { reset_long_term_states(); reset_short_term_states(); }
         return 3;

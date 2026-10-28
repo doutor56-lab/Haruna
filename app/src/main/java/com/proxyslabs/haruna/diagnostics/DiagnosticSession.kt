@@ -14,6 +14,12 @@ object DiagnosticSession {
     private val lock = Any()
     private val generations = linkedMapOf<String, Generation>()
     private var lastGeneration: Pair<String, Generation>? = null
+    private var discardedCallbacks = 0L
+    private var liveBridges = 0
+    private var closedExecutors = 0L
+    fun bridgeOpened() { synchronized(lock) { liveBridges++ } }
+    fun bridgeClosed() { synchronized(lock) { liveBridges = maxOf(0, liveBridges - 1); closedExecutors++ } }
+    fun callbackDiscarded() { synchronized(lock) { discardedCallbacks++ } }
     private val stt = Voice()
     private val tts = Voice()
     private var completed = 0L
@@ -50,7 +56,7 @@ object DiagnosticSession {
     } }
     fun llmFinished(id: String, success: Boolean, cancelled: Boolean = false) {
         runCatching { synchronized(lock) {
-            val generation = generations.remove(id)
+            val generation = generations.remove(id) ?: return@synchronized
             if (generation != null) { generation.finished = clock(); lastGeneration = id to generation }
             if (success) completed++
             firstMs = generation?.first?.let { (it - generation.started) / 1e6 }
@@ -86,6 +92,7 @@ object DiagnosticSession {
                 .put("visual", g.visual ?: JSONObject())
         }
         JSONObject().put("sessionUptimeMs", SystemClock.elapsedRealtime() - started)
+            .put("liveLlmBridges", liveBridges).put("closedLlmExecutors", closedExecutors).put("discardedLlmCallbacks", discardedCallbacks)
             .put("responsesCompleted", completed).put("firstOutputMs", firstMs ?: JSONObject.NULL)
             .put("generationMs", generationMs ?: JSONObject.NULL).put("lastOutcome", outcome ?: JSONObject.NULL)
             .put("stt", voice(stt)).put("tts", voice(tts)).put("pipeline", pipeline)
