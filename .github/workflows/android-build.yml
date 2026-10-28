@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [main, recovery/haruna-82d3c47]
+    branches: [build/apk-samsung-probes-2d3f021]
   pull_request:
   workflow_dispatch:
 
@@ -20,6 +20,7 @@ jobs:
       - name: Checkout Haruna and llama.cpp
         uses: actions/checkout@v6
         with:
+          ref: 2d3f0211295033d6726624991eec6ffe2c23324b
           submodules: recursive
           fetch-depth: 1
 
@@ -40,6 +41,11 @@ jobs:
           test -f third_party/llama.cpp/examples/llama.android/lib/src/main/cpp/ai_chat.cpp
           grep -Fq 'lastLoadError' third_party/llama.cpp/examples/llama.android/lib/src/main/java/com/arm/aichat/internal/InferenceEngineImpl.kt
           grep -Fq 'g_last_load_error' third_party/llama.cpp/examples/llama.android/lib/src/main/cpp/ai_chat.cpp
+          grep -Fq 'sendChatMessages' third_party/llama.cpp/examples/llama.android/lib/src/main/java/com/arm/aichat/InferenceEngine.kt
+          grep -Fq 'haruna_input_tokens' third_party/llama.cpp/examples/llama.android/lib/src/main/cpp/haruna_chat.h
+          grep -Fq 'sendChatMessages' app/src/main/java/com/proxyslabs/haruna/LlamaCppBackend.kt
+          grep -Fq 'hk_reconcile' third_party/llama.cpp/examples/llama.android/lib/src/main/cpp/haruna_chat.h
+          grep -Fq 'conversationRevision: Long' third_party/llama.cpp/examples/llama.android/lib/src/main/java/com/arm/aichat/InferenceEngine.kt
 
       - name: Guard Haruna app sources
         run: |
@@ -49,6 +55,26 @@ jobs:
           grep -Fq 'WebViewAssetLoader' app/src/main/java/com/proxyslabs/haruna/MainActivity.kt
           grep -Fq 'appassets.androidplatform.net/assets/haruna/index.html' app/src/main/java/com/proxyslabs/haruna/MainActivity.kt
           grep -Fq 'HarunaAndroid' app/src/main/java/com/proxyslabs/haruna/MainActivity.kt
+
+      - name: Set up Node for focused streaming checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check incremental JS streaming
+        run: node scripts/check_streaming.mjs
+
+      - name: Check exact prefix and cancellation rollback
+        run: |
+          g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined scripts/check_prefix_cache.cpp -o /tmp/haruna-prefix-check
+          ASAN_OPTIONS=detect_leaks=0 /tmp/haruna-prefix-check
+          node scripts/check_prefix_rag.mjs
+
+      - name: Check bounded decision probes
+        run: |
+          python3 scripts/check_decision_probes.py
+          g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined scripts/check_decision_probes.cpp -o /tmp/haruna-decision-check
+          ASAN_OPTIONS=detect_leaks=0 /tmp/haruna-decision-check
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -73,6 +99,9 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
 
+      - name: Check ordered Kotlin streaming controller
+        run: python3 scripts/check_stream_delivery.py
+
       - name: Verify packaged Haruna UI
         shell: python
         run: |
@@ -81,16 +110,45 @@ jobs:
           with zipfile.ZipFile(apk) as z:
               names=set(z.namelist())
               required={
+                  'assets/haruna/diagnostics/experiment.js',
+                  'assets/haruna/diagnostics/inference.js',
+                  'assets/haruna/streaming/think-parser.js',
+                  'assets/haruna/streaming/message-view.js',
+                  'assets/haruna/diagnostics/runtime-report.js',
                   'assets/haruna/index.html',
                   'assets/haruna/style.css',
                   'assets/haruna/app.js',
                   'assets/haruna/llm-engine.js',
                   'assets/haruna/android-bridge.js',
                   'assets/haruna/haruna-icon.svg',
+                  'assets/haruna/essential/store.js',
+                  'assets/haruna/essential/first-contact.js',
+                  'assets/haruna/essential/capture-policy.js',
+                  'assets/haruna/essential/ui.js',
+                  'assets/haruna/retrieval/enrich.js',
+                  'assets/haruna/retrieval/policy.js',
+                  'assets/haruna/retrieval/indicator.js',
+                  'assets/haruna/diagnostics/panel.js',
+                  'assets/haruna/identity/direct-replies.js',
+                  'assets/haruna/context/messages.js',
+                  'assets/haruna/learned/schema.js',
+                  'assets/haruna/learned/privacy.js',
+                  'assets/haruna/learned/capture.js',
+                  'assets/haruna/learned/store.js',
+                  'assets/haruna/learned/context.js',
+                  'assets/haruna/learned/dataset.js',
+                  'assets/haruna/learned/behavior-profile.js',
+                  'assets/haruna/learned/ui.js',
+                  'assets/haruna/learned/ui.css',
+                  'assets/haruna/voice-chat.js',
+                  'assets/haruna/speech-ui.js',
               }
               missing=required-names
               if missing:
                   raise SystemExit(f'Missing Haruna assets in APK: {sorted(missing)}')
+              arm_cpu=sorted(n for n in names if n.startswith('lib/arm64-v8a/libggml-cpu'))
+              print('Packaged ARM64 CPU variants:', arm_cpu)
+              assert 'lib/arm64-v8a/libggml-cpu-android_armv8.0_1.so' in names
               html=z.read('assets/haruna/index.html').decode('utf-8')
               js=z.read('assets/haruna/app.js').decode('utf-8')
               assert 'Haruna' in html
@@ -101,6 +159,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: haruna-debug-apk
+          name: haruna-2d3f021-samsung-diagnostic-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
