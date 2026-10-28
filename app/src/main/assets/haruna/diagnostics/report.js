@@ -91,9 +91,10 @@ export function diagnosticCards(native={},knowledge={}){
 }
 
 export function diagnosticReport(cards){
- return ['HARUNA — DIAGNÓSTICO','DBG · somente leitura','Atualização: estado a cada 5 s; memória a cada 10 s.','',
+ return ['HARUNA — DIAGNÓSTICO','DBG · métricas; experimento A/B explicitamente identificado','Atualização: estado a cada 5 s; memória a cada 10 s.','',
   ...cards.flatMap(card=>[card.title.toUpperCase(),...card.rows.map(r=>`${r.label}: ${r.value}`),`Nota: ${card.note}`,''])].join('\n');
 }
+
 
 
 

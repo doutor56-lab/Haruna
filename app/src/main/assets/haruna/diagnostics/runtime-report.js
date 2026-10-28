@@ -27,7 +27,7 @@ export function runtimeCards(native,local,f){
   row('Flash Attention · solicitada',clean(r.flashRequested)),
   row('Flash Attention · efetiva',r.flashEffective===1?'Ativa':r.flashEffective===0?'Inativa':'Indisponível / negociação pendente'),
   row('Camadas transformer atribuídas à GPU',number(r.gpuTransformerLayers))
- ],'Configuração lida do contexto criado. K/V são os tipos encaminhados à criação da memória de atenção; estados recorrentes de modelos híbridos podem ter outros tipos. GPU conta camadas transformer, exclui a projeção de saída. Nenhum parâmetro é alterado pelo DBG.'),
+ ],'Configuração lida do contexto criado. K/V são os tipos encaminhados à criação da memória de atenção; estados recorrentes de modelos híbridos podem ter outros tipos. GPU conta camadas transformer, exclui a projeção de saída. Este card só observa. O experimento A/B separado pode solicitar FA off após recarga e CPU conservadora em outro processo; padrões normais preservados.'),
  section('generation','Última geração / atual',[
   row('Serial nativo · apenas correlação',has?number(g.serial):'Indisponível'),row('Fase nativa',has?stages[g.stage]||'Desconhecida':'Indisponível'),
   row('Preparação de referências/contexto · JS',duration(v.contextMs)),
@@ -68,6 +68,7 @@ export function runtimeCards(native,local,f){
   row('Apresentação · primeiro texto até DOM final',duration(v.presentationSpanMs)),row('JS · pedido até DOM final',duration(v.clientTotalMs))
  ],'Android agrupa deltas antes da WebView: janela base 45 ms, até 350 ms para um delta isolado, primeiro lote imediato e até 4096 unidades UTF-16 por lote. Uma única entrega fica em voo até ACK do JS; a confirmação não prova pixels. Final vazio também conta como entrega. A média usa deltas aceitos/lotes com texto e é definitiva após escoamento. DOM progressivo usa RAF; render final também é contado. Pico do backlog não é RAM nem bytes. Fechamento de uma WebView morta descarta buffers explicitamente; cancelamento em tela viva escoa o texto aceito. Ack DOM é limite superior. BOOTTIME Android/native continua preservado. Sem mudança em sampling ou inferência.'),
  ...stabilityCards(obs,native.session||{},f),
+ ...decisionCards(obs,f),
  section('context','Contexto',[
   row('Capacidade configurada',number(r.nCtx)),row('Entrada atual / última · tokens',has?number(g.inputTokens):'Indisponível'),
   row('Posição de escrita observada',has?number(g.occupied):'Indisponível'),
@@ -118,10 +119,48 @@ function stabilityCards(obs,session,f){
   row('Extremos da última sonda · min / max',validSigned(s.logitMin)&&validSigned(s.logitMax)?`${s.logitMin.toFixed(3)} / ${s.logitMax.toFixed(3)}`:'Indisponível'),
   row('Custo das sondas de logits',valid(s.logitProbeUs)?duration(s.logitProbeUs/1000):'Indisponível'),
   row('Layouts dos buffers',typeof obs.runtime?.bufferLayouts==='string'?obs.runtime.bufferLayouts:'Indisponível')
- ],'Cancelamento usa ticket: pedido antigo não afeta o novo. Reconhecimento é observado entre nós do grafo CPU ou fronteiras seguras; não é tempo até todos os callbacks terminarem. Modelos são do processo; bridges e executores pertencem à tela. Repetição é somente agregada, sem filtros ou IDs exportados. Até duas sondas de logits, primeira amostragem/final EOG ou limite; infinitos podem ser legítimos, NaN merece investigação. Seed automática é lida, não fixada. Nenhum prompt/texto é retido no diagnóstico.')];
+ ],'Cancelamento usa ticket: pedido antigo não afeta o novo. Reconhecimento é observado entre nós do grafo CPU ou fronteiras seguras; não é tempo até todos os callbacks terminarem. Modelos são do processo; bridges e executores pertencem à tela. Repetição é somente agregada, sem filtros ou IDs exportados. Até duas sondas originais de logits, primeira amostragem/final EOG ou limite, além das sondas condicionais limitadas no card Decisão de token; infinitos podem ser legítimos, NaN merece investigação. Seed automática é lida, não fixada. Nenhum prompt/texto é retido no diagnóstico.')];
 }
 function validSigned(v){return typeof v==='number'&&Number.isFinite(v)}
 function prefixReason(value){
  const labels={empty:'Cache vazio',match:'Prefixo confirmado compatível',tokens_changed:'Tokens divergentes · sufixo removido',conversation_changed:'Outra conversa',explicit_reset:'Contexto de conversa reiniciado',model_changed:'Modelo/contexto mudou',template_changed:'Template/opção mudou',missing_identity:'Sem identidade de conversa · reuse desativado',unsupported:'Estado recorrente/híbrido ou memória não suportada',memory_mismatch:'Posições de memória incompatíveis',prune_failed:'Poda não comprovada · fallback completo',native_error:'Erro nativo · cache invalidado',cancelled_prefill:'Cancelado no prefill · só batches concluídos',cancelled_decode:'Cancelado no decode · prompt preservado',history_trimmed:'Histórico truncado · prefixo revalidado',context_shift:'Context shift · registro invalidado',unloaded:'Modelo/contexto liberado',legacy_reset:'Fluxo legado limpou o contexto',full_match_replay:'Prompt idêntico · último token reavaliado',cancelled_before_prepare:'Cancelado antes de alterar o KV'};
  return labels[value]||'Indisponível';
+}
+
+
+function decisionCards(obs,f){
+ const {section,row,number,duration,valid}=f,d=obs.decisionProbe||{},s=d.sampler||{},c=obs.debugControls||{};
+ const yes=v=>typeof v==='boolean'?(v?'Sim':'Não'):'Indisponível';
+ const technical=value=>typeof value==='string'?value.slice(0,500):'Indisponível';
+ const scalar=value=>typeof value==='number'&&Number.isFinite(value)?String(Number(value.toPrecision(7))):'—';
+ const candidates=(list,key)=>(Array.isArray(list)?list:[]).slice(0,3).map(v=>`${v.id}:${scalar(v[key])}`).join(' · ')||'—';
+ return [section('decision','Decisão de token · sondas limitadas',[
+  row('Sampler · ordem efetiva',technical(s.chain)),
+  row('Temperatura / top-k / top-p / min-p',`${scalar(s.temperature)} / ${scalar(s.topK)} / ${scalar(s.topP)} / ${scalar(s.minP)}`),
+  row('Repeat / frequência / presença / janela',`${scalar(s.repeatPenalty)} / ${scalar(s.frequencyPenalty)} / ${scalar(s.presencePenalty)} / ${scalar(s.penaltyWindow)}`),
+  row('DRY / typical-p / XTC / mirostat',`${scalar(s.dryMultiplier)} / ${scalar(s.typicalP)} / ${scalar(s.xtcProbability)} / ${scalar(s.mirostat)}`),
+  row('Seed DBG fixa solicitada',yes(d.fixedSeedDBG)),row('Sampler criado em modo seed DBG',yes(s.fixedSeedDBG)),
+  row('FA off solicitada · exige recarregar modelo',yes(d.flashOffRequestedDBG)),
+  row('CPU conservadora · próximo processo / efetiva',`${yes(c.cpuConservativePending)} / ${yes(d.cpuConservativeEffectiveDBG)}`),
+  row('Biblioteca conservadora presente / fallback automático',`${yes(c.cpuConservativeAvailable)} / ${yes(d.cpuLoadFallbackDBG)}`),
+  row('HWCAP / HWCAP2 · kernel',`${technical(d.hwcap)} / ${technical(d.hwcap2)}`),
+  row('Primeiros IDs · quantidade / fingerprint',`${number(d.initialIdCount)} / ${technical(d.initialIdFingerprint)}`),
+  row('Aceites no sampler / erros de avanço KV',`${number(d.acceptedGeneratedTokens)} / ${number(d.positionErrors)}`),
+  row('Custo acumulado das sondas pesadas',valid(d.probeCostUs)?duration(d.probeCostUs/1000):'Indisponível'),
+  ...(Array.isArray(d.probes)?d.probes:[]).slice(0,10).flatMap((p,i)=>[
+   row(`Sonda ${i+1} · passo / posição / ID / motivo`,`${scalar(p.step)} / ${scalar(p.position)} / ${scalar(p.id)} / ${technical(p.reason)}`),
+   row('Logit escolhido / rank bruto / min / max',`${scalar(p.rawChosen)} / ${scalar(p.rawRank)} / ${scalar(p.min)} / ${scalar(p.max)}`),
+   row('Logits · finitos / NaN / Inf / fingerprint',`${scalar(p.finite)} / ${scalar(p.nan)} / ${scalar(p.inf)} / ${technical(p.rawFingerprint)}`),
+   row('Top bruto · ID:logit',candidates(p.rawTop,'logit')),
+   row('P escolhida / rank pós / massa / entropia',`${scalar(p.chosenP)} / ${scalar(p.postRank)} / ${scalar(p.postMass)} / ${scalar(p.postEntropyNats)}`),
+   row('Top pós · ID:probabilidade',candidates(p.postTop,'p')),
+   row('Entropia bruta / candidatos / NaN pós / Inf pós',`${scalar(p.rawEntropyNats)} / ${scalar(p.candidateCount)} / ${scalar(p.postNan)} / ${scalar(p.postInf)}`),
+   row('Escolhido corresponde / último aceito antes',`${yes(p.selectedMatchesId)} / ${scalar(p.samplerLastBeforeAccept)}`),
+   row('Recorrência · sequência / lag-2 consecutivo',`${scalar(p.run)} / ${scalar(p.lag2Streak)}`),
+   row('KV · seq / min / max antes / max depois',`${scalar(p.seqId)} / ${scalar(p.kvMin)} / ${scalar(p.kvMaxBefore)} / ${scalar(p.kvMaxAfter)}`),
+   row('Posição compatível / depois / decode código',`${yes(p.positionMatchesKV)} / ${scalar(p.positionAfter)} / ${scalar(p.decodeResult)}`),
+   row('Piece · bytes / fingerprint / UTF-8',`${scalar(p.pieceBytes)} / ${technical(p.pieceFingerprint)} / ${scalar(p.pieceUtf8)}`),
+   row('Buffer UTF-8 / bytes / Java / round-trip exato',`${scalar(p.accumulatedUtf8)} / ${scalar(p.accumulatedBytes)} / ${yes(p.javaProduced)} / ${yes(p.javaRoundTripExact)}`)
+  ])
+ ],'Até dez sondas: início, surgimento de padrão técnico por IDs, checkpoints e final/EOG. Só observam: nenhum novo sorteio, nenhuma ordenação dos candidatos, nenhum filtro. Probabilidade vem de candidatos existentes; entropia pós só quando a massa normaliza. UTF-8: 0 completo, 1 fragmento, 2 inválido; EOG não tem piece emitido. IDs/candidatos limitados podem revelar fragmentos a quem possui o tokenizer: confira antes de compartilhar. Sem texto, prompts ou histórico completo. Fingerprints não são prova de identidade exata nem de correção numérica; não são usados pelo cache. Seleção de CPU é aplicada só em outro processo; modo conservador ainda pode usar KleidiAI/repack compatíveis. FA efetiva está no card Configuração. Não há A/B de batch nesta etapa.')];
 }

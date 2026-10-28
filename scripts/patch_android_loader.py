@@ -105,3 +105,7 @@ apply_stability_patch()
 from patch_android_prefix import apply_prefix_patch
 apply_prefix_patch()
 
+
+
+from patch_android_probes import apply_probe_patch
+apply_probe_patch()

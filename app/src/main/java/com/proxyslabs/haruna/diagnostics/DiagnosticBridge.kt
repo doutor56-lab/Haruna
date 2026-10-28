@@ -3,6 +3,7 @@ package com.proxyslabs.haruna.diagnostics
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.proxyslabs.haruna.LlmBackend
+import com.proxyslabs.haruna.LlamaCppBackend
 import com.proxyslabs.haruna.MainActivity
 import org.json.JSONObject
 import java.io.File
@@ -11,7 +12,7 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Read-only API. No controls, storage writes, downloads, model loads or permission requests. */
+/** Read-only snapshots plus an explicitly requested, isolated, idle-only experimental A/B API. */
 class DiagnosticBridge(
     activity: MainActivity, private val webView: WebView, private val backend: LlmBackend,
     private val modelFile: () -> File?, private val sttStatus: () -> String, private val ttsStatus: () -> String
@@ -29,6 +30,26 @@ class DiagnosticBridge(
     @JavascriptInterface fun observePresentation(id: String, payload: String) {
         if (closed.get() || id.length > 160 || payload.length > 1200) return
         runCatching { DiagnosticSession.presentation(id, JSONObject(payload)) }
+    }
+
+    // A/B settings only. No reload/unload, prompt, model download or app termination here.
+    @JavascriptInterface fun configureExperiment(ticket: Int, options: String) {
+        if (closed.get() || options.length > 180) return
+        runCatching { worker.execute {
+            if (closed.get()) return@execute
+            val result = runCatching {
+                val value = JSONObject(options)
+                require(value.keys().asSequence().all { it in setOf("fixedSeed", "flashOff", "conservativeCpu") })
+                val runtime = backend as? LlamaCppBackend ?: error("Runtime indisponível")
+                runtime.configureDiagnostic(value.getBoolean("fixedSeed"), value.getBoolean("flashOff"),
+                    value.getBoolean("conservativeCpu")).getOrThrow()
+            }
+            val reply = JSONObject().put("ticket", ticket).put("ok", result.isSuccess)
+                .put("message", if (result.isSuccess) "Aplicado: seed na próxima geração; FA após descarregar/carregar; CPU após forçar parada e reabrir. Nenhuma recarga automática."
+                    else "Não aplicado integralmente. Aguarde o runtime ocioso, confira a ABI e tente novamente.")
+            webView.post { if (!closed.get()) webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('haruna-dbg-experiment',{detail:JSON.parse(${JSONObject.quote(reply.toString())})}))", null) }
+        } }
     }
 
     @JavascriptInterface fun requestSnapshot(ticket: Int) {
@@ -85,5 +106,6 @@ class DiagnosticBridge(
 
     override fun close() { closed.set(true); worker.shutdownNow() }
 }
+
 
 

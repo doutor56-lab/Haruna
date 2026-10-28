@@ -1,8 +1,10 @@
+import {experimentControls} from './experiment.js';
 import {knowledgeMetrics} from './metrics.js';
 import {diagnosticCards,diagnosticReport} from './report.js';
 
 const settings=document.querySelector('#settingsView');
 const activityIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h4l3-8 5 16 3-8h5"/></svg>';
+let experiment=null,experimentInitialized=false;
 let dialog=null,timer=null,ticket=0,native={},cards=[],savedScroll=0,returnFocus=null;
 const launcher=document.createElement('button');launcher.type='button';launcher.className='haruna-dbg-launcher';
 launcher.innerHTML=activityIcon+'<span>DBG</span>';launcher.setAttribute('aria-label','Abrir DBG, diagnóstico da Haruna');
@@ -17,6 +19,9 @@ function requestSnapshot(){
 function refresh(){if(!dialog||document.hidden)return;requestSnapshot();render();schedule()}
 function render(){
  if(!dialog)return;
+ if(!experimentInitialized&&native.llm?.observation){
+  experiment=experimentControls(native,ticket);dialog.querySelector('.haruna-dbg-content').append(experiment.element);experimentInitialized=true;
+ }
  cards=diagnosticCards(native,knowledgeMetrics());
  for(const card of cards){
   const body=dialog.querySelector(`[data-dbg-body="${card.id}"]`);body.replaceChildren();
@@ -26,10 +31,10 @@ function render(){
   const note=document.createElement('p');note.className='haruna-dbg-note';note.textContent=card.note;body.append(list,note);
  }
  dialog.querySelector('[data-dbg-status]').textContent=native.unavailable?'Coleta Android indisponível. Dados não medidos permanecem indisponíveis.':
-  window.HarunaDiagnostics?'Somente leitura · estado 5 s · memória 10 s':'Ponte Android indisponível · somente metadados locais';
+  window.HarunaDiagnostics?'Métricas · estado 5 s · memória 10 s · experimento A/B separado':'Ponte Android indisponível · somente metadados locais';
 }
 function finishClose(){
- if(!dialog)return;stopTimer();const old=dialog;dialog=null;ticket++;native={};cards=[];old.remove();
+ if(!dialog)return;experiment?.dispose();experiment=null;experimentInitialized=false;stopTimer();const old=dialog;dialog=null;ticket++;native={};cards=[];old.remove();
  if(settings&&!settings.hidden){settings.scrollTop=savedScroll;if(returnFocus?.isConnected)returnFocus.focus({preventScroll:true})}
  returnFocus=null;
 }
@@ -39,7 +44,7 @@ function open(){
  savedScroll=settings.scrollTop;returnFocus=document.activeElement;ticket++;native={};
  const element=document.createElement('dialog');element.className='haruna-dbg-sheet';element.setAttribute('aria-labelledby','harunaDbgTitle');
  element.innerHTML='<div class="haruna-dbg-handle" aria-hidden="true"></div><header class="haruna-dbg-head"><div class="haruna-dbg-brand">'+activityIcon+'</div><div><h2 id="harunaDbgTitle">DBG · Diagnóstico da Haruna</h2><p data-dbg-status aria-live="polite">Obtendo informações disponíveis…</p></div><button class="haruna-dbg-close" type="button" aria-label="Fechar diagnóstico" autofocus><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></header><div class="haruna-dbg-content"></div><footer class="haruna-dbg-footer"><button type="button" data-dbg-copy><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg>Copiar diagnóstico</button><span data-dbg-feedback role="status"></span><button type="button" class="haruna-dbg-done">Fechar</button></footer>';
- const icons={stability:'layers',runtime:'brain',configuration:'layers',generation:'brain',streaming:'layers',context:'layers',memory:'memory',llm:'brain',knowledge:'memory',voice:'volume',subsystems:'layers',device:'device'};
+ const icons={stability:'layers',runtime:'brain',configuration:'layers',generation:'brain',streaming:'layers',context:'layers',decision:'brain',memory:'memory',llm:'brain',knowledge:'memory',voice:'volume',subsystems:'layers',device:'device'};
  cards=diagnosticCards({},{});
  const content=element.querySelector('.haruna-dbg-content');
  for(const card of cards){
@@ -73,3 +78,4 @@ window.addEventListener('haruna-dbg-snapshot',event=>{
 });
 document.addEventListener('visibilitychange',()=>{if(!dialog)return;if(document.hidden)stopTimer();else refresh()});
 window.addEventListener('pagehide',()=>{if(dialog)close()});
+

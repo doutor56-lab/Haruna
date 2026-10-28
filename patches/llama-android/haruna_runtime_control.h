@@ -4,6 +4,7 @@
 #include <cmath>
 static void haruna_release_resources();
 static void hk_begin_request();
+static void hd_begin();
 static std::atomic<int64_t> hs_ticket{0};
 static std::mutex hs_mutex;
 struct HarunaControlObservation {
@@ -47,6 +48,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_reserveGeneration(JNIEnv *,jobj
     hs_recent.fill(LLAMA_TOKEN_NULL); hs_recent_count=0; hs_run=0;
     hs_ticket.store(ticket,std::memory_order_release);
     hk_begin_request();
+    hd_begin();
     return 0;
 }
 extern "C" JNIEXPORT jboolean JNICALL
@@ -107,3 +109,4 @@ static HarunaJson hs_snapshot() {
     if (hs_logit_checks.load()>0 && low<=high) { r["logitMin"]=low; r["logitMax"]=high; }
     return r;
 }
+

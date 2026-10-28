@@ -35,6 +35,8 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         private val serials = AtomicLong()
     }
 
+    private val appContext = context.applicationContext
+    private val diagnosticPrefs = appContext.getSharedPreferences("haruna_runtime_diagnostic", Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val engine: InferenceEngine = AiChat.getInferenceEngine(context.applicationContext)
     private class Request(val serial: Long) {
@@ -62,10 +64,32 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     }.getOrDefault(emptyMap())
 
     override fun runtimeMetrics(): String = runCatching {
-        JSONObject(engine.runtimeMetrics()).put("owner", JSONObject()
+        JSONObject(engine.runtimeMetrics()).put("debugControls", JSONObject()
+            .put("cpuConservativePending", diagnosticPrefs.getBoolean("cpuConservative", false))
+            .put("cpuConservativeAvailable", File(appContext.applicationInfo.nativeLibraryDir, "libggml-cpu-android_armv8.0_1.so").isFile))
+            .put("owner", JSONObject()
             .put("scope", "process").put("destroyed", destroyed).put("maintenance", loading)
             .put("requestsActive", jobs.size)).toString()
     }.getOrDefault("{}")
+    /** Temporary DBG-only controls. No live registry/model/context swap; no normal setting. */
+    fun configureDiagnostic(fixedSeed: Boolean, flashOff: Boolean, conservativeCpu: Boolean): Result<Unit> = runCatching {
+        lifecycle.withLock {
+            check(!destroyed) { "Runtime encerrado" }
+            synchronized(jobs) {
+                check(!loading && jobs.isEmpty()) { "Aguarde a operação atual terminar" }
+                loading = true
+            }
+            try {
+                if (conservativeCpu) check(File(appContext.applicationInfo.nativeLibraryDir,
+                    "libggml-cpu-android_armv8.0_1.so").isFile) { "Variante conservadora não instalada nesta ABI" }
+                runBlocking(Dispatchers.IO) { engine.configureDiagnosticOptions(fixedSeed, flashOff) }
+                check(diagnosticPrefs.edit().putBoolean("cpuConservative", conservativeCpu).commit()) {
+                    "Não foi possível salvar a seleção de CPU para o próximo processo"
+                }
+            } finally { loading = false; notifyStatus() }
+        }
+    }
+
     override fun installedModelPath(): String? = modelPath.takeIf { !loading && engine.state.value.isModelLoaded }
     override fun subscribeStatus(listener: () -> Unit): () -> Unit {
         statusListeners.add(listener)
@@ -280,5 +304,6 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         }
     }
 }
+
 
 

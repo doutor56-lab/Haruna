@@ -90,7 +90,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         const auto key=haruna_jstring(env,conversation_key);
         if (key.size()>160) throw std::runtime_error("Invalid conversation identity");
         const size_t reuse=hk_reconcile(tokens,key,conversation_revision,enable_thinking);
-        reset_long_term_states(false); reset_short_term_states(); common_sampler_reset(g_sampler);
+        reset_long_term_states(false); reset_short_term_states(); hd_prepare_sampler(); common_sampler_reset(g_sampler);
         hs_sampler_reset_observed();
         hm_input = tokens.size(); hm_stage = 3;
         const auto prefill_start = hm_clock();
@@ -142,3 +142,4 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_invalidatePrefix(JNIEnv *,jobje
         return 0;
     } catch (...) { haruna_release_resources(); return 2; }
 }
+

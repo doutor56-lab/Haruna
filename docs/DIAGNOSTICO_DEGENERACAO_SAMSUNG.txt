@@ -1,0 +1,89 @@
+DIAGNOSTICO_DEGENERACAO_SAMSUNG
+
+Status: instrumentação e A/B controlados; causa ainda INCONCLUSIVA (classe 6).
+Não é uma correção da degeneração. Nenhuma inferência no Samsung/Teclast foi executada aqui. Build não prova qualidade dos logits.
+
+BASE E PRESERVAÇÃO
+Branch ui-polish-icons, base 665c5ab27d3dfa0e95d90582f9f7db10b172c5e0.
+Checkpoint imutável checkpoint/haruna-before-samsung-probes-665c5ab.
+llama.cpp permanece 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10.
+Etapas 1–4 mantidas. Nenhuma Etapa 5.
+Padrões: contexto 8192, batch/ubatch 512/512, política de threads original (4/4 nos aparelhos), KV F16/F16, backend CPU automático, FA original, seed aleatória original, limites normais, prompt/template/memórias/RAG/anexos/STT/TTS inalterados.
+Exceções exclusivamente solicitadas no DBG: seed fixa 424242, FA off após recarga, biblioteca ARM conservadora após reinício real do processo. Nenhum desses modos é aplicado automaticamente.
+
+1. CAMINHO AUDITADO
+JS roles/system/contexto -> HarunaAndroidBridge e StreamDelivery -> LlamaCppBackend -> InferenceEngineImpl dispatcher exclusivo -> processChatMessages -> GGUF/Jinja/tokenização -> hk_reconcile -> prefill -> common_sampler_sample -> accept -> llama_process seq0/posição -> token_to_piece -> UTF-8 acumulado -> JNI UTF-16 -> Flow -> buffer/ACK Etapa 3 -> WebView/RAF.
+As novas sondas ficam entre sampling e accept/decode, depois do decode e depois da conversão JNI, observando os mesmos objetos reais. Não capturam mensagens, prompt, memória ou documentos.
+
+2. SAMPLER REAL
+common_params_sampling é construído na preparação, com temp alterada pelo runtime para 0.3. Demais padrões são os da revisão fixada: top-k 40, top-p 0.95, min-p 0.05; typical-p 1; XTC probabilidade 0; penalty last_n 64, repeat 1, frequência/presença 0; DRY multiplier 0; mirostat 0; sem gramática configurada e sem backend sampling no caminho atual.
+Ordem efetiva vem de common_sampler_print(), exportada no DBG. Lista configurada: penalties, DRY, top-n-sigma, top-k, typical-p, top-p, min-p, XTC, temperature; distribuição final acrescentada pelo common sampler. Estágios desabilitados podem ser no-op/omitidos pelo construtor; o DBG mostra a chain criada, não uma ordem inventada.
+common_sampler_reset limpa histórico prev e reseta a chain a cada request estruturado. O caminho atual não realimenta tokens do histórico/prompt ao sampler; accept recebe tokens gerados, inclusive EOG, antes do decode correspondente. Portanto penalidades/histórico do sampler e tokens KV não são a mesma estrutura. Com repeat=1 e frequency/presence=0 isso não demonstra causa da degeneração. Não alterado.
+Cancelamento mantém os tickets da Etapa 2 e rollback da Etapa 4; o próximo request continua resetando o sampler. Erro de decode mantém motivo de erro, sem sucesso artificial.
+Modo normal preserva exatamente a criação/reset original e seed automática. DBG fixa cria novo sampler por request com seed 424242 e depois faz o reset já existente. Ao voltar ao automático, substitui o sampler diagnóstico uma vez por um normal. Não modifica temperatura/penalties/top-k/top-p/min-p. Não clona nem sorteia para medir.
+
+3. SONDAS
+Máximo dez por geração, com uma vaga reservada a final/EOG. Início (até três); primeiro padrão técnico por IDs (run>=4 ou quatro lag-2 consecutivos); checkpoints de repetição; final no EOG/último token do orçamento.
+IDs do token escolhido e até três candidatos brutos/pós; logit e rank brutos; probabilidade/rank pós quando presentes; massa pós; entropia bruta/pós quando matematicamente válida; finitos/NaN/Inf/extremos; fingerprint dos logits; último token aceito antes da decisão; sequência/lag-2; posição/seq0/KV antes/depois/código decode; aceites e inconsistências posicionais.
+get_candidates(false): não ordena, não altera distribuição e não consome RNG. A função oficial copia logits para seus candidatos: a referência do contexto continua sendo logits brutos. Não reaplica sampler nem reamostra.
+Probabilidades referem-se ao array pós-chain observado, não a uma distribuição anterior inferida. Entropia pós só se massa ~1 e sem NaN/Inf. Fingerprint de floats igual sugere vetor idêntico nessas sondas; diferença NÃO mede distância numérica ou prova defeito. Não há cópia de vetor de logits anterior.
+Fingerprint somente dos primeiros até 12 IDs + contagem, para comparação de sequência inicial; não exporta a sequência inteira. Fingerprints não são autoridade de correção, nem substituem comparação exata do cache.
+As duas sondas originais de logits e todos os contadores de repetição/seed/layout continuam intactos. Não há filtro/corte/retry/intervenção quando padrão cresce.
+
+4. TOKEN -> PIECE / JNI
+common_token_to_piece permanece a implementação oficial com sua alocação/resize pelo tamanho retornado; nenhum buffer manual novo ou terminador C é usado. std::string retém bytes até conversão; strings Java são cópias próprias. hs_utf8 percorre size(), reconhece fragmentos multibyte e nunca lê depois do fim. hs_to_java produz UTF-16 por NewString, não Modified UTF-8.
+Nas sondas: ID, quantidade de bytes, fingerprint do piece, status UTF-8 individual/acumulado (0 completo,1 fragmento,2 inválido), bytes acumulados, presença de jstring e round-trip UTF-16 -> UTF-8 comparado byte a byte com o buffer emitido. Sem texto/piece escapado exportado. EOG não emite piece; campos ficam indisponíveis.
+Round-trip exato prova somente a conversão JNI observada, não a entrega/pixels WebView. Streaming/ACK/DOM da Etapa 3 continuam medidos separadamente. Token IDs repetidos já demonstram que pelo menos esse padrão nasceu antes do texto; não provam culpa do sampler vs logits/kernel.
+
+5. KV / POSIÇÕES
+Cache da Etapa 4 não foi desligado ou reescrito. Mesma reconciliação token a token, mesmos owners e poda, mesmo rollback de cancelamento. As sondas observam seq0, posição anterior/posterior e limites de memória; contador de avanço inconsistente só é diagnóstico. Nenhuma asserção nova interrompe geração. Para Qwen denso espera-se kvMaxBefore=posição-1; decode concluído: posiçãoDepois=posição+1 e kvMaxAfter=posiçãoDepois-1.
+Matriz inicial deve usar conversa nova, reuse=0. Depois repetir em turnos compatíveis com reuse>0 e conferir as métricas anteriores. Não foi criado botão cache-off nem batch alternativo, pois ainda não são necessários para executar A–D e poderiam confundir o experimento.
+
+6. CPU / ARM
+SDK original: GGML_NATIVE OFF, GGML_BACKEND_DL ON, GGML_CPU_ALL_VARIANTS ON; ARM64 KleidiAI e OpenMP ON; CPU_REPACK permanece padrão do build. Nenhuma flag foi trocada.
+Variantes Android incluem armv8.0_1, armv8.2_1 DOTPROD, armv8.2_2 DOTPROD+FP16, armv8.6_1 DOTPROD+FP16+I8MM. A seleção automática pontua features detectadas via HWCAP/HWCAP2; arquivo selecionado por dladdr já está no DBG. O novo diagnóstico acrescenta masks HWCAP/HWCAP2.
+Mesmo nome de variante/features não prova mesmo kernel, microarquitetura, alinhamento, repacking ou frequência. KleidiAI/repack podem despachar por tensor/feature. As sondas não identificam cada operação executada e não permitem concluir qual kernel é culpado. Não há evidência para atribuir a causa ao Samsung, ao aquecimento ou à velocidade.
+
+7. A/B CPU
+DBG -> Experimento temporário -> CPU conservadora armv8.0_1 -> Aplicar. Só grava uma preferência enum/booleana técnica para a próxima inicialização; nenhuma mensagem/seed/prompt é persistida. Force a parada nas configurações Android e reabra. Voltar à tela inicial/fechar a Activity NÃO garante processo novo.
+Na inicialização, carrega SOMENTE a .so conservadora já empacotada, pelo loader oficial. Nunca descarrega/substitui registry vivo. Se ausente/incompatível/falhar, volta ao loader automático e mostra fallback. Conferir sempre variante real via dladdr, não só a caixa marcada. ABI sem arquivo desabilita essa escolha.
+Conservadora ainda possui KleidiAI/repack conforme build existente: A/B não desliga esses componentes nem isola todas as instruções por si só. Não baixa bibliotecas. Após o teste restaurar padrões no DBG e forçar parada/reabrir para retornar ao automático.
+
+8. A/B FA
+DBG -> FA desligada -> Aplicar; somente solicitação para a próxima criação de contexto. Descarregar/carregar o MESMO modelo pelas opções normais, sem selecionar/copiar GGUF outra vez. Não há recarga automática no DBG. Confirmar FA efetiva Inativa no card Configuração; se ainda Ativa, a comparação não foi aplicada.
+Desmarcar + aplicar + descarregar/carregar restaura solicitação original AUTO. A escolha FA é só em RAM e também volta ao padrão ao encerrar processo. Nenhum outro parâmetro muda. Batch A/B não implementado antes da evidência A–D.
+
+9. SEED / MATRIZ SAMSUNG
+No DBG, selecionar Seed fixa 424242 e aplicar quando runtime ocioso. Voltar ao chat. Não tocar em sampling normal. Conferir seed efetiva 424242 e sampler em modo DBG no relatório da geração.
+Prompt fixo: Explique em três frases por que o céu parece azul.
+A: CPU automática + FA original + seed DBG fixa. Conversa nova, sem anexos, primeiro chamado LLM; copiar DBG completo e screenshot.
+B: outra conversa nova com a mesma entrada/configuração/estado essencial; repetir A. Comparar input tokens/reuse, template, seed, fingerprint inicial e sondas. Mesmo texto digitado não garante mesmo prompt se onboarding/memórias/contexto dinâmico mudaram; não desligar esses sistemas, apenas registrar a diferença e evitar comparação causal inválida.
+C: selecionar CPU conservadora, aplicar, forçar parada/reabrir; reativar seed DBG (reseta com processo); FA normal; mesmo GGUF/entrada/conversa nova. Confirmar dladdr conservadora, não fallback; copiar DBG/screenshot.
+D: retornar CPU automática, aplicar, forçar parada/reabrir; selecionar seed fixa + FA off; aplicar; descarregar/carregar mesmo modelo; confirmar variante automática, seed e FA efetiva off; mesma entrada/conversa nova; copiar DBG/screenshot.
+Teclast: executar pelo menos A ou C com mesmo GGUF, estado possível, seed e configuração; copiar também dispositivo, HWCAP, variantes, layouts, métricas de cache e tokens.
+Depois: Restaurar padrões, aplicar, forçar parada/reabrir. Confirmar CPU automática, FA original e seed DBG Não.
+Não insistir se aparelho ficar sem resposta; capturar o diagnóstico acessível. Não mudar várias variáveis dentro de um mesmo teste.
+
+10. CLASSIFICAÇÃO / LIMITES
+Atual: classe 6 INCONCLUSIVO. Não foram provados bug de logits, sampler, transporte, kernel ou cache.
+IDs repetitivos + selectedMatchesId=true + logit/probabilidade dominante: repetição já existe na distribuição; não culpar transporte. Logits plausíveis com seleção incompatível: investigar sampler/estado. IDs diversos com piece/round-trip divergente: investigar conversão. A/B CPU/FA repetidamente consistente, com estado/input controlados, reduz hipóteses mas não prova por si só uma linha/kernel defeituoso. Reuse0 vs reuse>0 deve considerar diferenças legítimas de prompt/batch/seed. NaN/Inf 0 não prova logits corretos.
+Janela limitada pode perder defeitos fora das sondas. Não há tracing de cada kernel nem captura total dos logits. Seeds iguais não garantem igualdade bit a bit entre kernels/ordem de operações. Nenhum ganho de performance ou resolução é alegado.
+Riscos: custo de varrer vocabulário só nas sondas, registrar entropy/hashes, ler bounds por token, e cópias pequenas de JSON no DBG. Tempo acumulado das sondas pesadas aparece separado e também pode estar incluído nos tempos nativos existentes. Sem polling adicional fechado; sondas executam mesmo fechado, limitadas à geração. DBG continua atualizando a cada 5s; memória 10s. Só última geração, no máximo dez sondas, sem histórico persistente. IDs/top candidatos limitados podem revelar fragmentos se alguém tiver o tokenizer; revisar relatório antes de compartilhar.
+Controles A/B são explicitamente uma exceção temporária ao DBG originalmente somente leitura. Não há botão destrutivo, recarga automática, controle de memória, mudança de modelo, threads, batch ou sampling normal. Seed e FA não persistem; só escolha de CPU exige preferência para reinício.
+
+11. ARQUIVOS
+scripts/patch_android_loader.py (encadeia patch); scripts/patch_android_probes.py (novo patch idempotente).
+patches/llama-android/haruna_metrics.h (snapshot); haruna_runtime_control.h (reset das sondas por ticket); haruna_chat.h (preparação sampler DBG).
+Novos haruna_probe_policy.h e haruna_decision_probe.h (sondas/coleta limitada).
+app/src/main/java/com/proxyslabs/haruna/LlamaCppBackend.kt (API experimental isolada/idle-only, preferência CPU e disponibilidade).
+app/src/main/java/com/proxyslabs/haruna/diagnostics/DiagnosticBridge.kt (endpoint separado do snapshot).
+app/src/main/assets/haruna/diagnostics/panel.js, report.js, runtime-report.js (reutilizam DBG e exportação allowlist).
+Novo app/src/main/assets/haruna/diagnostics/experiment.js (controles só no DBG).
+Novos scripts/check_decision_probes.cpp e scripts/check_decision_probes.py (checks focados).
+docs/DIAGNOSTICO_DEGENERACAO_SAMSUNG.txt (relatório).
+Arquivos nativos/SDK gerados pelo patch no build não são troca de revisão do submódulo.
+
+12–15. CHECKS / COMMIT / RUN / APK
+Checks locais: política limitada com ASan/UBSan; prefix cache/ownership/rollback com ASan/UBSan; fast path RAG vazio; streaming JS/RAF/ACK/cancelamento; sintaxe JS/Python; allowlist de relatório sem campos privados; patch completo no fixture da revisão fixada e repetição idempotente.
+LSan desabilitado no sandbox, não é auditoria de leaks. Não executado GGUF nem benchmark.
+Checks Kotlin e compilação JNI/C++ Android serão realizados no build, usando toolchain/dependências existentes do projeto. Resultado final, commit, run e APK serão incluídos na cópia de entrega deste relatório após CI; este arquivo versionado é o registro pré-build.
