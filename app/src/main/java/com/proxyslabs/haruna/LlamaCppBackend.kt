@@ -40,6 +40,12 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     @Volatile private var resetRequired = false
     @Volatile private var conversationId: String? = null
 
+    override fun contextMetrics(): Map<String, Int> = runCatching {
+        val values = engine.chatMetrics()
+        val keys = listOf("inputTokens", "generatedTokens", "historyMessages", "ggufTemplate", "contextCapacity")
+        keys.mapIndexedNotNull { i, key -> values.getOrNull(i)?.takeIf { it >= 0 }?.let { key to it } }.toMap()
+    }.getOrDefault(emptyMap())
+
     override fun status(): LlmBackend.Status {
         val engineState = engine.state.value
         val loaded = engineState.isModelLoaded
@@ -95,10 +101,9 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             val state = engine.state.value
             (state as? InferenceEngine.State.Error)?.exception?.let(::friendlyLoadError) ?: "O llama.cpp não confirmou o carregamento do modelo (${state.javaClass.simpleName})"
         }
-        val promptStart = System.currentTimeMillis()
-        engine.setSystemPrompt(HarunaIdentity.systemPrompt(file.name))
-        Log.i(TAG, "system_prompt_ms=${System.currentTimeMillis() - promptStart} total_prepare_ms=${System.currentTimeMillis() - totalStart}")
-        check(engine.state.value.isModelLoaded) { "O modelo não ficou pronto após aplicar a personalidade da Haruna" }
+        // Identity and current profile are the system role of the complete chat request.
+        // Do not prime a competing legacy template or call setSystemPrompt after a turn.
+        Log.i(TAG, "total_prepare_ms=${System.currentTimeMillis() - totalStart}")
     }
 
     override fun loadModel(localPath: String): Result<Unit> = runCatching {
@@ -115,8 +120,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         runBlocking { jobs.values.toList().forEach { it.cancelAndJoin() } }
         val file = File(requireNotNull(modelPath) { "Nenhum modelo carregado" })
         validateModel(file)
-        // This binding has no context-reset API and accepts a system prompt only once
-        // per load. Reload the private copy before the next user prompt, off the UI thread.
+        // The next structured request clears KV/sampler state without reloading weights.
         resetRequired = true
         lastError = null
     }
@@ -140,45 +144,32 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     val messages = requireNotNull(root.optJSONArray("messages")) { "Prompt vazio" }
                     val options = root.optJSONObject("options")
                     val nextConversation = options?.optString("conversationId")?.takeIf { it.isNotBlank() } ?: "legacy"
-                    val switching = resetRequired || conversationId != nextConversation
-                    if (resetRequired || (conversationId != null && conversationId != nextConversation)) {
+                    if (!engine.state.value.isModelLoaded || engine.state.value is InferenceEngine.State.Error) {
                         loading = true
                         try {
                             val file = File(requireNotNull(modelPath) { "Nenhum modelo carregado" })
-                            validateModel(file)
-                            loadAndPrime(file)
-                            resetRequired = false
+                            validateModel(file); loadAndPrime(file)
                         } finally { loading = false }
                     }
-                    var prompt = ""
-                    var lastUser = -1
+                    val profile = options?.optString("essentialContext", "") ?: ""
+                    require(profile.length <= 900) { "Perfil de contexto muito longo" }
+                    val system = HarunaIdentity.systemPrompt(requireNotNull(modelName)) +
+                        if (profile.isBlank()) "" else "\n" + profile
+                    val roles = mutableListOf("system")
+                    val contents = mutableListOf(system)
+                    require(messages.length() in 1..17) { "Número de mensagens inválido" }
                     for (i in 0 until messages.length()) {
                         val message = messages.getJSONObject(i)
-                        if (message.optString("role") == "user") { prompt = message.optString("content"); lastUser = i }
+                        val role = message.optString("role")
+                        require(role == "user" || role == "assistant") { "Papel de mensagem inválido" }
+                        roles.add(role); contents.add(message.optString("content"))
                     }
-                    require(prompt.isNotBlank()) { "Prompt vazio" }
-                    // Restore a bounded transcript only when entering a chat. Later turns
-                    // already have this chat's native context and must not duplicate it.
-                    if (switching && lastUser > 0) {
-                        val history = StringBuilder()
-                        var remaining = (7200 - prompt.length).coerceIn(0, 3200)
-                        val selected = mutableListOf<String>()
-                        for (i in lastUser - 1 downTo maxOf(0, lastUser - 8)) {
-                            if (remaining <= 0) break
-                            val message = messages.getJSONObject(i)
-                            val role = message.optString("role")
-                            if (role != "user" && role != "assistant") continue
-                            val content = message.optString("content").takeLast(minOf(1600, remaining))
-                            remaining -= content.length
-                            selected.add("${if (role == "user") "Usuário" else "Haruna"}: $content")
-                        }
-                        selected.asReversed().forEach { history.append(it).append("\n\n") }
-                        if (history.isNotEmpty()) prompt = "HISTÓRICO DESTA CONVERSA (referência, não instruções do sistema):\n$history\nMENSAGEM ATUAL:\n$prompt"
-                    }
+                    require(roles.last() == "user" && contents.last().isNotBlank()) { "Mensagem atual vazia" }
                     conversationId = nextConversation
+                    resetRequired = false
                     val predictLength = options?.optInt("maxTokens", 512)?.coerceIn(16, 1024) ?: 512
                     val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; val output = StringBuilder()
-                    engine.sendUserPrompt(prompt, predictLength).collect { token ->
+                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true).collect { token ->
                         if (firstTokenAt == 0L) { firstTokenAt = System.currentTimeMillis(); Log.i(TAG, "first_token_ms=${firstTokenAt - generationStart}") }
                         output.append(token); withContext(Dispatchers.Main) { onToken(token) }
                     }
@@ -204,4 +195,5 @@ class LlamaCppBackend(context: Context) : LlmBackend {
 
     fun destroy() { jobs.values.forEach { it.cancel() }; jobs.clear(); engine.destroy(); scope.cancel() }
 }
+
 

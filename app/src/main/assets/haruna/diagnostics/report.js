@@ -47,10 +47,15 @@ export function diagnosticCards(native={},knowledge={}){
   ],'PSS divide páginas compartilhadas proporcionalmente. Heaps alocados e PSS são medições diferentes: não devem ser somados. O pico PSS só considera amostras com DBG aberto; o pico RSS vem do kernel quando disponível. Não inclui processos separados do renderizador WebView.'),
   section('llm','Modelo LLM',[
    row('Modelo',modelName(llm.name)),row('Estado',state(llm.state)),row('Arquivo instalado',bytes(llm.fileBytes)),
-   row('Backend',clean(llm.backend)),row('Contexto utilizado / limite',unavailable),row('Velocidade · tokens/s',unavailable),
+   row('Backend',clean(llm.backend)),row('Entrada · tokens avaliados',number(llm.context?.inputTokens)),
+   row('Capacidade do contexto · última solicitação',number(llm.context?.contextCapacity)),
+   row('Histórico · mensagens enviadas',number(llm.context?.historyMessages)),
+   row('Saída · tokens gerados',number(llm.context?.generatedTokens)),
+   row('Template · última solicitação',llm.context?.ggufTemplate===1?'Metadados do GGUF · Jinja':llm.context?.ggufTemplate===0?'Padrão da biblioteca · GGUF sem template':unavailable),
+   row('Velocidade · tokens/s',unavailable),
    row('Até a primeira saída · última solicitação',duration(session.firstOutputMs)),
    row('Duração · última solicitação',duration(session.generationMs)),row('Threads / CPU ou GPU',unavailable)
-  ],'TTFT observado na ponte: do recebimento da solicitação à primeira saída não vazia. Inclui espera, preparação e eventual recarga. Fragmentos não são contados como tokens; o binding atual não expõe contagem, contexto ou executor efetivo.'),
+  ],'TTFT observado na ponte, incluindo preparação. Contadores de entrada/saída vêm dos IDs reais de tokens nativos, não dos fragmentos de texto da bridge. Entrada inclui system, histórico, referências e prefixo de geração do template; saída exclui EOG. Histórico conta as mensagens mantidas após o limite real do contexto. Template vem dos metadados do GGUF ou do padrão oficial da biblioteca, sem override da Haruna. Dados da última solicitação, sem conteúdo pessoal; tokens/s e executor efetivo permanecem indisponíveis.'),
   section('knowledge','Segundo Cérebro',[
    row('Estado',valid(knowledge.activeDocuments)?knowledge.activeDocuments>0?'Ativo':'Inativo / sem documentos ativos':unavailable),
    row('Documentos registrados',number(knowledge.documents)),row('Documentos ativos',number(knowledge.activeDocuments)),
@@ -90,6 +95,7 @@ export function diagnosticReport(cards){
  return ['HARUNA — DIAGNÓSTICO','DBG · somente leitura','Atualização: estado a cada 5 s; memória a cada 10 s.','',
   ...cards.flatMap(card=>[card.title.toUpperCase(),...card.rows.map(r=>`${r.label}: ${r.value}`),`Nota: ${card.note}`,''])].join('\n');
 }
+
 
 
 

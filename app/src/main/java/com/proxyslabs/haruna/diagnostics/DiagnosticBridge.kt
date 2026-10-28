@@ -38,7 +38,8 @@ class DiagnosticBridge(
                         snapshot.put("llm", JSONObject().put("loaded", status.modelLoaded)
                             .put("state", status.state).put("name", status.modelName?.let { File(it).name.take(180) } ?: JSONObject.NULL)
                             .put("fileBytes", file?.takeIf { it.isFile }?.length() ?: JSONObject.NULL)
-                            .put("backend", backend.javaClass.simpleName))
+                            .put("backend", backend.javaClass.simpleName)
+                            .put("context", JSONObject(backend.contextMetrics())))
                     }
                     fun voice(source: () -> String): JSONObject = runCatching {
                         val value = JSONObject(source())
@@ -76,4 +77,5 @@ class DiagnosticBridge(
 
     override fun close() { closed.set(true); worker.shutdownNow() }
 }
+
 

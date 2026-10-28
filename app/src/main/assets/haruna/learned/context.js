@@ -2,9 +2,9 @@ import {contextCandidates} from './store.js';
 import {fold} from './schema.js';
 const stop=new Set('para como voce quero sobre quando entao isso este esta esse essa sempre prefiro projeto resposta respostas'.split(' '));
 const terms=text=>[...new Set(fold(text).match(/[a-z0-9_-]{4,}/g)||[])].filter(t=>!stop.has(t)).slice(0,32);
-export function learnedContext(text,{chatId,hasAttachments=false}={}){
- if(hasAttachments||typeof text!=='string'||text.length<16||/^(?:oi|ola|obrigad[oa]|kkkk|entendi|sim|nao)[.!? ]*$/i.test(fold(text)))return '';
- const query=terms(text);if(!query.length)return '';
+export function learnedContext(text,{chatId,hasAttachments=false,structured=false}={}){
+ if(hasAttachments||typeof text!=='string'||text.length<16||/^(?:oi|ola|obrigad[oa]|kkkk|entendi|sim|nao)[.!? ]*$/i.test(fold(text)))return structured?[]:'';
+ const query=terms(text);if(!query.length)return structured?[]:'';
  const selected=contextCandidates()
   .filter(e=>e.scope.kind!=='chat'||e.scope.chatId===chatId)
   .filter(e=>e.scope.kind!=='project'||fold(text).includes(fold(e.scope.label)))
@@ -15,5 +15,6 @@ export function learnedContext(text,{chatId,hasAttachments=false}={}){
   if(header.length+JSON.stringify([...data,entry]).length>900)continue;
   data.push(entry);if(data.length===2)break;
  }
- return data.length?header+JSON.stringify(data):'';
+ return structured?data:data.length?header+JSON.stringify(data):'';
 }
+

@@ -94,3 +94,8 @@ elif 'Falha nativa ao abrir o GGUF' not in text:
 kt.write_text(text)
 
 print('Patched llama.cpp Android loader diagnostics.')
+
+# Extend the same pinned binding; no separate backend or model-specific pipeline.
+from patch_android_chat import apply_chat_patch
+apply_chat_patch()
+
