@@ -37,8 +37,8 @@ struct D45Capture {
 static thread_local D45Capture * d45_capture=nullptr;
 static void d45_validate(const std::vector<common_chat_msg> & messages) {
     if(!d45_capture)return;
-    if(messages.size()!=2 || messages[0].role!=ROLE_SYSTEM || messages[0].content!=d45_system ||
-       messages[1].role!=ROLE_USER || messages[1].content!=d45_prompt)
+    if(messages.size()!=2 || messages[0].role!="system" || messages[0].content!=d45_system ||
+       messages[1].role!="user" || messages[1].content!=d45_prompt)
         throw std::runtime_error("Diagnostic accepts canonical input only");
 }
 static void d45_input(const llama_tokens & tokens) {
