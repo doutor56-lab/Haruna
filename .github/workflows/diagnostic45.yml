@@ -69,6 +69,7 @@ jobs:
       - name: Clean between configurations
         run: gradle clean --no-daemon
       - name: Build B conservative runtime
+        id: build_b
         run: gradle :app:assembleDebug :app:assembleDebugAndroidTest -PharunaDiagnostic45=B_CONSERVATIVE --stacktrace --no-daemon
       - name: Preserve B artifacts
         run: |
@@ -81,7 +82,7 @@ jobs:
       - name: Verify sandbox packages CPU variants and matching signatures
         shell: python
         run: |
-          import os, subprocess, zipfile
+          import os, re, subprocess, zipfile
           from pathlib import Path
           tools=Path(os.environ['ANDROID_HOME'])/'build-tools/36.0.0'
           signatures=[]
@@ -102,7 +103,10 @@ jobs:
                   assert 'GGML_CPU_ARM_ARCH:STRING=armv8-a' in cache
               badging=subprocess.check_output([str(tools/'aapt'),'dump','badging',str(apk)],text=True)
               assert "package: name='com.proxyslabs.haruna.diagnostic45'" in badging
-              assert 'launchable-activity:' not in badging
+              tree=subprocess.check_output([str(tools/'aapt'),'dump','xmltree',str(apk),'AndroidManifest.xml'],text=True)
+              activities=re.findall(r'E: activity\b.*?(?=\n[ \t]*E:|\Z)',tree,re.S)
+              assert any('com.proxyslabs.haruna.MainActivity' in a and re.search(r'android:enabled[^\n]*\(type 0x12\)0x0+\b',a) for a in activities), 'Diagnostic MainActivity must be disabled in binary manifest'
+              print(mode,'MainActivity disabled in binary manifest')
               test_apk=root/'app-debug-androidTest.apk'
               test_badging=subprocess.check_output([str(tools/'aapt'),'dump','badging',str(test_apk)],text=True)
               assert "package: name='com.proxyslabs.haruna.diagnostic45.test'" in test_badging
@@ -112,6 +116,7 @@ jobs:
           assert len(set(signatures))==1,'A/B/test APK signatures differ; cannot replace safely'
           print('PASS: isolated sandbox, no launcher, A current variants, B baseline-only, repack off, matching A/B instrumentation signatures.')
       - name: Upload canonical experiment package
+        if: ${{ always() && steps.build_b.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: HARUNA_DIAGNOSTIC_45_A_B
