@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: 87ef2ab670d721820bd01e52f3ff2ff5f7fe35c7
+          ref: 8c141aa016025940125ee8c368678e3146cd804b
           submodules: recursive
           fetch-depth: 1
       - name: Pin and patch current runtime
@@ -65,7 +65,7 @@ jobs:
           mkdir -p diagnostic45/A_CURRENT
           cp app/build/outputs/apk/debug/app-debug.apk diagnostic45/A_CURRENT/
           cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk diagnostic45/A_CURRENT/
-          find third_party/llama.cpp/examples/llama.android/lib/.cxx -name CMakeCache.txt -exec cp '{}' diagnostic45/A_CURRENT/CMakeCache.txt \;
+          python3 -c "from pathlib import Path; p=next(p for p in Path('third_party/llama.cpp/examples/llama.android/lib/.cxx').rglob('CMakeCache.txt') if 'HARUNA_DIAGNOSTIC_45:STRING=A_CURRENT' in p.read_text()); Path('diagnostic45/A_CURRENT/CMakeCache.txt').write_text(p.read_text())"
       - name: Clean between configurations
         run: gradle clean --no-daemon
       - name: Build B conservative runtime
@@ -75,7 +75,7 @@ jobs:
           mkdir -p diagnostic45/B_CONSERVATIVE diagnostic45/scripts
           cp app/build/outputs/apk/debug/app-debug.apk diagnostic45/B_CONSERVATIVE/
           cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk diagnostic45/B_CONSERVATIVE/
-          find third_party/llama.cpp/examples/llama.android/lib/.cxx -name CMakeCache.txt -exec cp '{}' diagnostic45/B_CONSERVATIVE/CMakeCache.txt \;
+          python3 -c "from pathlib import Path; p=next(p for p in Path('third_party/llama.cpp/examples/llama.android/lib/.cxx').rglob('CMakeCache.txt') if 'HARUNA_DIAGNOSTIC_45:STRING=B_CONSERVATIVE' in p.read_text()); Path('diagnostic45/B_CONSERVATIVE/CMakeCache.txt').write_text(p.read_text())"
           cp scripts/diagnostic45_*.py diagnostic45/scripts/
           cp docs/ETAPA_4_5_DIAGNOSTICO_NUMERICO.txt diagnostic45/
       - name: Verify sandbox packages CPU variants and matching signatures
@@ -103,7 +103,10 @@ jobs:
               badging=subprocess.check_output([str(tools/'aapt'),'dump','badging',str(apk)],text=True)
               assert "package: name='com.proxyslabs.haruna.diagnostic45'" in badging
               assert 'launchable-activity:' not in badging
-              for file in (apk,root/'app-debug-androidTest.apk'):
+              test_apk=root/'app-debug-androidTest.apk'
+              test_badging=subprocess.check_output([str(tools/'aapt'),'dump','badging',str(test_apk)],text=True)
+              assert "package: name='com.proxyslabs.haruna.diagnostic45.test'" in test_badging
+              for file in (apk,test_apk):
                   output=subprocess.check_output([str(tools/'apksigner'),'verify','--print-certs',str(file)],text=True)
                   signatures.append(next(line for line in output.splitlines() if 'certificate SHA-256 digest:' in line))
           assert len(set(signatures))==1,'A/B/test APK signatures differ; cannot replace safely'
