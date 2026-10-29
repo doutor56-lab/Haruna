@@ -1,0 +1,99 @@
+name: Haruna 4.6A ARM causal isolation
+on:
+  push:
+    branches: [build/diag46-3d7c343]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  LLAMA_CPP_REVISION: 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10
+jobs:
+  build_matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: 3d7c343bce61c381761078e8aac2d73c6cb08e27
+          submodules: recursive
+          fetch-depth: 1
+      - name: Pin source and extend diagnostics only
+        run: |
+          echo "HARUNA_SOURCE_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          git -C third_party/llama.cpp fetch --depth=1 origin "$LLAMA_CPP_REVISION"
+          git -C third_party/llama.cpp checkout --detach "$LLAMA_CPP_REVISION"
+          python3 scripts/patch_android_loader.py
+          python3 scripts/check_diag45_binding.py
+          python3 scripts/check_decision_probes.py
+          python3 scripts/check_diag45.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Focused existing safety checks
+        run: |
+          node scripts/check_streaming.mjs
+          node scripts/check_prefix_rag.mjs
+          g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined scripts/check_prefix_cache.cpp -o /tmp/prefix-check
+          ASAN_OPTIONS=detect_leaks=0 /tmp/prefix-check
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Same Android toolchain as 4.5
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.13113456" "cmake;3.31.6"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Validate gates and metadata serialization
+        run: HARUNA_CMAKE="$ANDROID_HOME/cmake/3.31.6/bin/cmake" python3 scripts/check_diag46.py
+      - name: Native syntax only OFF and diagnostic branches
+        run: |
+          root=third_party/llama.cpp
+          compiler="$ANDROID_HOME/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++"
+          cpp="$root/examples/llama.android/lib/src/main/cpp"
+          mkdir -p /tmp/h46-syntax
+          echo '#define HARUNA46_BUILD_JSON R"h46({"variant":"SYNTAX_ONLY"})h46"' > /tmp/h46-syntax/haruna46_build.h
+          for mode in 0 1 2; do
+            "$compiler" -std=c++17 -fsyntax-only -DHARUNA_DIAGNOSTIC_45=$mode -I/tmp/h46-syntax -I"$cpp" -I"$root" -I"$root/vendor" -I"$root/common" -I"$root/include" -I"$root/ggml/include" -I"$root/ggml/src" -I"$root/src" "$cpp/ai_chat.cpp"
+          done
+      - name: Prove F cannot be isolated with this pinned CMake
+        run: |
+          mkdir -p diagnostic46/F_ARMV8A_ONLY
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('third_party/llama.cpp/ggml/src/CMakeLists.txt')
+          s=p.read_text();i=s.index('if (GGML_CPU_ALL_VARIANTS)')
+          Path('diagnostic46/F_ARMV8A_ONLY/UPSTREAM_GUARD.txt').write_text('7894e8b92481a8bb8ffe94f73b656ffe0dd01e10\n'+s[i:i+400])
+          PY
+          if gradle ':llamaLib:configureCMakeDebug[arm64-v8a]' -PharunaDiagnostic45=F_ARMV8A_ONLY --stacktrace --no-daemon > diagnostic46/F_ARMV8A_ONLY/CONFIGURATION_FAILURE.log 2>&1; then
+            echo "Unexpected F success: investigate instead of silently changing flags"
+            exit 1
+          fi
+          grep -F "Cannot use both GGML_CPU_ARM_ARCH and GGML_CPU_ALL_VARIANTS" diagnostic46/F_ARMV8A_ONLY/CONFIGURATION_FAILURE.log
+      - name: Build and collect the five valid variants with one signing identity
+        id: builds
+        run: |
+          for mode in A_CURRENT B_CONSERVATIVE C_NO_KLEIDIAI D_NO_REPACK E_NO_ALL_VARIANTS; do
+            echo "BUILD_VARIANT=$mode"
+            gradle clean --no-daemon
+            gradle :app:assembleDebug :app:assembleDebugAndroidTest "-PharunaDiagnostic45=$mode" --stacktrace --no-daemon
+            python3 scripts/diagnostic46_build.py collect --variant "$mode" --root diagnostic46
+            if test "$mode" = A_CURRENT; then python3 scripts/check_stream_delivery.py; fi
+          done
+      - name: Generate real BUILD_MATRIX hashes and report
+        run: |
+          mkdir -p diagnostic46/scripts
+          cp scripts/diagnostic46_*.py diagnostic46/scripts/
+          cp scripts/diagnostic45_compare.py diagnostic46/scripts/
+          cp docs/ETAPA_4_6A_RELATORIO.txt diagnostic46/
+          python3 scripts/diagnostic46_build.py finalize --root diagnostic46
+          test ! -f diagnostic46/scripts/diagnostic45_copy_model.py
+          test -f diagnostic46/BUILD_MATRIX.json
+      - name: Publish single diagnostic artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HARUNA_DIAGNOSTIC_46_ARM_ISOLATION
+          path: diagnostic46/
+          if-no-files-found: warn
