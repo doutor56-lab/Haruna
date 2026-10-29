@@ -1,0 +1,18 @@
+# Diagnostic-only matrix. Normal OFF and the A/B controls keep their 4.5 behavior.
+if(HARUNA_DIAGNOSTIC_45 STREQUAL "C_NO_KLEIDIAI")
+    set(HARUNA45_VALUE 1)
+    set(GGML_CPU_KLEIDIAI OFF)
+elseif(HARUNA_DIAGNOSTIC_45 STREQUAL "D_NO_REPACK")
+    set(HARUNA45_VALUE 1)
+    set(GGML_CPU_REPACK OFF CACHE BOOL "Diagnostic single variable" FORCE)
+elseif(HARUNA_DIAGNOSTIC_45 STREQUAL "E_NO_ALL_VARIANTS")
+    set(HARUNA45_VALUE 1)
+    set(GGML_CPU_ALL_VARIANTS OFF CACHE BOOL "Diagnostic single variable" FORCE)
+elseif(HARUNA_DIAGNOSTIC_45 STREQUAL "F_ARMV8A_ONLY")
+    set(HARUNA45_VALUE 1)
+    set(GGML_CPU_ARM_ARCH "armv8-a" CACHE STRING "Diagnostic single variable" FORCE)
+    # Deliberately do NOT disable ALL_VARIANTS. The pinned upstream must reject this combination.
+endif()
+if(HARUNA45_VALUE GREATER 0)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()

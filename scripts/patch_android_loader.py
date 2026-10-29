@@ -112,3 +112,6 @@ apply_probe_patch()
 
 from patch_android_diag45 import apply_diag45_patch
 apply_diag45_patch()
+
+from patch_android_diag46 import apply_diag46_patch
+apply_diag46_patch()

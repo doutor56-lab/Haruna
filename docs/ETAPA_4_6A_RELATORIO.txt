@@ -1,0 +1,74 @@
+HARUNA — ETAPA 4.6A — ISOLAMENTO ARM
+Relatório pré-build; resultado real, hashes e run são acrescentados ao artifact pelo coletor após os builds. Nenhuma inferência é executada no CI.
+
+BASE
+Commit inicial: 8c141aa016025940125ee8c368678e3146cd804b, branch ui-polish-icons.
+Checkpoint: checkpoint/haruna-before-diag46-8c141aa, preservado.
+llama.cpp: 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10, sem atualização ou patches upstream. Não há edição nova de kernels nesta etapa; os contadores de traits existentes da 4.5 são reutilizados.
+Segundo a evidência 4.5 fornecida pelo usuário: A1/A2 sem divergência; A/B divergência no token4; 151936 pares, sem NaN/Inf, max/RMS ~5,25/1,33 no índice3 e ~5,57/1,15 no4. Isso demonstra diferenças substanciais no fixture, não culpa de um kernel. Não foram recriados nem simulados esses resultados no CI.
+
+MATRIZ DE CONTROLES PRIMÁRIOS
+                         KLEIDIAI REPACK ALL_VARIANTS ARM_ARCH
+A_CURRENT                ON      ON     ON           vazio
+B_CONSERVATIVE           OFF     OFF    OFF          armv8-a
+C_NO_KLEIDIAI             OFF     ON     ON           vazio
+D_NO_REPACK               ON      OFF    ON           vazio
+E_NO_ALL_VARIANTS         ON      ON     OFF          vazio
+F_ARMV8A_ONLY solicitado  ON      ON     ON           armv8-a
+A/B mantêm as opções e o fixture da 4.5. C/D/E alteram exatamente uma opção independente em relação a A. Não há mudanças em FA, threads, contexto, sampler, seed, modelo ou política de geração.
+
+F — IMPOSSIBILIDADE DE ISOLAMENTO
+No commit fixado, ggml/src/CMakeLists.txt contém a rejeição fatal:
+if (GGML_CPU_ALL_VARIANTS) ... elseif (GGML_CPU_ARM_ARCH)
+message(FATAL_ERROR "Cannot use both GGML_CPU_ARM_ARCH and GGML_CPU_ALL_VARIANTS")
+Portanto F não pode compilar mudando SOMENTE ARM_ARCH em relação a A. Desligar ALL_VARIANTS junto seria uma segunda variável independente, proibida aqui. Essa dependência foi informada antes da implementação.
+F recebe ISOLATION_INVALID / CONFIGURATION_REJECTED, log real da configuração, controles solicitados, metadata e cache parcial quando disponível. Não há APK fictício nem uma variante F de duas variáveis apresentada como isolada. Esta é a exceção expressamente permitida pelo critério de impossibilidade de F.
+E NÃO força ARM_ARCH. Com ALL_VARIANTS OFF, o build usa o alvo padrão ARM64 do NDK; flags ISA efetivas são registradas nos comandos do compilador. O alvo que resultar disso é consequência de uma opção, não uma segunda flag imposta silenciosamente.
+
+OUTRAS DIFERENÇAS
+GGML_NATIVE OFF, BACKEND_DL ON, OPENMP ON, LLAMAFILE OFF, Release, NDK29.0.13113456/CMake3.31.6 e parâmetros de inferência permanecem iguais. Nenhuma outra dimensão numérica independente foi identificada na configuração atual entre A/B.
+Diferenças de bibliotecas produzidas, macros ISA, presença de arquivos/KleidiAI FetchContent, defines e seleção posterior de buffers/kernels são consequências das quatro opções acima; são registradas, não omitidas. Nome da variante, macro diagnóstico1/2, commit/hashes e diretórios de build são proveniência, não parâmetros do LLM. A macro1/2 já existia na 4.5; C/D/E usam1 como A.
+BUILD_MATRIX.json registra diferenças primárias, cache/opções adicionais, invariantes, status, hashes e consequências. Diferença primária inesperada ou alteração de invariante numérica marca ISOLATION_INVALID e falha a preparação. Metadados guardam os comandos reais de compilação por target CPU/linguagem, não só flags pretendidas.
+
+FIXTURE E SEGURANÇA DO MODELO
+System: Você é Haruna, uma assistente local. Responda de forma clara e objetiva em português.
+User: Explique em português, de forma clara e objetiva, por que a água ferve quando é aquecida.
+Seed424242; max512; thinking true; temp0.3; top-k40; top-p0.95; min-p0.05; repeat1/frequency0/presence0. Context8192, batch/ubatch512/512, KV F16/F16, GPU0 e política FA original. Mesmas funções/template GGUF/tokenização/reserva/finalização da4.5. Cada teste começa com contexto novo e reuse0.
+Modelo único: files/diagnostic45.gguf no sandbox com.proxyslabs.haruna.diagnostic45. Não há GGUF no artifact. Não há download, conversão, requantização, substituição nem cópia automática entre aplicativos.
+O transporte diagnostic45_copy_model.py NÃO está neste artifact e NÃO é chamado. O fluxo Windows/ADB que gerou16bytes não é reaproveitado silenciosamente.
+Antes de pedir inferência, diagnostic46_run.py verifica tamanho e SHA esperados contra stat/sha256sum no sandbox. O runner Android repete tamanho, cabeçalho GGUF e SHA antes de AiChat/carregamento nativo. Esperados são obrigatórios por argumentos ou runner.json da evidência4.5; ausência ou divergência aborta. Um arquivo16bytes é recusado. Não há override de hash para continuar.
+A coleta de arquivos usa subprocess stdout diretamente em arquivo binário, sem redirecionamento PowerShell ou decodificação de bytes de tensores. Isso serve apenas para exportar relatórios/vetores do sandbox, não para copiar modelos entre apps.
+
+IDENTIDADE DOS BINÁRIOS
+Cada diretório válido inclui app-debug.apk, app-debug-androidTest.apk, CMakeCache.txt, effective_config.json, build_metadata.json e APK_SHA256SUMS.txt.
+Native metadata build46 inclui variante, commit Haruna/llama, ABI, API alvo, compilador/versão, flags globais C/C++ e Release, quatro controles e invariantes. O metadata de build acrescenta comandos resolvidos por target, hashes de bibliotecas, identidade do pacote, certificado e SHA dos APKs.
+Durante execução, runner.json mede SHA do APK e do APK androidTest realmente instalados, Android API e modelo. O script confere os hashes contra BUILD_MATRIX e rejeita variante incorreta antes da inferência. Threads/contexto/sampler/seed reais e features/counters reais permanecem nos campos da4.5. Presença compilada e execução de KleidiAI/repack continuam separadas.
+
+ISOLAMENTO DO APP NORMAL / EVIDÊNCIAS
+Nenhuma ação dos scripts46 visa com.proxyslabs.haruna. Não instalam/desinstalam/limpam/migram/copiam seus dados. APKs continuam somente com.proxyslabs.haruna.diagnostic45 e .test, Activity desabilitada/sem launcher.
+O runner cria cache/diagnostic46/<runId-único>; não remove cache/diagnostic45 nem outras execuções. Diretório existente é recusado, inclusive no caminho de erro. O coletor exige diretório novo no computador e mantém arquivos parciais de falha. Comparações usam arquivos4.5 somente para leitura, sem sobrescrever suas evidências.
+Importante: o CI4.5 usou chave debug temporária. Não temos a chave privada anterior; os APKs novos da matriz compartilham a MESMA assinatura entre si, mas compatibilidade de atualização com o APK4.5 já instalado não é garantida. Se install -r retornar INSTALL_FAILED_UPDATE_INCOMPATIBLE, PARE. Não desinstale nem limpe o sandbox existente, pois ali estão o GGUF e evidências. Será necessária uma decisão posterior de assinatura/migração segura, com backup binário validado, fora destes scripts. Não tocar na Haruna normal em nenhuma hipótese. Nenhum mecanismo para burlar verificação de assinatura foi implementado.
+
+USO FUTURO — SEM INFERÊNCIA NO CI
+Instalação é manual e somente no sandbox. As variantes atuais da matriz são compatíveis entre si via install -r (certificados verificados no build). Não usar pm clear/uninstall, nem comandos direcionados ao app normal.
+Após extrair o artifact, informar SHA/tamanho conhecidos, ou referência4.5:
+python scripts/diagnostic46_run.py --serial SERIAL --variant A_CURRENT --bundle . --reference45 CAMINHO/A1_45 --out evidence46/A_CURRENT --probes 3,4
+OU usar --expected-sha256 SHA_CONHECIDO --expected-bytes TAMANHO_EXATO em vez de --reference45.
+Antes de cada modo, instalar manualmente o app-debug.apk e o androidTest da pasta correspondente. O script mede o APK instalado; se a instalação falhou/deixou outro modo, a execução é recusada. Não há modelo enviado/recebido automaticamente.
+Repetir com C_NO_KLEIDIAI, D_NO_REPACK, E_NO_ALL_VARIANTS e B_CONSERVATIVE usando o MESMO arquivo já validado, sem alterar parâmetros. F não é uma escolha executável.
+Comparação principal:
+python scripts/diagnostic46_matrix.py --evidence-root evidence46 --output matrix-device46.json --reference45-a CAMINHO/A1_45 --reference45-b CAMINHO/B1_45
+Comparação por par/replay:
+python scripts/diagnostic46_compare.py evidence46/A_CURRENT evidence46/C_NO_KLEIDIAI --output compare-A-C.json
+Pode usar --reference-a/--reference-b para exigir reprodução dos prefixos. Mesmo comparador numérico da4.5, sem comparação de logits após históricos divergirem. Se um modo divergir antes do índice3, solicitar outras sondas válidas; não usar RMS3/4 com condicionamentos distintos.
+O resumo compara cada modo contra A e B. Não declara culpado, não classifica coerência por regex e não inventa ranking causal. A pergunta sobre direção de B só pode ser respondida com as medições reais.
+
+VERIFICAÇÃO / LIMITAÇÕES
+CI: configurar, compilar, validar pacote/assinaturas/configurações, gerar hashes/matriz e publicar. Não roda connected tests, não inicia GGUF, não simula FIRST_DIVERGENCE. Checks pequenos validam esquema de isolamento, gates, serialização e mecanismos anteriores, sem modelo.
+A/B preservados computacionalmente; SHA dos APKs muda por metadata, runner seguro e compilação atual. Isso não autoriza presumir igualdade bit a bit de resultados no aparelho: controles também devem ser comparados às referências4.5.
+As diferenças de5,25/5,57 e RMS fornecidas não tornam KleidiAI ou REPACK culpados. B continua somente controle, não solução adotada no app normal.
+
+ARQUIVOS
+Alterados: app/build.gradle.kts (aceita os modos diagnósticos adicionais); scripts/patch_android_loader.py (extensão46); CanonicalRunner.kt apenas em androidTest (gates, proveniência APK, diretórios imutáveis).
+Novos: patches/diagnostic46/matrix.cmake e metadata.cmake; scripts/patch_android_diag46.py; diagnostic46_profiles.py; diagnostic46_run.py; diagnostic46_compare.py; diagnostic46_matrix.py; diagnostic46_build.py; check_diag46.py; este relatório.
+Sem alterações em UI, chats, RAG, voz, recuperação, pesos ou bibliotecas de inferência normais. Sem nova dependência de execução.
