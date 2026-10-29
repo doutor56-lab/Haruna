@@ -109,3 +109,6 @@ apply_prefix_patch()
 
 from patch_android_probes import apply_probe_patch
 apply_probe_patch()
+
+from patch_android_diag45 import apply_diag45_patch
+apply_diag45_patch()

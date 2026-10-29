@@ -1,0 +1,78 @@
+HARUNA — ETAPA 4.5 — DIAGNÓSTICO NUMÉRICO
+Status: infraestrutura de experimento. NÃO há conclusão de causa sem executar A/B no aparelho. Nenhum GGUF foi executado nesta sessão.
+
+BASE AUDITADA
+Branch ui-polish-icons, base 2d3f0211295033d6726624991eec6ffe2c23324b; checkpoint checkpoint/haruna-before-diag45-2d3f021 preservado. llama.cpp continua 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10.
+Caminho normal: WebView -> bridge/StreamDelivery -> LlamaCppBackend -> SDK/dispatcher -> JNI -> GGUF/Jinja/roles -> tokenização -> prefix/KV -> prefill -> common_sampler_sample/accept -> decode -> token_to_piece -> JNI UTF-16 -> streaming/RAF.
+CMake oficial Android ativa GGML_CPU_KLEIDIAI em ARM64. ggml/CMakeLists.txt define GGML_CPU_REPACK ON por padrão. SDK usa GGML_NATIVE OFF, BACKEND_DL ON, CPU_ALL_VARIANTS ON, Release e OpenMP ARM64. A variante armv8.0_1 anterior NÃO garantia ausência de KleidiAI/repack. Opções reais verificadas: GGML_CPU_KLEIDIAI, GGML_CPU_REPACK, GGML_CPU_ALL_VARIANTS, GGML_CPU_ARM_ARCH. Nenhuma flag inventada nem atualização do submódulo.
+
+ISOLAMENTO / DEFAULT
+HARUNA_DIAGNOSTIC_45=OFF por padrão. Não muda UI, chats, persistência normal, recovery-runtime.js, modelos, persona, memória/RAG, STT/TTS, streaming, lifecycle/cancelamento ou cache das etapas anteriores. Sem controles novos no app.
+Só builds explícitos com -PharunaDiagnostic45=A_CURRENT ou B_CONSERVATIVE geram o aplicativo separado com applicationId com.proxyslabs.haruna.diagnostic45. Ele não tem launcher (MainActivity desabilitada apenas no manifest diagnóstico); executa via APK de instrumentação e ADB. A Haruna original permanece instalada. Nenhuma desinstalação ou limpeza de dados da Haruna é necessária/autorizada pelos scripts.
+O GGUF já instalado deve ser copiado UMA vez para o sandbox de diagnóstico, por um stream de bytes (sem carregar vários GiB no computador/RAM). Não há download nem troca de pesos. A/B usam esse mesmo arquivo e calculam SHA-256 completo, não só nome/tamanho. Requer espaço adicional aproximadamente do tamanho desse GGUF. A cópia é somente para isolar o teste do armazenamento normal; não é uma nova biblioteca/importação da Haruna.
+Cada execução só substitui cache/diagnostic45 no sandbox experimental. O script de exportação exige diretório de saída NOVO no computador, preservando evidências anteriores. IDs, texto e logits capturados pertencem EXCLUSIVAMENTE ao fixture público/canônico; mensagens normais nunca são aceitas na captura. Não há preferência de usuário gravada ou alteração permanente de threads/FA/seed.
+
+VARIANTES
+A_CURRENT: as opções ARM64 atuais, loader automático, KleidiAI e repack disponíveis conforme build oficial, sem trocar parâmetros da inferência.
+B_CONSERVATIVE: GGML_CPU_KLEIDIAI OFF; GGML_CPU_REPACK OFF; GGML_CPU_ALL_VARIANTS OFF; GGML_CPU_ARM_ARCH armv8-a. Mantém GGML_NATIVE OFF, CPU, OpenMP, threads, n_ctx 8192, batch/ubatch 512/512, K/V F16/F16, política original de FA e GPU 0. NEON baseline ARM64; sem build direcionado a DOTPROD/I8MM/FP16 vetorial. Features HWCAP ainda mostram disponibilidade no aparelho, não execução dessas extensões.
+B desliga conjuntamente famílias e seleção ISA avançada: se melhorar, não prova sozinho qual componente é culpado. Backend CPU genérico ainda contém otimizações normais de compilador/NEON; não é uma implementação de referência matemática de precisão infinita.
+
+EXECUÇÃO CANÔNICA
+Não inicia Activity nem chat. Usa o SDK/JNI reais no dispatcher exclusivo, exige processo inicializado sem modelo/contexto/ticket ativo. Carrega o mesmo GGUF, prepara contexto novo, reserva ticket, usa processChatMessages real e generateNextToken real, finaliza ticket e libera recursos próprios. Se já existir modelo vivo, recusa sem destruí-lo.
+System fixo do teste (não substitui a persona no chat):
+Você é Haruna, uma assistente local. Responda de forma clara e objetiva em português.
+User fixo:
+Explique em português, de forma clara e objetiva, por que a água ferve quando é aquecida.
+Seed 424242; maxTokens 512; enableThinking true; sampler original temp0.3/top-k40/top-p0.95/min-p0.05/repeat1/freq0/presence0. Lê parâmetros/chain/seed efetivamente aplicados. Não aumenta mínimo de tokens nem força degeneração; EOS pode terminar cedo.
+Template oficial GGUF/Jinja, mesma tokenização e BOS/EOS existentes. Não injeta memória, histórico, RAG ou documentos no fixture; sistemas normais continuam intactos. Exige KV vazio antes da entrada e reusedTokens=0 depois do prefill. Exporta exatamente os tokens de entrada canônicos para comparação token a token, não confia em hash de prompt como prova.
+
+BACKEND / KERNEL
+metadata.json contém título HARUNA 4.5 DIAGNOSTIC, modo, runtime/ABI/commit/variante dladdr, HWCAP/ARM, parâmetros reais de contexto/threads/FA/KV, arquitetura/fileType GGUF, sampler/seed e flags retornadas pelo backend carregado.
+Além da disponibilidade compilada, instrumenta somente o ramo que realmente retornou sucesso em ggml_cpu_extra_compute_forward(). Conta chamadas bem-sucedidas de traits por thread e identifica o buffer CPU_KLEIDIAI/CPU_REPACK. Isso demonstra uso dessa família, não apenas presença na APK. Contadores desligados fora da execução do experimento e removidos do código de geração normal quando OFF.
+Não conta cada operação uma única vez: múltiplas threads participam do mesmo nó. Não identifica o símbolo exato de cada microkernel assembly nem suas instruções. Layouts dos buffers e flags não substituem profiler. Em B, flags e contadores KleidiAI/repack devem ser zero; o comparador recusa B inválida.
+
+LOGS / NUMÉRICA
+Até512 registros tokens.jsonl: índice1-based, ID, posição, seq0, KV, piece UTF-8 quando válido, pieceHex exato (fragmentos multibyte permitidos), EOG, logit bruto escolhido, probabilidade pós-sampler disponível, finitos/NaN/Inf e extremos. tokens.txt apresenta TOKEN 0001 | id=... | texto | posição | logit | p. Não registra vocabulário/logits completos por token, não reamostra nem aplica sampler novamente.
+Duas passagens: (1) geração livre A/B para obter FIRST_DIVERGENCE por IDs; (2) replay explícito com no máximo DOIS vetores finais de logits float32 little-endian, normalmente k-1 e k. Aproximadamente600KiB por vetor para vocabulário de~150mil; não há dump gigante de tensores/camadas. Arquivos só no sandbox diagnóstico/exportação explícita.
+Compara max_abs_diff, mean_abs_diff, RMS nos pares finitos, NaN/Inf por token e pares não finitos. Não diz que vetores com NaN são iguais nem inclui Inf em médias. Verifica condicionamento por IDs [1,k-1] iguais ANTES do token k. Depois de históricos divergirem, rejeita a comparação numérica. Com referências da primeira passagem, rejeita replay que não reproduza o prefixo original até a sonda.
+A primeira divergência de IDs NÃO é necessariamente a primeira diferença em float: podem existir diferenças desde o primeiro prefill sem mudar o token selecionado. Para localizar progressivamente, capturar passo1 e outros pontos dentro do prefixo comum. Magnitude numérica ou divergência de IDs isoladas não provam degeneração.
+Não captura saída da última camada nem tensores intermediários nesta implementação: isso exigiria instrumentação adicional do grafo. Primeiro avalia os logits finais conforme prioridade solicitada.
+
+COMPARADOR / VALIDADE
+Recusa GGUF SHA diferente, tokens/configuração canônica diferentes, ambiente de dispositivo diferente, n_ctx/batch/ubatch/threads/KV/FA/GPU/templatecommit/arquitetura/quantização divergentes, sampler/seed diferente, contexto sujo, posições não contíguas, execução incompleta ou vetor truncado. Mostra alguns tokens anteriores/posteriores à primeira divergência e sugere índices de replay.
+Não classifica coerência por regex e não atribui causa automaticamente. Resultados 1–4 exigem leitura humana das respostas canônicas. A/B iguais e degeneradas reduzem suspeita de caminhos desativados em B, mas não descartam CPU genérica compartilhada, modelo/fixture ou integração comum. A/B coerentes não provam que a Haruna normal está corrigida.
+
+CHECKS / BUILD / DISPOSITIVO
+Checks locais focados do comparador usam dados sintéticos claramente identificados (primeira divergência5, NaN/Inf, max/mean/RMS, rejeição de contextos/replay/modelo diferentes). NÃO são evidência do Samsung.
+Checks existentes de streaming, prefix/KV/ownership/poda/rollback, RAG fast path e sintaxe; patch idempotente sobre a revisão fixada. Build A/B e APKs: resultado real será incluído na cópia de entrega após CI. Sem benchmark longo ou GGUF baixado.
+Nenhum dispositivo/ADB disponível nesta sessão; não foi possível executar A/B no Samsung. Assim: A degenera? PENDENTE; B degenera? PENDENTE; primeiro token divergente real? PENDENTE; kernel/família efetiva real? PENDENTE dos contadores; NaN/Inf reais? PENDENTE; diferenças numéricas reais? PENDENTE; KleidiAI/REPACK excluídos? NÃO, continuam hipóteses.
+Etapa4.5 NÃO está cientificamente encerrada apenas com build. Não implementa correção definitiva nem Etapa5.
+
+ARQUIVOS
+Modificados: app/build.gradle.kts (instrumentation runner e sandbox condicional), scripts/patch_android_loader.py (encadeia patch45).
+Novos: scripts/patch_android_diag45.py; patches/diagnostic45/capture.h e runner.h; app/src/androidTest/java/com/proxyslabs/haruna/diagnostic45/CanonicalRunner.kt; app/src/diagnostic45/AndroidManifest.xml; scripts/diagnostic45_copy_model.py, diagnostic45_run.py, diagnostic45_compare.py, check_diag45.py, check_diag45_binding.py; docs/ETAPA_4_5_DIAGNOSTICO_NUMERICO.txt.
+A versão do SDK/C++ é estendida por patch no build, sem trocar o gitlink. Nenhuma dependência nova para o runner (usa android.app.Instrumentation e Kotlin/coroutines já disponíveis).
+
+ROTEIRO (PC COM PYTHON3 + ADB, USB DEBUGGING AUTORIZADO)
+1. Extraia o pacote de diagnóstico no computador. Feche/force a parada da Haruna normal, mantendo dados. Não use adb uninstall/pm clear na Haruna.
+2. Instale A e seu APK de instrumentação (nomes no artefato):
+   adb -s SERIAL install -r A_CURRENT/app-debug.apk
+   adb -s SERIAL install -r A_CURRENT/app-debug-androidTest.apk
+3. Descubra o caminho relativo do GGUF já instalado:
+   adb -s SERIAL shell run-as com.proxyslabs.haruna find files -name '*.gguf'
+   Se run-as for recusado (Haruna não-debuggable), não remova o app; use uma cópia original do mesmo GGUF no computador para transferir apenas ao sandbox de teste, ou solicite orientação.
+4. Copie uma vez:
+   python scripts/diagnostic45_copy_model.py --serial SERIAL --source-model files/CAMINHO/DO/MODELO.gguf
+5. Execute A; não abra a Haruna durante os testes:
+   python scripts/diagnostic45_run.py --serial SERIAL --model diagnostic45.gguf --out evidence/A1
+   Repita em evidence/A2 para verificar estabilidade do próprio A (cada invocação força parada apenas do aplicativo diagnóstico, sem apagar dados).
+6. Instale B por cima do MESMO aplicativo diagnóstico, preservando sua cópia do GGUF. A/B são assinados no mesmo job. Instale B e seu instrumentation APK, sem desinstalar:
+   adb -s SERIAL install -r B_CONSERVATIVE/app-debug.apk
+   adb -s SERIAL install -r B_CONSERVATIVE/app-debug-androidTest.apk
+   python scripts/diagnostic45_run.py --serial SERIAL --model diagnostic45.gguf --out evidence/B1
+7. Compare:
+   python scripts/diagnostic45_compare.py evidence/A1 evidence/B1 --output evidence/compare-free.json
+8. Se FIRST_DIVERGENCE=k, reinstale A, execute --probes k-1,k em diretório A-probe novo; reinstale B e repita em B-probe. Para k1 use apenas1. Máximo dois índices. Use os índices concretos indicados pelo comparador, não a string literal k.
+   python scripts/diagnostic45_compare.py evidence/A-probe evidence/B-probe --reference-a evidence/A1 --reference-b evidence/B1 --output evidence/compare-numeric.json
+9. Envie arquivos de texto/JSON e resultado da comparação; os vetores são pequenos e podem ser enviados se necessário. Conteúdo é somente a pergunta canônica. Não enviar arquivos normais de chats/memórias.
+10. Após exportar, o aplicativo diagnóstico pode ser removido pelo usuário para recuperar o espaço da cópia GGUF. Isso não remove Haruna nem seus dados. Remoção é manual, não executada por scripts.

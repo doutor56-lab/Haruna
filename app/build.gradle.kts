@@ -18,6 +18,7 @@ android {
         applicationId = "com.proxyslabs.haruna"
         minSdk = 33
         targetSdk = 36
+        testInstrumentationRunner = "com.proxyslabs.haruna.diagnostic45.CanonicalRunner"
         versionCode = 4
         versionName = "0.4"
         ndk { abiFilters += listOf("arm64-v8a") }
@@ -81,4 +82,13 @@ val fetchSherpaAar by tasks.registering {
 dependencies {
     implementation(files(sherpaAar).builtBy(fetchSherpaAar))
     implementation("org.apache.commons:commons-compress:1.27.1")
+}
+
+
+// Only explicit diagnostic builds use an isolated sandbox, never the user's installed Haruna data.
+val diagnostic45Mode = providers.gradleProperty("harunaDiagnostic45").orElse("OFF").get()
+require(diagnostic45Mode in listOf("OFF", "A_CURRENT", "B_CONSERVATIVE"))
+if (diagnostic45Mode != "OFF") {
+    android.buildTypes.getByName("debug").applicationIdSuffix = ".diagnostic45"
+    android.sourceSets.getByName("debug").manifest.srcFile("src/diagnostic45/AndroidManifest.xml")
 }

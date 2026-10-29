@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Diagnostic sandbox has no launcher. Original app/manifest/UI remain untouched. -->
+    <application><activity android:name="com.proxyslabs.haruna.MainActivity" android:enabled="false" /></application>
+</manifest>
