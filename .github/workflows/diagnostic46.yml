@@ -66,10 +66,11 @@ jobs:
           s=p.read_text();i=s.index('if (GGML_CPU_ALL_VARIANTS)')
           Path('diagnostic46/F_ARMV8A_ONLY/UPSTREAM_GUARD.txt').write_text('7894e8b92481a8bb8ffe94f73b656ffe0dd01e10\n'+s[i:i+400])
           PY
-          if gradle ':llamaLib:configureCMakeDebug[arm64-v8a]' -PharunaDiagnostic45=F_ARMV8A_ONLY --stacktrace --no-daemon > diagnostic46/F_ARMV8A_ONLY/CONFIGURATION_FAILURE.log 2>&1; then
+          if gradle ':llamaLib:configureCMakeRelease[arm64-v8a]' -PharunaDiagnostic45=F_ARMV8A_ONLY --stacktrace --no-daemon > diagnostic46/F_ARMV8A_ONLY/CONFIGURATION_FAILURE.log 2>&1; then
             echo "Unexpected F success: investigate instead of silently changing flags"
             exit 1
           fi
+          cat diagnostic46/F_ARMV8A_ONLY/CONFIGURATION_FAILURE.log
           grep -F "Cannot use both GGML_CPU_ARM_ARCH and GGML_CPU_ALL_VARIANTS" diagnostic46/F_ARMV8A_ONLY/CONFIGURATION_FAILURE.log
       - name: Build and collect the five valid variants with one signing identity
         id: builds
