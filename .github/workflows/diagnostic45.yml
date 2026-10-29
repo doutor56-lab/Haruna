@@ -1,0 +1,116 @@
+name: Haruna diagnostic 4.5 A-B
+on:
+  push:
+    branches: [build/diagnostic45-87ef2ab]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  LLAMA_CPP_REVISION: 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: 87ef2ab670d721820bd01e52f3ff2ff5f7fe35c7
+          submodules: recursive
+          fetch-depth: 1
+      - name: Pin and patch current runtime
+        run: |
+          git -C third_party/llama.cpp fetch --depth=1 origin "$LLAMA_CPP_REVISION"
+          git -C third_party/llama.cpp checkout --detach "$LLAMA_CPP_REVISION"
+          python3 scripts/patch_android_loader.py
+          python3 scripts/check_decision_probes.py
+          python3 scripts/check_diag45_binding.py
+          python3 scripts/check_diag45.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preserve stages 1-4 focused checks
+        run: |
+          node scripts/check_streaming.mjs
+          node scripts/check_prefix_rag.mjs
+          g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined scripts/check_prefix_cache.cpp -o /tmp/prefix-check
+          ASAN_OPTIONS=detect_leaks=0 /tmp/prefix-check
+          g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined scripts/check_decision_probes.cpp -o /tmp/probe-check
+          ASAN_OPTIONS=detect_leaks=0 /tmp/probe-check
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Existing Android toolchain
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.13113456" "cmake;3.31.6"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Native syntax OFF A B before long builds
+        shell: bash
+        run: |
+          root=third_party/llama.cpp
+          compiler="$ANDROID_HOME/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++"
+          cpp="$root/examples/llama.android/lib/src/main/cpp"
+          for mode in 0 1 2; do
+            "$compiler" -std=c++17 -fsyntax-only -DHARUNA_DIAGNOSTIC_45=$mode -I"$cpp" -I"$root" -I"$root/vendor" -I"$root/common" -I"$root/include" -I"$root/ggml/include" -I"$root/ggml/src" -I"$root/src" "$cpp/ai_chat.cpp"
+          done
+      - name: Compile A Kotlin and instrumentation
+        run: gradle :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin -PharunaDiagnostic45=A_CURRENT --stacktrace --no-daemon
+      - name: Build A current runtime
+        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest -PharunaDiagnostic45=A_CURRENT --stacktrace --no-daemon
+      - name: Preserve A artifacts and existing Kotlin stream checks
+        run: |
+          python3 scripts/check_stream_delivery.py
+          mkdir -p diagnostic45/A_CURRENT
+          cp app/build/outputs/apk/debug/app-debug.apk diagnostic45/A_CURRENT/
+          cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk diagnostic45/A_CURRENT/
+          find third_party/llama.cpp/examples/llama.android/lib/.cxx -name CMakeCache.txt -exec cp '{}' diagnostic45/A_CURRENT/CMakeCache.txt \;
+      - name: Clean between configurations
+        run: gradle clean --no-daemon
+      - name: Build B conservative runtime
+        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest -PharunaDiagnostic45=B_CONSERVATIVE --stacktrace --no-daemon
+      - name: Preserve B artifacts
+        run: |
+          mkdir -p diagnostic45/B_CONSERVATIVE diagnostic45/scripts
+          cp app/build/outputs/apk/debug/app-debug.apk diagnostic45/B_CONSERVATIVE/
+          cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk diagnostic45/B_CONSERVATIVE/
+          find third_party/llama.cpp/examples/llama.android/lib/.cxx -name CMakeCache.txt -exec cp '{}' diagnostic45/B_CONSERVATIVE/CMakeCache.txt \;
+          cp scripts/diagnostic45_*.py diagnostic45/scripts/
+          cp docs/ETAPA_4_5_DIAGNOSTICO_NUMERICO.txt diagnostic45/
+      - name: Verify sandbox packages CPU variants and matching signatures
+        shell: python
+        run: |
+          import os, subprocess, zipfile
+          from pathlib import Path
+          tools=Path(os.environ['ANDROID_HOME'])/'build-tools/36.0.0'
+          signatures=[]
+          for mode in ('A_CURRENT','B_CONSERVATIVE'):
+              root=Path('diagnostic45')/mode
+              apk=root/'app-debug.apk'
+              with zipfile.ZipFile(apk) as z:
+                  libs=sorted(n for n in z.namelist() if n.startswith('lib/arm64-v8a/libggml-cpu'))
+                  print(mode,'CPU libraries',libs)
+                  assert 'assets/haruna/recovery-runtime.js' in z.namelist()
+                  if mode=='A_CURRENT': assert 'lib/arm64-v8a/libggml-cpu-android_armv8.2_2.so' in libs
+                  else: assert libs==['lib/arm64-v8a/libggml-cpu.so']
+              cache=(root/'CMakeCache.txt').read_text()
+              assert 'HARUNA_DIAGNOSTIC_45:STRING='+mode in cache
+              if mode=='B_CONSERVATIVE':
+                  assert 'GGML_CPU_REPACK:BOOL=OFF' in cache
+                  assert 'GGML_CPU_ALL_VARIANTS:BOOL=OFF' in cache
+                  assert 'GGML_CPU_ARM_ARCH:STRING=armv8-a' in cache
+              badging=subprocess.check_output([str(tools/'aapt'),'dump','badging',str(apk)],text=True)
+              assert "package: name='com.proxyslabs.haruna.diagnostic45'" in badging
+              assert 'launchable-activity:' not in badging
+              for file in (apk,root/'app-debug-androidTest.apk'):
+                  output=subprocess.check_output([str(tools/'apksigner'),'verify','--print-certs',str(file)],text=True)
+                  signatures.append(next(line for line in output.splitlines() if 'certificate SHA-256 digest:' in line))
+          assert len(set(signatures))==1,'A/B/test APK signatures differ; cannot replace safely'
+          print('PASS: isolated sandbox, no launcher, A current variants, B baseline-only, repack off, matching A/B instrumentation signatures.')
+      - name: Upload canonical experiment package
+        uses: actions/upload-artifact@v4
+        with:
+          name: HARUNA_DIAGNOSTIC_45_A_B
+          path: diagnostic45/
+          if-no-files-found: error
