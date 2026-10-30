@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: 58bee5b239d9cdfc9474e9a2a96b9ed71cfac0bd
+          ref: 3b105e14b85c52e8ccce40a33baad2d38b414001
           submodules: recursive
           fetch-depth: 1
       - name: Verify pre-stage5 base and protected scope
@@ -92,27 +92,27 @@ jobs:
             assert 'assets/haruna/models/panel.css' not in names
           assert [p.name for p in Path('stage6-install').iterdir()]==['Haruna-v0.6.1-voz-debug.apk']
           run=f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-          metadata={'baseCommit':'04a9f7edced6a6d94f921c7eed221f631699e86a','sourceCommit':os.environ['HARUNA_SOURCE_REVISION'],'llamaCommit':os.environ['LLAMA_CPP_REVISION'],'run':run,'apk':'Haruna-v0.6.1-voz-debug.apk','sha256':digest,'version':'0.6.1','applicationId':'com.proxyslabs.haruna','diagnosticMode':'OFF','build':'SUCCESS','automaticTests':'PASS','deviceTestsExecuted':False,'modelInferenceExecuted':False,'installerArtifact':'Haruna-v0.6.1-voz-debug','technicalArtifact':'HARUNA_ETAPA_6_CORRECAO_TECNICO'}
+          metadata={'baseCommit':'04a9f7edced6a6d94f921c7eed221f631699e86a','sourceCommit':os.environ['HARUNA_SOURCE_REVISION'],'llamaCommit':os.environ['LLAMA_CPP_REVISION'],'run':run,'apk':'Haruna-v0.6.1-voz-debug.apk','sha256':digest,'version':'0.6.1','applicationId':'com.proxyslabs.haruna','diagnosticMode':'OFF','build':'SUCCESS','automaticTests':'PASS','deviceTestsExecuted':False,'modelInferenceExecuted':False,'installerArtifact':'Haruna-v0.6.1-voz-debug-FINAL','technicalArtifact':'HARUNA_ETAPA_6_CORRECAO_FINAL_TECNICO'}
           Path('stage6-technical/BUILD_METADATA.json').write_text(json.dumps(metadata,indent=2)+'\n')
           Path('stage6-technical/SHA256SUMS.txt').write_text(digest+'  Haruna-v0.6.1-voz-debug.apk\n')
           report=Path('stage6-technical/CORRECAO_ETAPA_6_RELATORIO.md');text=report.read_text();end='CORREÇÃO STT DA ETAPA 6 IMPLEMENTADA — AGUARDANDO VALIDAÇÃO NO DISPOSITIVO'
           text=text.removesuffix(end+'\n')
           text+='\n## Resultado real do CI\n\n- Commit final: `'+metadata['sourceCommit']+'`.\n- Workflow/run: '+run+'\n- Build completo normal/instrumentação: SUCCESS.\n- APK: `Haruna-v0.6.1-voz-debug.apk`, versão 0.6.1, pacote normal, diagnóstico OFF.\n- SHA-256: `'+digest+'`.\n'
           text+='- Testes automáticos: voz JavaScript, browser real com bridges simuladas/offline 360 e 768 px, fila/formato Kotlin, streaming Kotlin/JS, RAG fast path e prefixo/KV, guards de preservação: PASS. Logs separados.\n'
-          text+='- Testes físicos/áudio real/inferência GGUF ou ONNX: NÃO EXECUTADOS.\n- Instalador separado `Haruna-v0.6.1-voz-debug` (ZIP apenas com APK). Artifact técnico `HARUNA_ETAPA_6_CORRECAO_TECNICO` sem APK/modelos.\n\n'+end+'\n'
+          text+='- Testes físicos/áudio real/inferência GGUF ou ONNX: NÃO EXECUTADOS.\n- Instalador separado `Haruna-v0.6.1-voz-debug-FINAL` (ZIP apenas com APK). Artifact técnico `HARUNA_ETAPA_6_CORRECAO_FINAL_TECNICO` sem APK/modelos.\n\n'+end+'\n'
           report.write_text(text)
           print(json.dumps(metadata,indent=2))
           PY
       - name: Publish installer only
         uses: actions/upload-artifact@v4
         with:
-          name: Haruna-v0.6.1-voz-debug
+          name: Haruna-v0.6.1-voz-debug-FINAL
           path: stage6-install/Haruna-v0.6.1-voz-debug.apk
           if-no-files-found: error
       - name: Publish technical report checksums and test evidence separately
         uses: actions/upload-artifact@v4
         with:
-          name: HARUNA_ETAPA_6_CORRECAO_TECNICO
+          name: HARUNA_ETAPA_6_CORRECAO_FINAL_TECNICO
           path: stage6-technical/
           if-no-files-found: error
       - name: Preserve failed check evidence

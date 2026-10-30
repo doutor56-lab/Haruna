@@ -7,7 +7,7 @@
 #include <stdexcept>
 
 extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_proxyslabs_haruna_speech_WhisperCppNative_transcribe(JNIEnv *env, jobject, jstring path, jfloatArray audio) {
+Java_com_proxyslabs_haruna_speech_WhisperCppNative_transcribe(JNIEnv *env, jobject, jstring path, jfloatArray audio, jobject onLoaded) {
     try {
         const int n = env->GetArrayLength(audio);
         if (n <= 0 || n > 16000 * 21) throw std::runtime_error("Trecho de áudio inválido.");
@@ -21,6 +21,13 @@ Java_com_proxyslabs_haruna_speech_WhisperCppNative_transcribe(JNIEnv *env, jobje
         if (!ctx || !whisper_is_multilingual(ctx.get())) throw std::runtime_error("O modelo parece estar incompleto ou incompatível.");
         std::vector<float> samples(n);
         env->GetFloatArrayRegion(audio, 0, n, samples.data());
+        if (env->ExceptionCheck()) return nullptr;
+        auto callbackClass = env->GetObjectClass(onLoaded);
+        if (!callbackClass) return nullptr;
+        auto run = env->GetMethodID(callbackClass, "run", "()V");
+        env->DeleteLocalRef(callbackClass);
+        if (!run || env->ExceptionCheck()) return nullptr;
+        env->CallVoidMethod(onLoaded, run);
         if (env->ExceptionCheck()) return nullptr;
         auto params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
         params.n_threads = 2; params.language = "pt"; params.translate = false;
