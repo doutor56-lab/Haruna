@@ -1,3 +1,4 @@
+import {beginPipeline,measured,measuredAsync} from './diagnostics/pipeline.js';
 import {modelStatus} from './voice/model-names.js';
 import {createMessageView} from './streaming/message-view.js';
 import {preparationStarted,contextPrepared,domUpdated,presentationFinished} from './diagnostics/inference.js';
@@ -132,22 +133,22 @@ async function deleteSelected(){
 }
 
 function remember(text){const m=text.match(/(?:lembre(?:-se)?(?: de)? que|guarde que|quero que (?:você|vc) (?:se )?lembre que)\s+(.+)/i);if(!m)return;const fact=m[1].trim().replace(/[.!?]+$/,'');if(fact.length>2&&!memories.some(x=>x.toLowerCase()===fact.toLowerCase())){memories.push(fact);persist();toast.hidden=false;setTimeout(()=>toast.hidden=true,1800)}}function searchPast(text){const terms=text.toLowerCase().split(/\W+/).filter(x=>x.length>3).slice(0,8);return chats.filter(c=>c.id!==activeId).flatMap(c=>c.messages.map(m=>({c,m,score:terms.reduce((n,t)=>n+((m.content||'').toLowerCase().includes(t)?1:0),0)}))).filter(x=>x.score).sort((a,b)=>b.score-a.score).slice(0,5)}async function enriched(text,newFiles=[]){
- const chat=active(),profile=essentialContext(),history=recentMessages(chat);
+ const chat=active(),profile=measured('essentialMemoryMs',essentialContext),history=measured('historyMs',()=>recentMessages(chat));
  const budget=Math.max(0,7200-text.length-profile.length-history.reduce((n,m)=>n+m.content.length,0)-300);
  await restoreChatFiles(chat);
  const matches=attachments.search(activeId,text,5);
  const initial=attachments.list(activeId).filter(f=>newFiles.some(n=>n.path===f.path)).flatMap(f=>f.chunks.slice(0,3).map((c,index)=>({...c,index,name:f.name,path:f.path})));
  const seen=new Set(),attached=[...initial,...matches].filter(c=>{const key=`${c.path}:${c.index}`;if(seen.has(key))return false;seen.add(key);return true}).slice(0,5);
  const local=attached.map(x=>({fonte:'anexo',nome:x.name.slice(0,180),texto:x.content}));
- const learned=learnedContext(text,{chatId:activeId,hasAttachments:attachments.list(activeId).length>0||newFiles.length>0,structured:true});
+ const learned=measured('learnedMemoryMs',()=>learnedContext(text,{chatId:activeId,hasAttachments:attachments.list(activeId).length>0||newFiles.length>0,structured:true}));
  for(const experience of learned)local.push({fonte:'experiência mantida',dados:experience});
  for(const memory of memories.slice(-40).reverse())local.push({fonte:'memória autorizada',texto:memory});
  const selected=fitReferences(local,budget);
- const result=await window.__HARUNA_ENRICH_PROMPT__(text,{
+ const result=await measuredAsync('ragPipelineMs',()=>window.__HARUNA_ENRICH_PROMPT__(text,{
   structured:true,recentMessages:history,essentialChars:profile.length,
   localContextChars:selected.length?referenceContent('',selected).length:0,
   hasAttachments:attachments.list(activeId).length>0||newFiles.length>0,newAttachmentFocus:newFiles.length>0
- });
+ }));
  const refs=result&&typeof result==='object'&&Array.isArray(result.references)?result.references:[];
  const retrieved=refs.map(x=>({fonte:'Segundo Cérebro',tipo:x.tipo,texto:x.trecho}));
  const prompt=referenceContent(text,fitReferences([...selected,...retrieved],budget));
@@ -175,6 +176,7 @@ window.addEventListener('haruna-attachment-ready',e=>{
 });
 
 function resize(){input.style.height='auto';input.style.height=`${Math.min(input.scrollHeight,120)}px`}input.addEventListener('input',resize);input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}});llm.subscribe(paint);llm.refreshStatus().then(paint).catch(e=>add('assistant',err(e?.message)));stopBtn.onclick=()=>llm.stopGeneration();async function sendMessage(fromVoice=false){
+ beginPipeline();
  const voiceObserver=fromVoice?voiceStreamObserver:null;
  const chat=active(),files=attachments.pending(chat.id);
  const text=input.value.trim()||(files.length?'Analise os arquivos anexados.':'');if(!text)return;
@@ -202,7 +204,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
   const out=add('assistant','✦');
   const draft={role:'assistant',content:'',at:now(),interrupted:true};
   preparationStarted();
-  const {prompt,profile}=await enriched(text,files),messages=conversationMessages(chat,prompt,profile);
+  const {prompt,profile}=await enriched(text,files),messages=measured('promptConstructionMs',()=>conversationMessages(chat,prompt,profile));
   contextPrepared();
   chat.messages.push(draft);
   const view=createMessageView({bubble:out,container:messagesEl,onVisual:domUpdated,
@@ -214,7 +216,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
    delete draft.interrupted;
   }catch(error){generationError=error}
   finally{
-   const finished=view.finish();draft.content=finished.text;followEnd=finished.follow;
+   const finished=measured('postprocessingMs',()=>view.finish());draft.content=finished.text;followEnd=finished.follow;
   }
   if(generationError){
    const cancelled=generationError.code==='cancelled'||generationError.message?.includes('interrompida');

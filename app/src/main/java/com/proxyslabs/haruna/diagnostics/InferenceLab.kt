@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** One canonical fixture; no access to chat/knowledge stores. Only bounded technical state persists. */
 class InferenceLab(private val app: Context, private val backend: LlmBackend, private val emit: (JSONObject)->Unit) {
+    private val metrics=AndroidMetricsCollector(app)
     private val active=AtomicBoolean(false)
     @Volatile private var request: String?=null
     fun cancel() { request?.let { backend.stop(it) } }
@@ -22,6 +23,7 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
         for ((key,limits) in mapOf("temperature" to (0.0..2.0),"topP" to (0.001..1.0),"minP" to (0.0..1.0),"presence" to (-2.0..2.0),"frequency" to (-2.0..2.0),"repeat" to (0.5..2.0))) {
             val x=cfg.getDouble(key);require(x.isFinite()&&x in limits) { "Valor inválido: $key" }
         }
+        for(key in listOf("topK","maxTokens","seed","threads","threadsBatch")) { if(!cfg.has(key))continue; val value=cfg.getDouble(key);require(value.isFinite() && value==kotlin.math.floor(value)) { "Use número inteiro: $key" } }
         require(cfg.optInt("threads",0) in 0..16 && cfg.optInt("threadsBatch",0) in 0..16)
         require(cfg.getInt("topK") in 0..1000 && cfg.getInt("maxTokens") in 16..1024)
         val seed=cfg.getLong("seed");require(seed in 0..4294967295L)
@@ -34,7 +36,7 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
         val messages=JSONArray()
         if(cfg.optBoolean("history")) messages.put(JSONObject().put("role","user").put("content","Estamos conversando sobre fenômenos da natureza.")).put(JSONObject().put("role","assistant").put("content","Podemos explicar esses fenômenos usando a ciência."))
         messages.put(JSONObject().put("role","user").put("content",prompt + if(cfg.optBoolean("rag") && cfg.optJSONArray("references")!=null) "\n<dados_de_referencia>\n"+cfg.getJSONArray("references").toString()+"\n</dados_de_referencia>" else ""))
-        val before=AndroidMetricsCollector(app).snapshot()
+        val before=metrics.snapshot()
         val thermal=app.getSystemService(PowerManager::class.java).currentThermalStatus
         val initial=JSONObject(backend.runtimeMetrics())
         val model=backend.status().modelName
@@ -42,9 +44,9 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
             val elapsed=(SystemClock.elapsedRealtimeNanos()-start)/1e6
             val obs=JSONObject(backend.runtimeMetrics())
             val result=JSONObject().put("request",id).put("configuration",cfg).put("model",model)
-                .put("elapsedMs",elapsed).put("firstDeltaMs",first?:JSONObject.NULL).put("deltas",deltas)
+                .put("completedAt",System.currentTimeMillis()).put("elapsedMs",elapsed).put("firstDeltaMs",first?:JSONObject.NULL).put("deltas",deltas)
                 .put("output",text.toString()).put("error",error?:JSONObject.NULL).put("observation",obs)
-                .put("before",before).put("after",AndroidMetricsCollector(app).snapshot())
+                .put("before",before).put("after",metrics.snapshot())
                 .put("thermalBefore",thermal).put("thermalAfter",app.getSystemService(PowerManager::class.java).currentThermalStatus)
                 .put("runtimeBefore",initial).put("fixture","sky-v1").put("rag",if(cfg.optBoolean("rag")) "ON — contexto congelado para o lote A/B" else "OFF")
             request=null;active.set(false);emit(result)

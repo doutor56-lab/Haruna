@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: e8bf3f8ad7eda883254200f665eabe111f224b9f
+          ref: dee22349dce17fc328a8315b9bb51e4b991e99e0
           submodules: recursive
           fetch-depth: 1
       - name: Verify pre-stage5 base and protected scope
@@ -46,6 +46,7 @@ jobs:
           npm install --prefix /tmp/haruna-stage6-browser --cache /tmp/haruna-stage6-npm-cache --ignore-scripts --no-audit --no-fund playwright@1.56.1
           set -o pipefail
           HARUNA_CHROME="$(command -v google-chrome || command -v chromium)" HARUNA_PLAYWRIGHT_PACKAGE=/tmp/haruna-stage6-browser/package.json node scripts/check_voice_browser.mjs | tee stage6-tests/voice-browser.txt
+          HARUNA_CHROME="$(command -v google-chrome || command -v chromium)" node scripts/check_lab_browser.mjs | tee stage6-tests/lab-browser.txt
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -84,7 +85,7 @@ jobs:
           assert 'com.proxyslabs.haruna.diagnostic45' not in badging
           with zipfile.ZipFile(apk) as z:
             names=set(z.namelist())
-            for file in ['diagnostics/lab.js','diagnostics/lab-core.js','voice/call-view.js','voice/call-reference.css','voice/stream.js','voice/stage6.css','voice/stage6-ui.js','voice/model-names.js','recovery-runtime.js','streaming/message-view.js']:
+            for file in ['diagnostics/lab.js','diagnostics/lab-core.js','diagnostics/pipeline.js','diagnostics/voice-observer.js','voice/call-view.js','voice/call-reference.css','voice/stream.js','voice/stage6.css','voice/stage6-ui.js','voice/model-names.js','recovery-runtime.js','streaming/message-view.js']:
               assert 'assets/haruna/'+file in names
             assert '<h1>Haruna</h1>' in z.read('assets/haruna/index.html').decode()
             assert 'lib/arm64-v8a/libggml-cpu-android_armv8.2_2.so' in names
@@ -93,7 +94,7 @@ jobs:
             assert 'assets/haruna/models/panel.css' not in names
           assert [p.name for p in Path('stage6-install').iterdir()]==['Haruna-stage7-debug.apk']
           run=f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-          metadata={'baseCommit':'3b105e14b85c52e8ccce40a33baad2d38b414001','sourceCommit':os.environ['HARUNA_SOURCE_REVISION'],'llamaCommit':os.environ['LLAMA_CPP_REVISION'],'run':run,'apk':'Haruna-stage7-debug.apk','sha256':digest,'version':'0.7-debug-lab','applicationId':'com.proxyslabs.haruna','diagnosticMode':'OFF','build':'SUCCESS','automaticTests':'PASS','deviceTestsExecuted':False,'modelInferenceExecuted':False,'installerArtifact':'Haruna-stage7-debug','technicalArtifact':'HARUNA_ETAPA_7_LAB_TECNICO'}
+          metadata={'baseCommit':'3b105e14b85c52e8ccce40a33baad2d38b414001','sourceCommit':os.environ['HARUNA_SOURCE_REVISION'],'llamaCommit':os.environ['LLAMA_CPP_REVISION'],'run':run,'apk':'Haruna-stage7-debug.apk','sha256':digest,'version':'0.7-debug-lab','applicationId':'com.proxyslabs.haruna','diagnosticMode':'OFF','build':'SUCCESS','automaticTests':'PASS','deviceTestsExecuted':False,'modelInferenceExecuted':False,'installerArtifact':'Haruna-stage7-debug-FINAL','technicalArtifact':'HARUNA_ETAPA_7_LAB_TECNICO'}
           Path('stage6-technical/BUILD_METADATA.json').write_text(json.dumps(metadata,indent=2)+'\n')
           Path('stage6-technical/SHA256SUMS.txt').write_text(digest+'  Haruna-stage7-debug.apk\n')
           report=Path('stage6-technical/ETAPA_7_RELATORIO.md');text=report.read_text();end='ETAPA 7 — LABORATÓRIO DE PERFORMANCE IMPLEMENTADO — AGUARDANDO BENCHMARK NO DISPOSITIVO'
@@ -107,7 +108,7 @@ jobs:
       - name: Publish installer only
         uses: actions/upload-artifact@v4
         with:
-          name: Haruna-stage7-debug
+          name: Haruna-stage7-debug-FINAL
           path: stage6-install/Haruna-stage7-debug.apk
           if-no-files-found: error
       - name: Publish technical report checksums and test evidence separately
@@ -120,7 +121,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: HARUNA_ETAPA_6_CORRECAO_FAILED_CHECKS
+          name: HARUNA_ETAPA_7_FAILED_CHECKS
           path: |
             stage6-tests/
             stage6-browser/

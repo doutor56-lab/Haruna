@@ -1,3 +1,4 @@
+import {pipelineMark,pipelineSnapshot} from './pipeline.js';
 // Scalar observations for the existing DBG. No text, IDs in reports, audio or documents.
 let prep=null,current=null,discarded=0;
 export function discardedStreamEvent(){discarded++}
@@ -5,12 +6,14 @@ const clock=()=>performance.now();
 export function preparationStarted(){prep={started:clock(),contextMs:null}}
 export function contextPrepared(){if(prep)prep.contextMs=clock()-prep.started}
 export function requestStarted(id){
+ pipelineMark('beforeNativeMs');
  current={id,started:clock(),contextMs:prep?.contextMs??null,clientFirstDeltaMs:null,
   clientFirstDomMs:null,clientFirstVisibleMs:null,clientTotalMs:null,presentationSpanMs:null,
   visualUpdates:0,receivedDeltas:0,outputUtf16:0,firstAck:false,finalAck:false};prep=null;
 }
 export function deltaReceived(id){
  if(current?.id!==id)return;
+ pipelineMark('perceivedFirstDeltaMs');
  current.receivedDeltas++;
  if(current.clientFirstDeltaMs===null)current.clientFirstDeltaMs=clock()-current.started;
 }
@@ -39,4 +42,7 @@ export function presentationFinished(length,visible){
  if(current.clientFirstVisibleMs!==null)current.presentationSpanMs=current.clientTotalMs-current.clientFirstVisibleMs;
  current.finalAck=true;ack('final');
 }
-export function inferenceMetrics(){return {...scalars(),discardedStreamEvents:discarded}}
+export function inferenceMetrics(){return {pipeline:pipelineSnapshot(),...scalars(),discardedStreamEvents:discarded}}
+
+// DEBUG observer correlation only; no change to generation, streaming or persistence.
+export function inferenceCorrelation(){return current?{startPerfMs:current.started,...scalars()}:{}}
