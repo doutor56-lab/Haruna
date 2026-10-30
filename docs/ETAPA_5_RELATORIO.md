@@ -53,7 +53,7 @@ Se o arquivo selecionado não existir, não há fallback silencioso para outro m
 
 ## Nome amigável e perfis
 
-`GgufMetadata` lê apenas um prefixo limitado de metadados, sem tensores/pesos/tokenizer em RAM. Observa `general.name`, `general.basename`, `general.architecture` e `general.file_type`. Cache leve considera caminho, tamanho, modificação e nome personalizado.
+`GgufMetadata` lê apenas um prefixo limitado de metadados (até 256 campos/16 MiB), sem tensores/pesos/tokenizer em RAM. A consulta termina antes de arrays de strings do vocabulário; não percorre tokenizador para descobrir um rótulo na interface. Observa `general.name`, `general.basename`, `general.architecture` e `general.file_type`. Cache leve considera caminho, tamanho, modificação e nome personalizado. Se campos relevantes estiverem depois desses limites, a informação pode ficar indisponível e o alias manual continua disponível.
 
 `ModelProfiles` centraliza famílias e defaults. Qwen3.5 pode ser identificado por arquitetura `qwen35/qwen35moe` ou metadados de nome; Phi-4 Mini usa nome/basename do GGUF, não presume que toda arquitetura `phi3` seja Phi-4. Outros modelos continuam permitidos. Quantização vem do file_type conhecido; tipos desconhecidos permanecem identificados por número.
 

@@ -167,6 +167,23 @@ object MultimodelCheck {
             check(!worker.isAlive)
             check(isolated.load(b, confirmed = { true }) {}.isSuccess)
         }
+        test("20 metadata observation stops before tokenizer string arrays") {
+            val file = File.createTempFile("haruna-vocab-budget-", ".gguf")
+            try {
+                val bytes = java.io.ByteArrayOutputStream()
+                fun int(value: Int) { bytes.write(ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array()) }
+                fun long(value: Long) { bytes.write(ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(value).array()) }
+                fun string(value: String) { val data = value.toByteArray(); long(data.size.toLong()); bytes.write(data) }
+                bytes.write("GGUF".toByteArray()); int(3); long(0); long(3)
+                string("general.name"); int(8); string("Known label")
+                string("tokenizer.ggml.tokens"); int(9); int(8); long(1); string("not needed")
+                string("general.architecture"); int(8); string("qwen35")
+                file.writeBytes(bytes.toByteArray())
+                val partial = GgufMetadata.read(file)
+                check(partial["general.name"] == "Known label")
+                check("general.architecture" !in partial) // No vocabulary walk merely to discover later metadata.
+            } finally { file.delete() }
+        }
         println("VALIDADO EM TESTE AUTOMÁTICO: $checks checks; fake backend, no GGUF inference/device.")
     }
 }

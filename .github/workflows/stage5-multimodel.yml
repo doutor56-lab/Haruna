@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ee26e037919d9ce413207848911d669f2af18b7f
+          ref: 4311631b23959f5921830707744fbc222bdfa561
           submodules: recursive
           fetch-depth: 1
       - name: Pin provenance and verify protected subsystems
