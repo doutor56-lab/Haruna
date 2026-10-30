@@ -4,7 +4,7 @@ assert.equal(baseline.temperature,.3);assert.equal(baseline.thinking,false);asse
 assert.equal(profiles['Qwen recomendado — experimental'].temperature,1);
 assert.equal(profiles['Phi determinístico — experimental'].temperature,0);
 assert.equal(difference(null,3),null);assert.equal(difference(100,50),-50);
-const result={output:'PRIVATE ANSWER',observation:{generation:{inputTokens:100,outputTokens:10,prefillTokens:100,prefillUs:1000000,decodeUs:2000000,nativeStopCode:2},laboratory:{canonicalFormattedPrompt:'INTERNAL PROMPT'}}};
+const result={configuration:{references:[{trecho:'PRIVATE DOCUMENT'}]},output:'PRIVATE ANSWER',observation:{generation:{inputTokens:100,outputTokens:10,prefillTokens:100,prefillUs:1000000,decodeUs:2000000,nativeStopCode:2},laboratory:{canonicalFormattedPrompt:'INTERNAL PROMPT'}}};
 assert.equal(summary(result).stopReason,'MAX_TOKENS');assert.equal(summary(result).promptTokensPerSecond,100);
 assert.equal(summary(result).decodeWorkTokensPerSecond,5);
 assert(!exportReport([result]).includes('PRIVATE'));assert(!exportReport([result]).includes('INTERNAL'));

@@ -13,3 +13,6 @@ scripts/check_lab.mjs
 scripts/check_stage7_scope.py
 docs/ETAPA_7_RELATORIO.md
 docs/STAGE7_FILES.txt
+scripts/check_lab_browser.mjs
+app/src/main/assets/haruna/diagnostics/voice-observer.js
+app/src/main/assets/haruna/diagnostics/inference.js

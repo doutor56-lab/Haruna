@@ -40,3 +40,6 @@ export function presentationFinished(length,visible){
  current.finalAck=true;ack('final');
 }
 export function inferenceMetrics(){return {...scalars(),discardedStreamEvents:discarded}}
+
+// DEBUG observer correlation only; no change to generation, streaming or persistence.
+export function inferenceCorrelation(){return current?{startPerfMs:current.started,...scalars()}:{}}
