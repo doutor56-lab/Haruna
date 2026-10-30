@@ -19,6 +19,12 @@ class DiagnosticBridge(
 ) : AutoCloseable {
     private val app = activity.applicationContext
     private val lab = InferenceLab(activity.applicationContext, backend) { value -> webView.post { if (!closed.get()) webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-lab-result',{detail:JSON.parse(${JSONObject.quote(value.toString())})}))", null) } }
+    private val exporter = DiagnosticExport(activity) { message -> webView.post { if (!closed.get()) webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-lab-export',{detail:${JSONObject.quote(message)}}))", null) } }
+    @JavascriptInterface fun labExport(json: String): String = runCatching {
+        check(com.proxyslabs.haruna.BuildConfig.DEBUG && !closed.get())
+        exporter.save(json)
+        JSONObject().put("status", "ok").toString()
+    }.getOrElse { JSONObject().put("status", "error").put("error", "Não foi possível exportar o relatório técnico.").toString() }
     @JavascriptInterface fun labAvailable(): Boolean = com.proxyslabs.haruna.BuildConfig.DEBUG
     @JavascriptInterface fun labRun(config: String): String {
         if (!com.proxyslabs.haruna.BuildConfig.DEBUG) return "{\"status\":\"error\",\"error\":\"Laboratório somente DEBUG\"}"
@@ -116,7 +122,7 @@ class DiagnosticBridge(
         } }.onFailure { pending.set(false) }
     }
 
-    override fun close() { lab.cancel(); closed.set(true); worker.shutdownNow() }
+    override fun close() { exporter.close(); lab.cancel(); closed.set(true); worker.shutdownNow() }
 }
 
 

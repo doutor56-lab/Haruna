@@ -16,3 +16,6 @@ docs/STAGE7_FILES.txt
 scripts/check_lab_browser.mjs
 app/src/main/assets/haruna/diagnostics/voice-observer.js
 app/src/main/assets/haruna/diagnostics/inference.js
+app/src/main/assets/haruna/diagnostics/pipeline.js
+app/src/main/assets/haruna/app.js
+app/src/main/java/com/proxyslabs/haruna/diagnostics/DiagnosticExport.kt

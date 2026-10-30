@@ -44,7 +44,7 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
             val elapsed=(SystemClock.elapsedRealtimeNanos()-start)/1e6
             val obs=JSONObject(backend.runtimeMetrics())
             val result=JSONObject().put("request",id).put("configuration",cfg).put("model",model)
-                .put("elapsedMs",elapsed).put("firstDeltaMs",first?:JSONObject.NULL).put("deltas",deltas)
+                .put("completedAt",System.currentTimeMillis()).put("elapsedMs",elapsed).put("firstDeltaMs",first?:JSONObject.NULL).put("deltas",deltas)
                 .put("output",text.toString()).put("error",error?:JSONObject.NULL).put("observation",obs)
                 .put("before",before).put("after",metrics.snapshot())
                 .put("thermalBefore",thermal).put("thermalAfter",app.getSystemService(PowerManager::class.java).currentThermalStatus)

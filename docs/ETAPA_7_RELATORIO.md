@@ -2,7 +2,7 @@
 
 Base: 3b105e14b85c52e8ccce40a33baad2d38b414001. Checkpoint: checkpoint/haruna-before-stage7-3b105e1.
 
-Nenhuma otimização normal aplicada. Haruna padrão permanece normal, presets são somente candidatos de benchmark. O laboratório está dentro do DBG existente e só aparece quando a ponte nativa confirma BuildConfig.DEBUG. Release rejeita a API do laboratório e ignora labConfig nas gerações. Não existe nova aba ou alteração visual do chat/configurações normais. Voz, identidade, Safety Core, memória, fontes GGUF, modelos e diagnósticos 4.5/4.6 preservados.
+Nenhuma otimização normal aplicada. Haruna padrão permanece normal, presets são somente candidatos de benchmark. O laboratório está dentro do DBG existente e só aparece quando a ponte nativa confirma BuildConfig.DEBUG. Release rejeita a API do laboratório e ignora labConfig nas gerações. Não existe nova aba ou alteração visual do chat/configurações normais. app.js recebe somente wrappers de cronômetro DEBUG, sem mudar parâmetros nem o conteúdo dos retornos. Voz, identidade, Safety Core, memória, fontes GGUF, modelos e diagnósticos 4.5/4.6 preservados.
 
 ## Implementação
 
@@ -22,7 +22,7 @@ Instrumentação anterior reutilizada: modelo/arquitetura/tipo GGUF, configuraç
 - n_ctx, batch/ubatch, tipos KV, Flash Attention, seleção backend/GPU: somente leitura; controles/reload seguro ainda não implementados no laboratório. Não há backend GPU novo. Solicitado não é tratado como efetivo.
 - Não foi implementada otimização de cache híbrido. O código existente recusa arquiteturas híbridas/recorrentes; Qwen3.5 recebe fallback seguro. Não basta remover a proteção. Equivalência híbrida não foi executada, logo experimental híbrido continua indisponível.
 - Prompt privado corrente não é capturado. Inspector é limitado ao fixture canônico e referências explicitamente solicitadas no benchmark. Tokens por origem individual são N/D.
-- Tempos de memória/RAG normais permanecem nos observadores anteriores; fases ainda inseparáveis não são desdobradas por estimativa. Voz mantém a implementação existente. Observador DEBUG correlaciona recepção de transcribing/result/playing, duração STT, preparação do TTS e TTFT LLM somente quando a requisição é comprovadamente posterior ao resultado STT. Não mede final físico da fala nem DAC; tempos incluem transporte e são rotulados. Nenhum texto de fala é retido.
+- Foram adicionados cronômetros DEBUG escalares no fluxo normal: memória essencial, memória aprendida, histórico, enriquecimento RAG, montagem de mensagens, tempo antes do native, primeiro delta percebido e pós-processamento. Getters/retornos continuam os mesmos; fases aninhadas são inclusivas. Fases ainda inseparáveis não são desdobradas por estimativa. Voz mantém a implementação existente. Observador DEBUG correlaciona recepção de transcribing/result/playing, duração STT, preparação do TTS e TTFT LLM somente quando a requisição é comprovadamente posterior ao resultado STT. Não mede final físico da fala nem DAC; tempos incluem transporte e são rotulados. Nenhum texto de fala é retido.
 - PSS antes/depois reutiliza o coletor com limite de uma coleta a cada 10 segundos e idade explícita; valores podem se repetir por cache. Não é amostragem contínua: pode perder pico intermediário. Status térmico não é temperatura da CPU.
 - Perfis têm sliders sincronizados e campos numéricos; gráficos de distribuição não implementados.
 - Benchmark RAG congela a busca para o lote, permitindo comparar inferência com o mesmo conteúdo. O tempo da busca é registrado separadamente; TTFT nativo não o inclui.
@@ -33,6 +33,8 @@ Instrumentação anterior reutilizada: modelo/arquitetura/tipo GGUF, configuraç
 Possíveis gargalos a medir: prefill repetido do Qwen híbrido, volume real do prompt, truncamento por maxTokens, pesquisa RAG, contenção térmica/CPU. Nenhuma causa foi declarada confirmada no aparelho. Ordem futura: prompt, cache, híbrido, sampler, orçamento, RAG, threads, batch/ubatch, FA/KV e só depois backend. Não atualizar llama.cpp nem desativar KleidiAI/REPACK do LLM neste pacote.
 
 Fontes/score individuais do RAG: N/D no esquema retornado pelo enriquecedor; nenhuma busca adicional é feita só para diagnóstico.
+
+Exportação Android usa ACTION_CREATE_DOCUMENT/SAF e escrita limitada em worker dedicado, sem permissões de armazenamento. Cancelamento do seletor não altera os dados. Arquivo novo: app/src/main/java/com/proxyslabs/haruna/diagnostics/DiagnosticExport.kt. Gravação física exige validação no dispositivo.
 
 ## Teste manual
 
@@ -62,6 +64,8 @@ Arquivos:
 
 
 Arquivos adicionais da instrumentação/teste final:
+- app/src/main/assets/haruna/diagnostics/pipeline.js
+- app/src/main/assets/haruna/app.js
 - scripts/check_lab_browser.mjs
 - app/src/main/assets/haruna/diagnostics/voice-observer.js
 - app/src/main/assets/haruna/diagnostics/inference.js

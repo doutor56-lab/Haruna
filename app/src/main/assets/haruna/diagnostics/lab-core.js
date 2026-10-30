@@ -8,7 +8,7 @@ export function summary(result){
  const g=result.observation?.generation||{},r=result.observation?.runtime||{},p=result.observation?.prefix||{};
  const finite=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
  const rate=(n,t)=>finite(n)&&finite(t)&&t>0?n*1e6/t:null;
- return {model:result.model,configuration:Object.fromEntries(Object.keys(baseline).map(k=>[k,result.configuration?.[k]])),fixture:result.fixture,error:result.error,
+ return {completedAt:result.completedAt,model:result.model,configuration:Object.fromEntries(Object.keys(baseline).map(k=>[k,result.configuration?.[k]])),fixture:result.fixture,error:result.error,
   runtime:r,device:result.after?.device,sampler:result.observation?.decisionProbe?.sampler,thermalBefore:result.thermalBefore,thermalAfter:result.thermalAfter,
   ttftMs:result.firstDeltaMs,nativeTtftMs:finite(g.firstDeltaUs)?g.firstDeltaUs/1000:null,
   prefillMs:finite(g.prefillUs)?g.prefillUs/1000:null,promptTokens:g.inputTokens,outputTokens:g.outputTokens,

@@ -55,7 +55,7 @@ function open(){
   icon.className=`haruna-dbg-section-icon haruna-dbg-icon-${icons[card.id]}`;icon.setAttribute('aria-hidden','true');label.textContent=card.title;summary.append(icon,label);
   const body=document.createElement('div');body.dataset.dbgBody=card.id;section.append(summary,body);content.appendChild(section);
  }
- laboratory=inferenceLab();if(laboratory)content.append(laboratory.element);
+ laboratory=inferenceLab();if(laboratory)content.prepend(laboratory.element);
  dialog=element;
  element.querySelector('.haruna-dbg-close').onclick=close;element.querySelector('.haruna-dbg-done').onclick=close;
  element.querySelector('[data-dbg-copy]').onclick=copy;
