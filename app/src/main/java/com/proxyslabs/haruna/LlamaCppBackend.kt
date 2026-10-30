@@ -259,7 +259,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     resetRequired = false
                     val predictLength = options?.optInt("maxTokens", 512)?.coerceIn(16, 1024) ?: 512
                     val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; var outputChars = 0L
-                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial, nextConversation, conversationRevision, if (BuildConfig.DEBUG) options?.optString("labConfig", "") ?: "" else "").collect { token ->
+                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial, nextConversation, conversationRevision, if (BuildConfig.DEBUG) options?.optString("labConfig", "")?.takeIf { it.isNotEmpty() } ?: if (options?.optBoolean("labInspector", false) == true) "{\"inspectOnly\":true}" else "" else "").collect { token ->
                         if (firstTokenAt == 0L) { firstTokenAt = System.currentTimeMillis(); Log.i(TAG, "first_token_ms=${firstTokenAt - generationStart}") }
                         outputChars += token.length
                         // The bridge owns a bounded ordered buffer; no Main-thread hop per delta.

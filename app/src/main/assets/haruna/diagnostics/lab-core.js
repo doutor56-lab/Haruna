@@ -9,7 +9,7 @@ export function summary(result){
  const g=observed?.generation||{},r=observed?.runtime||{},p=observed?.prefix||{};
  const finite=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
  const rate=(n,t)=>finite(n)&&finite(t)&&t>0?n*1e6/t:null;
- return {arm:result.arm,nativeGenerationFresh:result.nativeGenerationFresh,completedAt:result.completedAt,model:result.model,configuration:Object.fromEntries(Object.keys(baseline).map(k=>[k,result.configuration?.[k]])),fixture:result.fixture,error:result.error,
+ return {batch:result.batch,arm:result.arm,nativeGenerationFresh:result.nativeGenerationFresh,completedAt:result.completedAt,model:result.model,configuration:Object.fromEntries(Object.keys(baseline).map(k=>[k,result.configuration?.[k]])),fixture:result.fixture,error:result.error,
   runtime:r,device:result.after?.device,sampler:observed?.decisionProbe?.sampler,thermalBefore:result.thermalBefore,thermalAfter:result.thermalAfter,
   ttftMs:result.firstDeltaMs,nativeTtftMs:finite(g.firstDeltaUs)?g.firstDeltaUs/1000:null,
   prefillMs:finite(g.prefillUs)?g.prefillUs/1000:null,promptTokens:g.inputTokens,outputTokens:g.outputTokens,
@@ -21,3 +21,9 @@ export function summary(result){
 }
 export function difference(a,b){return typeof a==='number'&&a>0&&typeof b==='number'?(b-a)/a*100:null}
 export function exportReport(rows){return JSON.stringify({schema:'haruna-lab-v1',runs:rows.slice(-30).map(summary),scope:"Technical scalar export only; inspect device run provenance"},null,2)}
+
+export function compareAB(results){
+ const median=items=>{const a=items.filter(x=>typeof x==='number'&&Number.isFinite(x)).sort((a,b)=>a-b);return a.length?(a[Math.floor((a.length-1)/2)]+a[Math.floor(a.length/2)])/2:null};
+ const group=arm=>{const runs=results.filter(x=>x.arm===arm).map(summary),ok=runs.filter(x=>!x.error);return {runs:runs.length,successful:ok.length,ttftMedianMs:median(ok.map(x=>x.ttftMs)),nativeTtftMedianMs:median(ok.map(x=>x.nativeTtftMs)),promptMedianTokensPerSecond:median(ok.map(x=>x.promptTokensPerSecond)),decodeMedianTokensPerSecond:median(ok.map(x=>x.decodeWorkTokensPerSecond))}};
+ const A=group('A'),B=group('B');return {A,B,changePercent:{ttft:difference(A.ttftMedianMs,B.ttftMedianMs),decode:difference(A.decodeMedianTokensPerSecond,B.decodeMedianTokensPerSecond)},note:'Medianas do lote; menor TTFT/maior taxa não substituem avaliação de qualidade. Cache/thermal e parâmetros podem diferir: conferir exportação.'};
+}

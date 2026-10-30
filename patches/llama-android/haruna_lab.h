@@ -4,14 +4,18 @@ static std::mutex hl_lock;
 static std::string hl_prompt;
 static HarunaJson hl_snapshot() { std::lock_guard<std::mutex> lock(hl_lock); return {{"canonicalFormattedPrompt",hl_prompt}}; }
 // Lab settings only arrive from the DEBUG-only canonical benchmark owner.
-static bool hl_sampler=false;
+static bool hl_sampler=false, hl_inspector=false;
 static int hl_threads=0, hl_threads_batch=0;
 static void hl_configure(const std::string & json) {
     { std::lock_guard<std::mutex> lock(hl_lock); hl_prompt.clear(); }
-    if (json.empty()) {
+    hl_inspector=false;
+    const bool inspect_only=!json.empty() && HarunaJson::parse(json).value("inspectOnly",false);
+    if (json.empty() || inspect_only) {
+        hl_inspector=inspect_only;
         if (hl_sampler) { if(g_context&&hl_threads>0)llama_set_n_threads(g_context,hl_threads,hl_threads_batch);auto * old=g_sampler;g_sampler=new_sampler(DEFAULT_SAMPLER_TEMP);common_sampler_free(old);hl_sampler=false; }
         return;
     }
+    hl_inspector=true;
     if(hd_fixed_seed||hd_fa_off||hd_sampler_fixed)throw std::runtime_error("Restore previous DBG experiment before lab");
     const auto p=HarunaJson::parse(json);
     if(!hl_sampler){hl_threads=llama_n_threads(g_context);hl_threads_batch=llama_n_threads_batch(g_context);}

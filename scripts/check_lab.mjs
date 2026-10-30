@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {baseline,profiles,summary,difference,exportReport} from '../app/src/main/assets/haruna/diagnostics/lab-core.js';
+import {baseline,profiles,summary,difference,exportReport,compareAB} from '../app/src/main/assets/haruna/diagnostics/lab-core.js';
 assert.equal(baseline.temperature,.3);assert.equal(baseline.thinking,false);assert.equal(baseline.cache,false);
 assert.equal(profiles['Qwen recomendado — experimental'].temperature,1);
 assert.equal(profiles['Phi determinístico — experimental'].temperature,0);
@@ -10,4 +10,5 @@ assert.equal(summary(result).decodeWorkTokensPerSecond,5);
 assert(!exportReport([result]).includes('PRIVATE'));assert(!exportReport([result]).includes('INTERNAL'));
 assert.equal(JSON.parse(exportReport(Array(50).fill(result))).runs.length,30);
 const rejected=summary({...result,error:'generation_busy',nativeGenerationFresh:false});assert.equal(rejected.stopReason,'ERROR');assert.equal(rejected.promptTokens,undefined);assert.equal(rejected.nativeTtftMs,null);assert.equal(summary({...result,error:'cancelled',nativeGenerationFresh:false}).stopReason,'CANCELLED');
+const ab=compareAB([{...result,arm:'A',firstDeltaMs:100},{...result,arm:'A',firstDeltaMs:300},{...result,arm:'B',firstDeltaMs:50},{...result,arm:'B',firstDeltaMs:150}]);assert.equal(ab.A.ttftMedianMs,200);assert.equal(ab.B.ttftMedianMs,100);assert.equal(ab.changePercent.ttft,-50);
 console.log('PASS lab: baseline preserved; separate presets; correct rates/stops; bounded privacy-safe scalar export; no fabricated baseline.');
