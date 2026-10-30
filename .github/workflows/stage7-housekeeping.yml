@@ -1,0 +1,19 @@
+name: Cancel obsolete Stage 7 development builds
+on:
+  push:
+    branches: [build/stage7-ci-housekeeping]
+permissions:
+  actions: write
+  contents: read
+jobs:
+  cancel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only superseded development runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for run_id in 41132276349 41133175319; do
+            gh api --method POST "repos/doutor56-lab/Haruna/actions/runs/$run_id/cancel" || true
+          done
