@@ -46,6 +46,8 @@ with tempfile.TemporaryDirectory(prefix='haruna-voice-check-') as target:
         '-classpath', f'{stdlib}:{annotations}', '-d', target,
         'app/src/main/java/com/proxyslabs/haruna/speech/SpeechTextQueue.kt',
         'app/src/main/java/com/proxyslabs/haruna/speech/WhisperModels.kt',
+        'app/src/main/java/com/proxyslabs/haruna/speech/WhisperFileHeader.kt',
+        'app/src/main/java/com/proxyslabs/haruna/speech/SttErrors.kt',
         'scripts/check_voice.kt',
     ], check=True)
     subprocess.run(['java', '-ea', '-cp', f'{target}:{stdlib}',

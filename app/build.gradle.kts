@@ -19,10 +19,13 @@ android {
         minSdk = 33
         targetSdk = 36
         testInstrumentationRunner = "com.proxyslabs.haruna.diagnostic45.CanonicalRunner"
-        versionCode = 6
-        versionName = "0.6"
+        versionCode = 7
+        versionName = "0.6.1"
+        externalNativeBuild { cmake { arguments += "-DCMAKE_BUILD_TYPE=Release" } }
         ndk { abiFilters += listOf("arm64-v8a") }
     }
+
+    externalNativeBuild { cmake { path = file("src/main/cpp/stt/CMakeLists.txt"); version = "3.31.6" } }
 
     // llama.android discovers the GGML CPU variants by scanning
     // applicationInfo.nativeLibraryDir at runtime. Force JNI libraries to be

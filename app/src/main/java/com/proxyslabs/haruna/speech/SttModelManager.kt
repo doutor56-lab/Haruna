@@ -38,14 +38,14 @@ class SttModelManager(private val context: Context) {
         val manifest = JSONObject(File(dir, "installed.json").readText())
         // The pre-stage-6 Tiny manifest is recognized in place, without migration/copy.
         val legacy = model.family == "tiny" && manifest.optString("sha256") == SHA256
-        (legacy || manifest.optString("modelId") == model.id) && model.files.all {
+        (legacy || manifest.optString("modelId") == model.id) && (model.engine != "cpp" || manifest.optString("sha256") == model.sha256) && model.files.all {
             val file = File(dir, it); file.isFile && file.length() == manifest.getJSONObject("files").getLong(it)
         }
     }.getOrDefault(false)
     fun bytes(): Long = if (installed()) selected().files.sumOf { File(directory, it).length() } else 0L
     fun list(): JSONArray = JSONArray().also { list -> WhisperModels.supported.filter { File(root, it.id).isDirectory }.forEach { model ->
         val dir = File(root, model.id)
-        list.put(JSONObject().put("id", model.id).put("name", model.title).put("format", "sherpa-onnx · ONNX INT8 multilíngue")
+        list.put(JSONObject().put("id", model.id).put("name", model.title).put("format", if (model.engine == "cpp") "whisper.cpp · " + if (model.filename.contains("q5_1")) "Q5_1 multilíngue" else "F16 multilíngue" else "sherpa-onnx · ONNX INT8 multilíngue")
             .put("installed", installed(model)).put("selected", model.id == selected().id).put("bytes", model.files.sumOf { File(dir, it).length() }))
     } }
     fun select(id: String) {
@@ -61,31 +61,49 @@ class SttModelManager(private val context: Context) {
         cleanTemporary()
         try {
             check()
+            if (uri == null && download.engine == "cpp") {
+                val conn = SttDownload.open(download.url, { connection = it }, ::check)
+                stream = conn.inputStream.buffered()
+                installCpp(requireNotNull(stream) as java.io.InputStream, download.archiveBytes, download, progress)
+                return
+            }
             val total: Long?
             val input = if (uri != null) {
                 var size: Long? = null
                 context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
                     if (c.moveToFirst()) {
-                        require(c.getString(0).endsWith(".tar.bz2", true)) { "Selecione o pacote .tar.bz2 do Whisper multilíngue para sherpa-onnx" }
+                        // Identify bytes, never trust the display name or extension.
                         if (!c.isNull(1)) size = c.getLong(1).takeIf { it > 0 }
                     }
                 }
                 total = size
                 requireNotNull(context.contentResolver.openInputStream(uri)) { "Não foi possível abrir o pacote" }
             } else {
-                val conn = URI(download.url).toURL().openConnection() as HttpURLConnection
-                connection = conn; conn.connectTimeout = 20000; conn.readTimeout = 30000; conn.instanceFollowRedirects = true; conn.connect()
-                require(conn.responseCode in 200..299) { "Falha no download (${conn.responseCode})" }
+                val conn = SttDownload.open(download.url, { connection = it }, ::check)
                 total = conn.contentLengthLong.takeIf { it > 0 } ?: download.archiveBytes
                 conn.inputStream
             }
-            stream = input
+            val checkedInput = input.buffered()
+            stream = checkedInput
+            checkedInput.mark(48)
+            val header = ByteArray(48)
+            var read = 0
+            while (read < header.size) { check(); val n = checkedInput.read(header, read, header.size - read); if (n < 0) break; read += n }
+            checkedInput.reset()
+            if (read >= 4 && java.nio.ByteBuffer.wrap(header).order(java.nio.ByteOrder.LITTLE_ENDIAN).int == 0x67676d6c) {
+                WhisperFileHeader.family(header.copyOf(read))
+                installCpp(checkedInput, total, null, progress)
+                return
+            }
+            require(read >= 4 && header[0] == 66.toByte() && header[1] == 90.toByte() && header[2] == 104.toByte() && header[3] in 49.toByte()..57.toByte()) {
+                "Este arquivo não é um modelo de reconhecimento compatível. Importe um pacote sherpa-onnx ou Whisper GGML oficial F16/Q5_1."
+            }
             val required = maxOf(450L * 1024 * 1024, (total ?: 700L * 1024 * 1024) * 2 + 150L * 1024 * 1024)
             require(root.usableSpace > required) { "Espaço insuficiente para instalar: reserve aproximadamente ${required / 1048576} MB temporários" }
             val phase = if (uri == null) "downloading" else "importing"
             val digest = MessageDigest.getInstance("SHA-256")
             progress(phase, 0, total)
-            input.use { source -> archive.outputStream().use { out ->
+            checkedInput.use { source -> archive.outputStream().use { out ->
                 val buffer = ByteArray(128 * 1024); var count = 0L; var notified = 0L
                 while (true) {
                     check(); val n = source.read(buffer); if (n < 0) break
@@ -101,7 +119,7 @@ class SttModelManager(private val context: Context) {
             val archiveHash = digest.digest().joinToString("") { "%02x".format(it) }
             if (uri == null && download.family == "tiny") require(archiveHash == SHA256) { "O pacote Tiny não corresponde ao SHA-256 conhecido" }
             progress("extracting", 0, null); stage.mkdirs()
-            val allowed = WhisperModels.supported.flatMap { it.files }.toSet()
+            val allowed = WhisperModels.onnx.flatMap { it.files }.toSet()
             val found = mutableSetOf<String>(); var expanded = 0L; var declared = 0L
             BZip2CompressorInputStream(archive.inputStream().buffered()).use { bz -> TarArchiveInputStream(bz).use { tar ->
                 while (true) {
@@ -140,6 +158,46 @@ class SttModelManager(private val context: Context) {
             check(); require(stage.renameTo(target)) { "Não foi possível finalizar a instalação STT" }
             select(model.id); progress("installed", 0, null)
         } finally { runCatching { stream?.close() }; stream = null; connection?.disconnect(); connection = null; cleanTemporary() }
+    }
+    private fun installCpp(input: java.io.InputStream, total: Long?, expected: WhisperModels.Model?, progress: (String, Long, Long?) -> Unit) {
+        val maxBytes = WhisperModels.cpp.maxOf { it.archiveBytes }
+        require(total == null || total in 1..maxBytes) { "Modelo Whisper incompatível ou maior que os formatos suportados." }
+        require(root.usableSpace > (total ?: maxBytes) + 32L * 1024 * 1024) { "Não há espaço suficiente para instalar este modelo." }
+        val source = input.buffered()
+        stream = source
+        source.mark(48)
+        val header = source.readNBytes(48)
+        source.reset()
+        val family = WhisperFileHeader.family(header)
+        require(expected == null || family == expected.family) { "O arquivo não corresponde ao modelo escolhido." }
+        stage.mkdirs()
+        val file = File(stage, "model.bin")
+        val digest = MessageDigest.getInstance("SHA-256")
+        val phase = if (expected == null) "importing" else "downloading"
+        progress(phase, 0, total)
+        var count = 0L; var notified = 0L
+        source.use { src -> file.outputStream().use { out ->
+            val buffer = ByteArray(128 * 1024)
+            while (true) {
+                check(); val n = src.read(buffer); if (n < 0) break
+                count += n; require(count <= maxBytes) { "Modelo Whisper excede o limite suportado." }
+                out.write(buffer, 0, n); digest.update(buffer, 0, n)
+                if (count - notified >= 512 * 1024) { progress(phase, count, total); notified = count }
+            }
+        } }
+        if (total != null) require(count == total) { "O modelo parece estar incompleto ou corrompido." }
+        val hash = digest.digest().joinToString("") { "%02x".format(it) }
+        // This deliberately small verified set prevents malformed native model files reaching assertions/allocations.
+        val model = WhisperModels.cpp.firstOrNull { it.family == family && it.archiveBytes == count && it.sha256 == hash }
+            ?: error("O modelo parece estar corrompido ou não é uma das versões oficiais multilíngues F16/Q5_1 suportadas. Consulte os modelos disponíveis.")
+        require(expected == null || expected.id == model.id) { "O arquivo recebido não corresponde ao modelo escolhido." }
+        val target = File(root, model.id)
+        if (installed(model)) { select(model.id); progress("installed", count, count); return }
+        require(!target.exists()) { "Instalação incompleta: remova esse modelo nas configurações antes de reinstalar." }
+        File(stage, "installed.json").writeText(JSONObject().put("modelId", model.id).put("sha256", hash)
+            .put("engine", "whisper.cpp").put("files", JSONObject().put("model.bin", count)).toString())
+        check(); require(stage.renameTo(target)) { "Não foi possível finalizar a instalação STT." }
+        select(model.id); progress("installed", count, count)
     }
     fun remove(id: String = selected().id) {
         val model = WhisperModels.byId(id); val dir = File(root, model.id)

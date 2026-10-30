@@ -15,6 +15,7 @@ class RecognitionBridge(private val activity: MainActivity, private val webView:
     }
     private fun command(action: () -> Unit): String = runCatching { action(); JSONObject().put("status", "ok").toString() }
         .getOrElse { JSONObject().put("status", "error").put("error", it.message ?: "Falha no reconhecimento local").toString() }
+    @JavascriptInterface fun configure(json: String): String = command { manager.configure(json) }
     @JavascriptInterface fun getStatus(): String = manager.status().toString()
     @JavascriptInterface fun start(mode: String, id: String): String = command {
         require(!closed) { "Reconhecimento encerrado" }
@@ -27,6 +28,10 @@ class RecognitionBridge(private val activity: MainActivity, private val webView:
     }
     fun permitted(mode: String, id: String) {
         if (closed || expected != id) return
+        if (mode == "call") {
+            try { activity.ensureBackgroundVoiceCall() }
+            catch (failure: Exception) { manager.fail("Não foi possível iniciar a chamada em segundo plano. Mantenha a Haruna aberta e tente novamente.", id); return }
+        }
         activity.prepareToListen {
             if (!closed && expected == id) runCatching { manager.start(mode, id) }.onFailure { manager.fail(it.message ?: "Não foi possível iniciar o microfone", id) }
         }

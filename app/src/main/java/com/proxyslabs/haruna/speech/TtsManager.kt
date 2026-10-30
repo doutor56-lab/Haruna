@@ -32,10 +32,11 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
             emit(JSONObject().put("meter", true).put("state", "playing").put("messageId", id).put("level", value))
     }
 
-    init { worker.execute { models.cleanTemporary() } }
+    init { player.volume(prefs.getFloat("volume", 1f)); worker.execute { models.cleanTemporary() } }
     fun status(): JSONObject = JSONObject().put("state", state).put("error", error)
         .put("installed", models.installed()).put("bytes", models.bytes()).put("speakers", models.speakers())
         .put("speaker", prefs.getInt("speaker", -1)).put("speed", prefs.getFloat("speed", 1f).toDouble())
+        .put("volume", prefs.getFloat("volume", 1f).toDouble())
         .put("pronunciations", JSONObject(prefs.getString("pronunciations", "{}") ?: "{}"))
         .put("copiedBytes", copied).put("totalBytes", total).put("messageId", messageId)
         .put("archiveBytes", TtsModelManager.ARCHIVE_BYTES)
@@ -55,6 +56,11 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
             val speed = value.getDouble("speed")
             require(speed.isFinite() && speed in 0.7..1.4) { "Velocidade inválida" }
             prefs.edit().putFloat("speed", speed.toFloat()).apply()
+        }
+        if (value.has("volume")) {
+            val volume = value.getDouble("volume")
+            require(volume.isFinite() && volume in 0.0..1.0) { "Volume inválido" }
+            prefs.edit().putFloat("volume", volume.toFloat()).apply(); player.volume(volume.toFloat())
         }
         if (value.has("pronunciations")) {
             val dictionary = value.getJSONObject("pronunciations")
@@ -156,6 +162,8 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
         require(stream.id == id && generation.get() == stream.ticket) { "Pedido de fala antigo" }
         stream.queue.finish()
     }
+    @Synchronized fun pauseAudio() { check(state == "playing") { "Aguarde o início da fala." }; player.pause(); publish("paused") }
+    @Synchronized fun resumeAudio() { check(state == "paused") { "Não há áudio pausado." }; player.resume(); publish("playing") }
     @Synchronized fun stop(reason: String? = null) {
         textStream?.queue?.cancel(); textStream = null
         val ticket = generation.incrementAndGet(); player.stop(); if (!installing.get()) publish("idle", reason = reason)

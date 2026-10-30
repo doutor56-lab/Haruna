@@ -1,0 +1,4 @@
+{
+  global: Java_com_proxyslabs_haruna_speech_WhisperCppNative_transcribe;
+  local: *;
+};

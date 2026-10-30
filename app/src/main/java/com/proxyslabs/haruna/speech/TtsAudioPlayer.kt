@@ -19,16 +19,18 @@ class TtsAudioPlayer(context: Context, private val focusLost: () -> Unit) {
         .setAudioAttributes(attributes).setOnAudioFocusChangeListener({ if (it < 0) focusLost() }, Handler(Looper.getMainLooper())).build()
     private val lock = Any()
     private var track: AudioTrack? = null
+    @Volatile private var paused = false
+    @Volatile private var volume = 1f
     private var sampleRate = 0
     private var written = 0L
     fun begin(rate: Int) {
         require(manager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) { "Não foi possível obter a saída de áudio" }
         synchronized(lock) {
-            sampleRate = rate; written = 0
+            sampleRate = rate; written = 0; paused = false
             val buffer = maxOf(AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT), rate / 5 * 4)
             track = AudioTrack.Builder().setAudioAttributes(attributes)
                 .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-                .setBufferSizeInBytes(buffer).setTransferMode(AudioTrack.MODE_STREAM).build().also { it.play() }
+                .setBufferSizeInBytes(buffer).setTransferMode(AudioTrack.MODE_STREAM).build().also { it.setVolume(volume); it.play() }
         }
     }
     fun write(samples: FloatArray, alive: () -> Boolean, level: (Double) -> Unit = {}) {
@@ -36,6 +38,7 @@ class TtsAudioPlayer(context: Context, private val focusLost: () -> Unit) {
         val owner = synchronized(lock) { track } ?: return
         var offset = 0
         while (offset < samples.size && alive()) {
+            if (paused) { Thread.sleep(20); continue }
             val n = synchronized(lock) {
                 if (track !== owner) return
                 owner.write(samples, offset, minOf(2048, samples.size - offset), AudioTrack.WRITE_NON_BLOCKING)
@@ -60,7 +63,11 @@ class TtsAudioPlayer(context: Context, private val focusLost: () -> Unit) {
             Thread.sleep(15)
         }
     }
+    fun volume(value: Float) { volume = value; synchronized(lock) { track?.setVolume(value) } }
+    fun pause() { synchronized(lock) { check(track != null) { "Aguarde o início da fala." }; paused = true; track?.pause() } }
+    fun resume() { synchronized(lock) { check(track != null) { "Não há áudio pausado." }; track?.play(); paused = false } }
     fun stop() {
+        paused = false
         synchronized(lock) { track?.let { runCatching { it.pause(); it.flush(); it.release() } }; track = null }
         manager.abandonAudioFocusRequest(focus)
     }

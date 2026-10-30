@@ -18,7 +18,7 @@ await mkdir('stage6-browser',{recursive:true});
 try{
  for(const width of [360,768]){
   const context=await browser.newContext({viewport:{width,height:900}});
-  const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.accept());
+  const page=await context.newPage();const errors=[];page.on('pageerror',error=>{errors.push(error.message);console.log('BROWSER ERROR',error.stack)});page.on('dialog',dialog=>dialog.accept());
   await page.route('**/*',route=>route.request().url().startsWith('http://127.0.0.1:')?route.continue():route.abort());
   await page.addInitScript(()=>{
    localStorage.setItem('haruna_onboarding_v1','done');
@@ -26,7 +26,7 @@ try{
    const event=(name,detail)=>window.dispatchEvent(new CustomEvent(name,{detail:clone(detail)}));
    const f=window.__voiceFixture={calls:[],segments:[],model:'Qwen3.5-2B-Q4_K_M.gguf',selected:'whisper-tiny-int8',models:[{id:'whisper-tiny-int8',name:'Whisper Tiny',installed:true,bytes:103600000}],capture:null,cycle:0,ttsId:null,generating:false,firstTts:null,llmEnd:null};
    const stt=()=>({state:'idle',installed:true,modelName:f.models.find(x=>x.id===f.selected)?.name||'Whisper Tiny',selectedId:f.selected,models:f.models.map(x=>({...x,selected:x.id===f.selected})),bytes:103600000,busy:false,loaded:false});
-   const tts=()=>({state:'idle',installed:true,speaker:0,speed:1,speakers:10,voiceLabels:['F1','F2','F3','F4','F5','M1','M2','M3','M4','M5'],bytes:145000000,pronunciations:{}});
+   const tts=()=>({volume:1,state:'idle',installed:true,speaker:0,speed:1,speakers:10,voiceLabels:['F1','F2','F3','F4','F5','M1','M2','M3','M4','M5'],bytes:145000000,pronunciations:{}});
    const status=()=>({available:true,modelLoaded:true,state:f.generating?'generating':'active',modelName:f.model});
    const ok=()=>json({status:'ok'});
    window.HarunaAndroid={isAvailable:()=>true,getStatus:()=>json(status()),getAssistantIdentity:()=> 'Haruna',getBehaviorProfile:()=>json({}),
@@ -43,15 +43,16 @@ try{
     },
     stopGeneration:()=>{const r=f.request;if(r){r.timers.forEach(clearTimeout);f.generating=false;window.harunaAndroidOnEvent({type:'stream',requestId:r.id,sequence:++r.sequence,delta:'',final:{type:'error',code:'cancelled',message:'Geração interrompida'}});f.request=null}return json({status:'ok',draining:!!r})}
    };
-   window.HarunaSpeech={getStatus:()=>json(tts()),configure:()=>ok(),speak:()=>ok(),download:()=>ok(),importModel:()=>ok(),removeModel:()=>ok(),cancelInstallation:()=>ok(),
+   window.HarunaVoiceCall={status:()=>json({running:f.callRunning===true}),end:()=>{f.callRunning=false;f.calls.push(['service-end']);return ok()}};
+   window.HarunaSpeech={getStatus:()=>json(tts()),pause:()=>{f.calls.push(['pause-audio']);event('haruna-tts-status',{...tts(),state:'paused',messageId:f.ttsId});return ok()},resume:()=>{f.calls.push(['resume-audio']);event('haruna-tts-status',{...tts(),state:'playing',messageId:f.ttsId});return ok()},configure:config=>{f.calls.push(['tts-config',JSON.parse(config)]);return ok()},speak:()=>ok(),download:()=>ok(),importModel:()=>ok(),removeModel:()=>ok(),cancelInstallation:()=>ok(),
     beginStream:id=>{f.ttsId=id;f.calls.push(['begin',id]);event('haruna-tts-status',{...tts(),state:'buffering',messageId:id});return ok()},
     appendStream:(id,text)=>{assertId(id);f.segments.push(text);if(f.firstTts===null)f.firstTts=performance.now();f.calls.push(['segment',text]);setTimeout(()=>{event('haruna-tts-status',{...tts(),state:'playing',messageId:id});event('haruna-tts-status',{meter:true,state:'playing',messageId:id,level:.8})},20);return ok()},
     endStream:id=>{assertId(id);f.calls.push(['end',id]);setTimeout(()=>event('haruna-tts-status',{...tts(),state:'idle',messageId:id}),100);return ok()},
     stop:()=>{const id=f.ttsId;f.ttsId=null;event('haruna-tts-status',{...tts(),state:'idle',messageId:id});return ok()}
    };
    function assertId(id){if(id!==f.ttsId)throw Error('stale TTS request')}
-   window.HarunaRecognition={getStatus:()=>json(stt()),start:(mode,id)=>{
-    f.capture=id;f.cycle++;const cycle=f.cycle;f.calls.push(['start',mode,id]);
+   window.HarunaRecognition={configure:config=>{f.calls.push(['stt-config',JSON.parse(config)]);return ok()},getStatus:()=>json(stt()),start:(mode,id)=>{
+    f.capture=id;if(mode==='call')f.callRunning=true;f.cycle++;const cycle=f.cycle;f.calls.push(['start',mode,id]);
     setTimeout(()=>{if(f.capture!==id)return;event('haruna-stt-status',{...stt(),state:'listening',requestId:id,mode});event('haruna-stt-status',{meter:true,state:'listening',requestId:id,level:.6})},20);
     if(cycle===1)setTimeout(()=>{if(f.capture!==id)return;f.capture=null;event('haruna-stt-status',{...stt(),state:'result',requestId:id,mode,text:'Explique por que a água ferve quando é aquecida.'})},200);
     return ok();},
@@ -62,7 +63,7 @@ try{
    };
   });
   await page.goto(`http://127.0.0.1:${server.address().port}/index.html`);
-  await page.waitForFunction(()=>window.__HARUNA_CHAT_READY__&&document.querySelector('.haruna-credits')&&document.querySelector('.recommended-model[data-tier=capable] strong')?.textContent==='Phi-4 Mini 3.8B');
+  try{await page.waitForFunction(()=>window.__HARUNA_CHAT_READY__&&document.querySelector('.haruna-credits')&&document.querySelector('.recommended-model[data-tier=capable] strong')?.textContent==='Phi-4 Mini 3.8B',null,{timeout:8000})}catch(error){console.log(await page.evaluate(()=>({ready:window.__HARUNA_CHAT_READY__,credits:!!document.querySelector('.haruna-credits'),catalog:document.querySelector('.recommended-model[data-tier=capable]')?.textContent})));throw error}
   await context.setOffline(true);
   assert.equal(await page.locator('.brand h1').textContent(),'Haruna');
   assert.equal(await page.locator('#brain').textContent(),'Qwen3.5 local ativo');
@@ -77,6 +78,11 @@ try{
   assert(Number(await page.locator('.voice-call-orb').evaluate(x=>x.style.getPropertyValue('--voice-scale')))>1);
   const orbStyle=await page.locator('.voice-call-orb').evaluate(x=>({background:getComputedStyle(x).backgroundImage,radius:getComputedStyle(x).borderRadius}));assert(orbStyle.background.includes('radial-gradient'));assert.equal(orbStyle.radius,'50%');
   const bounds=await page.locator('.voice-call').boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);
+  await page.getByRole('button',{name:'Pausar áudio',exact:true}).click();assert.equal(await page.locator('.voice-call-orb').getAttribute('data-state'),'paused');
+  await page.getByRole('button',{name:'Continuar áudio',exact:true}).click();assert.equal(await page.locator('.voice-call-orb').getAttribute('data-state'),'speaking');
+  await page.getByRole('button',{name:'Voltar ao chat',exact:true}).click();assert(await page.locator('.voice-miniplayer').isVisible());assert.equal(await page.locator('.voice-call').getAttribute('open'),null);
+  await page.screenshot({path:`stage6-browser/miniplayer-${width}.png`});
+  await page.getByRole('button',{name:'Abrir chamada',exact:true}).click();assert(await page.locator('.voice-call').isVisible());assert(await page.locator('.voice-miniplayer').isHidden());
   await page.screenshot({path:`stage6-browser/call-${width}.png`});
   await page.waitForFunction(()=>window.__voiceFixture.llmEnd!==null);
   await page.waitForFunction(()=>document.querySelector('.voice-call-orb')?.dataset.state==='listening');
@@ -86,6 +92,12 @@ try{
   await page.getByRole('button',{name:'Retomar',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.voice-call-orb')?.dataset.state==='listening');
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('haruna-stt-status',{detail:{state:'error',error:'microfone indisponível',requestId:__voiceFixture.capture,installed:true,models:__voiceFixture.models,modelName:'Whisper Tiny'}})));
   assert.equal(await page.locator('.voice-call-orb').getAttribute('data-state'),'error');
+  await page.locator('.voice-call [data-settings]').click();assert(await page.getByRole('dialog',{name:'Configurações de voz',exact:true}).isVisible());
+  await page.locator('.call-voice-settings [data-stream]').uncheck();assert.equal(await page.evaluate(()=>localStorage.getItem('haruna_voice_stream')),'off');
+  await page.locator('.call-voice-settings [data-stream]').check();
+  await page.locator('.call-voice-settings [data-auto]').uncheck();assert(await page.evaluate(()=>__voiceFixture.calls.some(x=>x[0]==='stt-config'&&x[1].automaticPause===false)));
+  await page.screenshot({path:`stage6-browser/voice-settings-${width}.png`});
+  await page.getByRole('button',{name:'Fechar configurações de voz',exact:true}).click();
   await page.getByRole('button',{name:'Encerrar',exact:true}).click();assert.equal(await page.locator('.voice-call').count(),0);
   await page.locator('.nav-item[data-view=settings]').click();
   await page.locator('.recognition-settings [data-import]').click();await page.waitForFunction(()=>document.querySelector('.recognition-settings [data-state]')?.textContent.includes('Whisper Base'));
@@ -102,10 +114,12 @@ try{
   await page.locator('.nav-item[data-view=chat]').click();
   await page.getByRole('button',{name:'Conversa por voz local',exact:true}).click();await page.getByRole('button',{name:'Iniciar conversa',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.voice-call-orb')?.dataset.state==='listening');
-  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('haruna-tts-status',{detail:{state:'idle',reason:'app_background'}})));
-  assert.equal(await page.locator('.voice-call').count(),0);
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{get:()=>__voiceFixture.hidden===true,configurable:true});__voiceFixture.hidden=true;document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new CustomEvent('haruna-tts-status',{detail:{state:'idle',reason:'app_background'}}))});
+  assert.equal(await page.locator('.voice-call').count(),1);assert(await page.locator('html').evaluate(x=>x.classList.contains('voice-background')));
+  await page.evaluate(()=>{__voiceFixture.hidden=false;document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new CustomEvent('haruna-call-stop'))});
+  assert.equal(await page.locator('.voice-call').count(),0);assert.equal(await page.evaluate(()=>__voiceFixture.callRunning),false);
   assert.deepEqual(errors,[]);await context.close();
-  console.log(`PASS voice browser ${width}px: offline UI/bridge-fake call, early TTS, mic/PCM levels, pause/resume/error/end, STT list/import/select/remove wiring, header/status/catalog/footer and bounded new components.`);
+  console.log(`PASS voice browser ${width}px: offline UI/bridge-fake call, early TTS, mic/PCM levels, pause/resume/error/end, real DOM miniplayer/configuration/background-service-event wiring, STT list/import/select/remove wiring, header/status/catalog/footer and bounded new components.`);
  }
 }finally{await browser.close();server.close()}
 console.log('SIMULATION ONLY: no real microphone, ONNX/GGUF model, speech recognition or physical audio tested.');

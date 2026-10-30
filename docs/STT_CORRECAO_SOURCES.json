@@ -1,0 +1,73 @@
+{
+  "whisperCpp": {
+    "version": "1.8.3",
+    "commit": "2eeeba56e9edd762b4b38467bab96c2517163158",
+    "sourceArchiveSha256": "089b898aa83b24a8321e0fd554eeb0967fb03dd687e27f6374c72d3363b5b429"
+  },
+  "modelRepository": {
+    "sha": "5359861c739e955e79d9a303bcbc70fb988958b1",
+    "files": [
+      {
+        "rfilename": "ggml-base-q5_1.bin",
+        "blobId": "4947e22c7365d941a9864b2d0f9f474a505cf39b",
+        "size": 59707625,
+        "lfs": {
+          "sha256": "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898",
+          "size": 59707625,
+          "pointerSize": 133
+        }
+      },
+      {
+        "rfilename": "ggml-base.bin",
+        "blobId": "17993a254ac4e9db7642a261cf53af3dc446145c",
+        "size": 147951465,
+        "lfs": {
+          "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+          "size": 147951465,
+          "pointerSize": 134
+        }
+      },
+      {
+        "rfilename": "ggml-small-q5_1.bin",
+        "blobId": "87631c52c89d37ed2337a46ec4a009976db1f3f4",
+        "size": 190085487,
+        "lfs": {
+          "sha256": "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
+          "size": 190085487,
+          "pointerSize": 134
+        }
+      },
+      {
+        "rfilename": "ggml-small.bin",
+        "blobId": "bc4c4d96b528654fb067e2b243bdc438cfaf0072",
+        "size": 487601967,
+        "lfs": {
+          "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
+          "size": 487601967,
+          "pointerSize": 134
+        }
+      },
+      {
+        "rfilename": "ggml-tiny-q5_1.bin",
+        "blobId": "42701a9c1d8a9f4f0b96dbcefcc049075814bcf3",
+        "size": 32152673,
+        "lfs": {
+          "sha256": "818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7",
+          "size": 32152673,
+          "pointerSize": 133
+        }
+      },
+      {
+        "rfilename": "ggml-tiny.bin",
+        "blobId": "d144f735b005ae8cbfa04a49e22fe40faa24dbec",
+        "size": 77691713,
+        "lfs": {
+          "sha256": "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
+          "size": 77691713,
+          "pointerSize": 133
+        }
+      }
+    ]
+  },
+  "onnx": "STAGE6_MODEL_SOURCES.json; official sherpa release asr-models, original three packages retained"
+}

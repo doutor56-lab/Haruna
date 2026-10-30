@@ -8,7 +8,7 @@ object VoiceCheck {
         var checks = 0
         fun test(name: String, action: () -> Unit) { action(); checks++; println("PASS voice $name") }
         test("Tiny Base Small exported INT8 pairs") {
-            for (model in WhisperModels.supported) {
+            for (model in WhisperModels.onnx) {
                 check(WhisperModels.detect(model.files.toSet()) == model)
                 check(WhisperModels.byId(model.id) == model)
                 check(model.url.startsWith("https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"))
@@ -33,6 +33,35 @@ object VoiceCheck {
             check(!WhisperModels.hasPortuguese((0..50255).joinToString("\n") { "YQ== $it" }))
             check(!WhisperModels.hasPortuguese(multilingual + "\nYQ== 50256"))
             check(!WhisperModels.hasPortuguese("invalid file"))
+        }
+        test("Whisper CPP verified models are distinct from ONNX and each other") {
+            check(WhisperModels.cpp.size == 6)
+            check(WhisperModels.supported.map { it.id }.toSet().size == 9)
+            for (model in WhisperModels.cpp) {
+                check(model.sha256.matches(Regex("[0-9a-f]{64}")))
+                check(model.files == listOf("model.bin"))
+                check(model.url.startsWith("https://huggingface.co/ggerganov/whisper.cpp/resolve/"))
+                check(model.archiveBytes in 30_000_000..500_000_000)
+                check(WhisperModels.byId(model.id) == model)
+            }
+        }
+        test("minimal GGML header rejects LLM GGUF, English and corrupt dimensions before copy") {
+            fun header(vocab: Int = 51865, width: Int = 384): ByteArray {
+                val buffer = java.nio.ByteBuffer.allocate(48).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                listOf(0x67676d6c, vocab,1500,width,6,4,448,width,6,4,80,1).forEach { buffer.putInt(it) }
+                return buffer.array()
+            }
+            check(WhisperFileHeader.family(header()) == "tiny")
+            check(runCatching { WhisperFileHeader.family(header(51864)) }.isFailure)
+            check(runCatching { WhisperFileHeader.family(header(width=4096)) }.isFailure)
+            check(runCatching { WhisperFileHeader.family("GGUF".toByteArray()) }.isFailure)
+            check(runCatching { WhisperFileHeader.family(ByteArray(48)) }.isFailure)
+        }
+        test("network errors have Portuguese UI messages without raw Java DNS text") {
+            val message = SttErrors.message(java.net.UnknownHostException("Unable to resolve host github.com"))
+            check(message.contains("conexão") && !message.contains("Unable") && !message.contains("github.com"))
+            check(SttErrors.message(java.io.EOFException()).contains("corrompido"))
+            check(SttErrors.message(java.io.IOException("ENOSPC")).contains("espaço"))
         }
         test("FIFO and final drain") {
             val queue = SpeechTextQueue(); queue.offer("Primeira frase."); queue.offer("Segunda frase."); queue.finish()

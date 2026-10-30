@@ -6,7 +6,7 @@ import android.media.MediaRecorder
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.sqrt
 
-/** Foreground-only bounded PCM capture. No audio is saved to disk. */
+/** Bounded PCM capture; background calls require the explicit foreground service. No audio is saved to disk. */
 class SttAudioRecorder {
     companion object { const val RATE = 16000; const val MAX_SECONDS = 20 }
     @Volatile private var recorder: AudioRecord? = null
@@ -14,7 +14,7 @@ class SttAudioRecorder {
     fun prepare() { finishRequested.set(false) }
     fun finish() { finishRequested.set(true); runCatching { recorder?.stop() } }
     fun cancel() = finish()
-    fun capture(alive: () -> Boolean, started: () -> Unit, level: (Double) -> Unit): FloatArray {
+    fun capture(alive: () -> Boolean, started: () -> Unit, level: (Double) -> Unit, automaticPause: Boolean = true): FloatArray {
         if (!alive() || finishRequested.get()) return FloatArray(0)
         val minBuffer = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         require(minBuffer > 0) { "Microfone não suporta captura em 16 kHz" }
@@ -57,7 +57,7 @@ class SttAudioRecorder {
                 if (!speech && !voiced) noise = (noise * 0.995 + rms * 0.005).coerceAtMost(1500.0)
                 val now = android.os.SystemClock.elapsedRealtime()
                 if (now - lastLevel >= 160) { lastLevel = now; level((rms / 5000.0).coerceIn(0.0, 1.0)) }
-                if (speech && used - lastVoice > RATE * 16 / 10) break
+                if (automaticPause && speech && used - lastVoice > RATE * 16 / 10) break
                 if (!speech && used >= RATE * 10) break
             }
             // An energy gate avoids decoding silence; it is not a learned VAD model.

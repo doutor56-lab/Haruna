@@ -78,14 +78,42 @@ class MainActivity : AppCompatActivity() {
     private var pendingVoicePermission: Pair<String, String>? = null
     private val voicePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val pending = pendingVoicePermission; pendingVoicePermission = null
-        if (pending != null) { if (granted) recognition.permitted(pending.first, pending.second) else recognition.denied(pending.second) }
+        if (pending != null) { if (granted) requestVoicePermission(pending.first, pending.second) else recognition.denied(pending.second) }
+    }
+    private val callNotificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val pending = pendingVoicePermission; pendingVoicePermission = null
+        if (pending != null) {
+            if (granted) requestVoicePermission(pending.first, pending.second)
+            else recognition.permissionFailed("Permita as notificações para manter uma chamada com controle de encerramento em segundo plano. O ditado continua disponível.", pending.second)
+        }
     }
     fun requestVoicePermission(mode: String, id: String) {
+        if (mode == "call" && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            pendingVoicePermission = mode to id
+            callNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) recognition.permitted(mode, id)
         else { pendingVoicePermission = mode to id; try { voicePermission.launch(android.Manifest.permission.RECORD_AUDIO) } catch (failure: Exception) { pendingVoicePermission = null; recognition.permissionFailed(failure.message ?: "Não foi possível solicitar o microfone", id) } }
     }
     fun prepareToListen(ready: () -> Unit) = speech.prepareForListening(ready)
     fun stopListening() { if (::recognition.isInitialized) recognition.stop() }
+
+    private val callStopReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            if (intent?.action == com.proxyslabs.haruna.speech.VoiceCallService.STOP) {
+                stopListening(); speech.stop()
+                webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-call-stop'))", null)
+            }
+        }
+    }
+    fun ensureBackgroundVoiceCall() {
+        if (!com.proxyslabs.haruna.speech.VoiceCallService.running) {
+            check(!activityClosed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) { "Inicie a chamada com a Haruna visível." }
+            startForegroundService(android.content.Intent(this, com.proxyslabs.haruna.speech.VoiceCallService::class.java))
+        }
+    }
+    fun endBackgroundVoiceCall() { stopService(android.content.Intent(this, com.proxyslabs.haruna.speech.VoiceCallService::class.java)) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -118,6 +146,8 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(speech, "HarunaSpeech")
         recognition = com.proxyslabs.haruna.speech.RecognitionBridge(this, webView)
         webView.addJavascriptInterface(recognition, "HarunaRecognition")
+        webView.addJavascriptInterface(com.proxyslabs.haruna.speech.VoiceCallBridge(this), "HarunaVoiceCall")
+        registerReceiver(callStopReceiver, android.content.IntentFilter(com.proxyslabs.haruna.speech.VoiceCallService.STOP), RECEIVER_NOT_EXPORTED)
         // Diagnostics is optional: failure to create its bridge must not block the app.
         runCatching {
             diagnostics = com.proxyslabs.haruna.diagnostics.DiagnosticBridge(this, webView, backend,
@@ -210,12 +240,16 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onStop() {
         pendingVoicePermission = null
-        if (::recognition.isInitialized) { recognition.stop(); recognition.cancelInstallation() }
-        if (::speech.isInitialized) { speech.suspendForBackground(); speech.cancelInstallation() }
+        val calling = com.proxyslabs.haruna.speech.VoiceCallService.running
+        if (::recognition.isInitialized) { if (!calling) recognition.stop(); recognition.cancelInstallation() }
+        if (::speech.isInitialized) { if (!calling) speech.suspendForBackground(); speech.cancelInstallation() }
         super.onStop()
     }
     override fun onDestroy() {
         activityClosed = true
+        endBackgroundVoiceCall()
+        runCatching { unregisterReceiver(callStopReceiver) }
+        webView.removeJavascriptInterface("HarunaVoiceCall")
         if (::bridge.isInitialized) bridge.close()
         if (::diagnostics.isInitialized) diagnostics.close()
         webView.removeJavascriptInterface("HarunaDiagnostics"); recognition.close()

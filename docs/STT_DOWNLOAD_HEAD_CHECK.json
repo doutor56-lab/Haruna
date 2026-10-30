@@ -1,0 +1,56 @@
+[
+  {
+    "name": "cpp:ggml-base-q5_1.bin",
+    "status": 200,
+    "sizeHeader": "59707625",
+    "https": true
+  },
+  {
+    "name": "cpp:ggml-base.bin",
+    "status": 200,
+    "sizeHeader": "147951465",
+    "https": true
+  },
+  {
+    "name": "cpp:ggml-small-q5_1.bin",
+    "status": 200,
+    "sizeHeader": "190085487",
+    "https": true
+  },
+  {
+    "name": "cpp:ggml-small.bin",
+    "status": 200,
+    "sizeHeader": "487601967",
+    "https": true
+  },
+  {
+    "name": "cpp:ggml-tiny-q5_1.bin",
+    "status": 200,
+    "sizeHeader": "32152673",
+    "https": true
+  },
+  {
+    "name": "cpp:ggml-tiny.bin",
+    "status": 200,
+    "sizeHeader": "77691713",
+    "https": true
+  },
+  {
+    "name": "tiny",
+    "status": 200,
+    "sizeHeader": "116204861",
+    "https": true
+  },
+  {
+    "name": "base",
+    "status": 200,
+    "sizeHeader": "207557382",
+    "https": true
+  },
+  {
+    "name": "small",
+    "status": 200,
+    "sizeHeader": "639387718",
+    "https": true
+  }
+]

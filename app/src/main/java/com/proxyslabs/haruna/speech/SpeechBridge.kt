@@ -21,6 +21,8 @@ class SpeechBridge(private val activity: MainActivity, private val webView: WebV
     @JavascriptInterface fun beginStream(messageId: String): String = command { activity.stopListening(); manager.beginStream(messageId) }
     @JavascriptInterface fun appendStream(messageId: String, text: String): String = command { manager.appendStream(messageId, text) }
     @JavascriptInterface fun endStream(messageId: String): String = command { manager.endStream(messageId) }
+    @JavascriptInterface fun pause(): String = command { manager.pauseAudio() }
+    @JavascriptInterface fun resume(): String = command { manager.resumeAudio() }
     @JavascriptInterface fun stop(): String = command { manager.stop() }
     @JavascriptInterface fun download(): String = command { manager.install(null) }
     @JavascriptInterface fun importModel(): String = command { activity.runOnUiThread { activity.pickVoiceModel() } }
