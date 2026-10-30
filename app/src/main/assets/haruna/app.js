@@ -1,4 +1,4 @@
-import {beginPipeline,measured,measuredAsync} from './diagnostics/pipeline.js';
+import {beginPipeline,measured,measuredAsync,takeInspectorRequest} from './diagnostics/pipeline.js';
 import {modelStatus} from './voice/model-names.js';
 import {createMessageView} from './streaming/message-view.js';
 import {preparationStarted,contextPrepared,domUpdated,presentationFinished} from './diagnostics/inference.js';
@@ -212,7 +212,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
   let generationError=null,followEnd=true;
   try{
    await llm.generate(messages,{conversationId:chat.id,essentialContext:profile,enableThinking:thinkMode,maxTokens:thinkMode?512:256,
-    streamOnly:true,onToken:delta=>{view.push(delta);try{voiceObserver?.push(delta,thinkMode)}catch{}}});
+    ...(takeInspectorRequest()?{labInspector:true}:{}),streamOnly:true,onToken:delta=>{view.push(delta);try{voiceObserver?.push(delta,thinkMode)}catch{}}});
    delete draft.interrupted;
   }catch(error){generationError=error}
   finally{

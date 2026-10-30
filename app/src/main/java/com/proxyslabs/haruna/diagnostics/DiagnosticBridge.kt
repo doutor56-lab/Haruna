@@ -35,6 +35,8 @@ class DiagnosticBridge(
             lab.run(config)
         }.getOrElse { JSONObject().put("status", "error").put("error", it.message ?: "Voz ocupada").toString() }
     }
+    @JavascriptInterface fun labModel(): String = if (com.proxyslabs.haruna.BuildConfig.DEBUG && !closed.get()) backend.status().modelName ?: "" else ""
+    @JavascriptInterface fun labPromptInspector(): String = if (com.proxyslabs.haruna.BuildConfig.DEBUG && !closed.get()) runCatching { JSONObject(backend.runtimeMetrics()).optJSONObject("laboratory")?.optString("canonicalFormattedPrompt", "") ?: "" }.getOrDefault("") else ""
     @JavascriptInterface fun labCancel() { lab.cancel() }
     private val pending = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)

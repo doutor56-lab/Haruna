@@ -73,7 +73,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             const auto template_start = hm_clock();
             hm_stage = 1;
             auto formatted = common_chat_templates_apply(g_chat_templates.get(), input);
-            if(hl_sampler) { std::lock_guard<std::mutex> lock(hl_lock); hl_prompt.clear(); for(const auto & part: formatted.prompt.parts) hl_prompt+=part.text; }
+            if(hl_inspector) { std::lock_guard<std::mutex> lock(hl_lock); hl_prompt.clear(); for(const auto & part: formatted.prompt.parts) hl_prompt+=part.text; }
             hm_template += hm_clock() - template_start;
             if (hs_check_cancel()) return 5;
             const auto tokenize_start = hm_clock();
