@@ -1,0 +1,109 @@
+name: Haruna Stage 5 multimodel validation
+on:
+  push:
+    branches: [build/stage5-ee26e03]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  LLAMA_CPP_REVISION: 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ee26e037919d9ce413207848911d669f2af18b7f
+          submodules: recursive
+          fetch-depth: 1
+      - name: Pin provenance and verify protected subsystems
+        run: |
+          echo "HARUNA_SOURCE_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          git fetch --depth=1 origin 3d7c343bce61c381761078e8aac2d73c6cb08e27
+          python3 scripts/check_multimodel_source.py
+          git -C third_party/llama.cpp fetch --depth=1 origin "$LLAMA_CPP_REVISION"
+          git -C third_party/llama.cpp checkout --detach "$LLAMA_CPP_REVISION"
+          python3 scripts/patch_android_loader.py
+          python3 scripts/check_diag45_binding.py
+          python3 scripts/check_decision_probes.py
+          python3 scripts/check_diag45.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JS model state and existing streaming RAG regressions
+        run: |
+          mkdir -p stage5-tests
+          set -o pipefail
+          node scripts/check_multimodel.mjs | tee stage5-tests/models-js.txt
+          node scripts/check_streaming.mjs | tee stage5-tests/streaming-js.txt
+          node scripts/check_prefix_rag.mjs | tee stage5-tests/rag-fastpath.txt
+          g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined scripts/check_prefix_cache.cpp -o /tmp/prefix-check
+          ASAN_OPTIONS=detect_leaks=0 /tmp/prefix-check | tee stage5-tests/prefix-native.txt
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Existing Android toolchain
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.13113456" "cmake;3.31.6"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Compile Kotlin before long native build
+        run: gradle :app:compileDebugKotlin --stacktrace --no-daemon
+      - name: Pure Kotlin model lifecycle and streaming controller tests
+        run: |
+          set -o pipefail
+          python3 scripts/check_multimodel.py | tee stage5-tests/models-kotlin.txt
+          python3 scripts/check_stream_delivery.py | tee stage5-tests/streaming-kotlin.txt
+      - name: Build complete normal Android APK and compile instrumentation
+        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace --no-daemon
+      - name: Validate normal APK and finalize report
+        run: |
+          mkdir -p stage5-artifact
+          cp app/build/outputs/apk/debug/app-debug.apk stage5-artifact/
+          cp -r stage5-tests stage5-artifact/
+          cp docs/ETAPA_5_RELATORIO.md stage5-artifact/
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,os,subprocess,zipfile
+          apk=Path('stage5-artifact/app-debug.apk')
+          digest=hashlib.sha256(apk.read_bytes()).hexdigest()
+          tools=Path(os.environ['ANDROID_HOME'])/'build-tools/36.0.0'
+          badging=subprocess.check_output([str(tools/'aapt'),'dump','badging',str(apk)],text=True)
+          assert "package: name='com.proxyslabs.haruna'" in badging and "com.proxyslabs.haruna.diagnostic45" not in badging
+          with zipfile.ZipFile(apk) as z:
+            names=set(z.namelist())
+            assert 'assets/haruna/models/presentation.js' in names
+            assert 'assets/haruna/models/panel.css' in names
+            assert 'assets/haruna/recovery-runtime.js' in names
+            assert 'lib/arm64-v8a/libggml-cpu-android_armv8.2_2.so' in names
+            assert not any(p.lower().endswith('.gguf') for p in names)
+          run=f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          metadata={'initialCommit':'3d7c343bce61c381761078e8aac2d73c6cb08e27','sourceCommit':os.environ['HARUNA_SOURCE_REVISION'],'llamaCommit':os.environ['LLAMA_CPP_REVISION'],'run':run,'sha256':digest,'applicationId':'com.proxyslabs.haruna','diagnosticMode':'OFF','build':'SUCCESS','automaticTests':'PASS','deviceTestsExecuted':False,'inferenceExecuted':False}
+          Path('stage5-artifact/BUILD_METADATA.json').write_text(json.dumps(metadata,indent=2)+'\n')
+          Path('stage5-artifact/SHA256SUMS.txt').write_text(digest+'  app-debug.apk\n')
+          report=Path('stage5-artifact/ETAPA_5_RELATORIO.md')
+          text=report.read_text();end='ETAPA 5 IMPLEMENTADA — AGUARDANDO VALIDAÇÃO MULTIMODELO NO DISPOSITIVO'
+          text=text.removesuffix(end+'\n')
+          text+='\n## Resultado real da execução\n\n'
+          text+='- Commit final do código: `'+metadata['sourceCommit']+'`.\n- Workflow/run: '+run+'\n- Artifact: `HARUNA_ETAPA_5_MULTIMODEL` neste run.\n- APK normal completo: build SUCCESS, diagnóstico OFF.\n- SHA-256 APK: `'+digest+'`.\n'
+          text+='- VALIDADO EM TESTE AUTOMÁTICO: controlador Kotlin/backend fake, metadados sintéticos, JS real/bridge fake, streaming Kotlin/JS, RAG fast path, prefixo/KV com ASan/UBSan, guards de preservação e compilação do androidTest. Logs estão em stage5-tests.\n'
+          text+='- VALIDADO EM DISPOSITIVO REAL: nenhum teste nesta etapa; nenhum GGUF executado no CI.\n\n'+end+'\n'
+          report.write_text(text)
+          print(json.dumps(metadata,indent=2))
+          PY
+      - name: Publish complete app report and test evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: HARUNA_ETAPA_5_MULTIMODEL
+          path: stage5-artifact/
+          if-no-files-found: error
+      - name: Preserve failed check logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HARUNA_ETAPA_5_FAILED_CHECKS
+          path: stage5-tests/
+          if-no-files-found: ignore
