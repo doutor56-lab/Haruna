@@ -127,11 +127,11 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl("https://appassets.androidplatform.net/assets/haruna/index.html")
     }
 
-    private fun prepareModel(file: File) {
+    private fun prepareModel(file: File, automatic: Boolean = false) {
         if (activityClosed) return
         bridge.notifyModelPreparing(file.name)
         // The process owner serializes replacement and reuses an already active installation.
-        backend.loadModel(file.absolutePath).getOrThrow()
+        (if (automatic) backend.autoLoadModel(file.absolutePath) else backend.loadModel(file.absolutePath)).getOrThrow()
         if (activityClosed) return
         activeModelPath = file.absolutePath
         library.rememberActive(file)
@@ -176,11 +176,15 @@ class MainActivity : AppCompatActivity() {
             bridge.notifyModelLoadResult(Result.success(Unit), File(path).name)
             return
         }
+        if (!backend.mayAutoLoadModel()) {
+            bridge.notifyModelRecovery()
+            return
+        }
         val file = library.startupModel() ?: return
         modelImportBusy = true
         modelExecutor.execute {
             if (activityClosed) return@execute
-            val result = runCatching { prepareModel(file) }
+            val result = runCatching { prepareModel(file, automatic = true) }
             modelImportBusy = false
             bridge.notifyModelLoadResult(result, file.name)
         }

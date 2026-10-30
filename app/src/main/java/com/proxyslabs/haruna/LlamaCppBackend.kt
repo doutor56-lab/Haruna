@@ -2,6 +2,7 @@ package com.proxyslabs.haruna
 
 import android.content.Context
 import android.util.Log
+import com.proxyslabs.haruna.models.*
 import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
 import com.arm.aichat.UnsupportedArchitectureException
@@ -57,6 +58,26 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     @Volatile private var conversationId: String? = null
     @Volatile private var conversationRevision = 0L
 
+    private val modelPreferences = ModelPreferences(appContext)
+    private val modelSession = ModelSession(modelPreferences, changed = ::notifyStatus)
+
+    override fun modelManagement(): String {
+        val snapshot = modelSession.snapshot()
+        val actual = status()
+        val state = if (snapshot.state == ModelState.READY && !actual.modelLoaded && actual.state == "error") "ERROR" else snapshot.state.name
+        return JSONObject().put("state", state)
+            .put("selected", snapshot.record.selected?.let { ModelPreferences.json(it) })
+            .put("active", snapshot.active?.takeIf { actual.modelLoaded }?.let { ModelPreferences.json(it) })
+            .put("lastSuccessful", snapshot.record.lastSuccessful?.let { ModelPreferences.json(it) })
+            .put("pending", snapshot.record.pending?.let { ModelPreferences.json(it) })
+            .put("recoveryRequired", snapshot.recoveryRequired)
+            .put("error", actual.error ?: snapshot.record.error ?: lastError)
+            .put("loadMillis", snapshot.loadMillis)
+            .put("profileOverrides", JSONObject()) // All current runtime defaults are inherited.
+            .toString()
+    }
+    override fun mayAutoLoadModel(): Boolean = modelSession.mayAutoload()
+
     override fun contextMetrics(): Map<String, Int> = runCatching {
         val values = engine.chatMetrics()
         val keys = listOf("inputTokens", "generatedTokens", "historyMessages", "ggufTemplate", "contextCapacity")
@@ -64,7 +85,11 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     }.getOrDefault(emptyMap())
 
     override fun runtimeMetrics(): String = runCatching {
-        JSONObject(engine.runtimeMetrics()).put("debugControls", JSONObject()
+        JSONObject(engine.runtimeMetrics()).put("modelLifecycle", JSONObject()
+            .put("state", modelSession.snapshot().state.name)
+            .put("loadMillis", modelSession.snapshot().loadMillis)
+            .put("recoveryRequired", modelSession.snapshot().recoveryRequired))
+            .put("debugControls", JSONObject()
             .put("cpuConservativePending", diagnosticPrefs.getBoolean("cpuConservative", false))
             .put("cpuConservativeAvailable", File(appContext.applicationInfo.nativeLibraryDir, "libggml-cpu-android_armv8.0_1.so").isFile))
             .put("owner", JSONObject()
@@ -90,7 +115,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         }
     }
 
-    override fun installedModelPath(): String? = modelPath.takeIf { !loading && engine.state.value.isModelLoaded }
+    override fun installedModelPath(): String? = modelPath.takeIf { status().modelLoaded }
     override fun subscribeStatus(listener: () -> Unit): () -> Unit {
         statusListeners.add(listener)
         return { statusListeners.remove(listener) }
@@ -115,17 +140,21 @@ class LlamaCppBackend(context: Context) : LlmBackend {
 
     override fun status(): LlmBackend.Status {
         val engineState = engine.state.value
-        val loaded = engineState.isModelLoaded
+        val snapshot = modelSession.snapshot()
+        val loaded = !loading && snapshot.state == ModelState.READY && snapshot.active?.path == modelPath && engineState.isModelLoaded
         val state = when {
-            loading || engineState is InferenceEngine.State.LoadingModel || engineState is InferenceEngine.State.ProcessingSystemPrompt -> "loading"
+            snapshot.state == ModelState.SWITCHING -> "switching"
+            snapshot.state == ModelState.UNLOADING -> "unloading"
+            snapshot.state == ModelState.LOADING || loading || engineState is InferenceEngine.State.LoadingModel || engineState is InferenceEngine.State.ProcessingSystemPrompt -> "loading"
             jobs.values.any { !it.cancelled.get() && !it.finishing.get() } || engineState is InferenceEngine.State.Generating || engineState is InferenceEngine.State.ProcessingUserPrompt -> "generating"
             loaded -> "active"
             engineState is InferenceEngine.State.Error -> "error"
-            lastError != null -> "error"
+            snapshot.state == ModelState.ERROR || lastError != null -> "error"
             else -> "not_loaded"
         }
-        val error = (engineState as? InferenceEngine.State.Error)?.exception?.let(::friendlyLoadError) ?: lastError
-        return LlmBackend.Status(!destroyed, loaded, state, modelName, error)
+        val error = (engineState as? InferenceEngine.State.Error)?.exception?.let(::friendlyLoadError) ?: snapshot.record.error ?: lastError
+        return LlmBackend.Status(!destroyed, loaded, state, if (loaded) modelName else null, error,
+            if (loaded) snapshot.active?.displayName else null, snapshot.state.name)
     }
 
     private fun friendlyLoadError(error: Throwable): String = when (error) {
@@ -173,22 +202,69 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         Log.i(TAG, "total_prepare_ms=${System.currentTimeMillis() - totalStart}")
     }
 
-    override fun loadModel(localPath: String): Result<Unit> = runCatching {
-        lifecycle.withLock {
+    override fun loadModel(localPath: String): Result<Unit> = changeModel(localPath, false)
+    override fun autoLoadModel(localPath: String): Result<Unit> = changeModel(localPath, true)
+
+    private fun changeModel(localPath: String, automatic: Boolean): Result<Unit> {
+        val file = File(localPath).canonicalFile
+        val descriptor = runCatching {
             check(!destroyed) { "Runtime encerrado" }
-            val file = File(localPath); validateModel(file)
-            if (modelPath == file.absolutePath && engine.state.value.isModelLoaded) return@withLock
-            maintenance(7) {
-                lastError = null
-                runBlocking(Dispatchers.IO) { loadAndPrime(file) }
-                modelName = file.name; modelPath = file.absolutePath
-                conversationId = null; resetRequired = false
+            require(file.parentFile?.canonicalFile == File(appContext.filesDir, "models").canonicalFile) { "Modelo fora da biblioteca privada" }
+            modelPreferences.describe(file)
+        }.getOrElse { return Result.failure(it) }
+        return modelSession.load(descriptor, automatic,
+            confirmed = { modelPath == file.absolutePath && engine.state.value.isModelLoaded && !loading },
+            failureCleanup = { lifecycle.withLock { maintenance(7) { clearNativeModel() } } }) {
+            lifecycle.withLock {
+                check(!destroyed) { "Runtime encerrado" }
+                maintenance(7) {
+                    lastError = null
+                    try {
+                        validateModel(file)
+                        // Explicitly release the old model/context/sampler before constructing the next.
+                        clearNativeModel()
+                        runBlocking(Dispatchers.IO) { loadAndPrime(file) }
+                        modelName = file.name; modelPath = file.absolutePath
+                        conversationId = null; conversationRevision++; resetRequired = false
+                    } catch (failure: Throwable) {
+                        runCatching { clearNativeModel() }.onFailure { failure.addSuppressed(it) }
+                        lastError = friendlyLoadError(failure)
+                        throw failure
+                    }
+                }
             }
         }
-    }.onFailure {
-        if (!engine.state.value.isModelLoaded) { modelName = null; modelPath = null }
-        lastError = friendlyLoadError(it)
-        notifyStatus()
+    }
+
+    private fun clearNativeModel() {
+        val state = engine.state.value
+        if (state !is InferenceEngine.State.Error && state !is InferenceEngine.State.Initialized && !state.isModelLoaded)
+            runBlocking(Dispatchers.IO) { waitUntilInitialized() }
+        engine.cleanUp() // Dispatcher owns context, sampler, model and KV; native unload acknowledges release.
+        check(!engine.state.value.isModelLoaded && engine.state.value is InferenceEngine.State.Initialized) {
+            "O backend não confirmou a liberação do modelo anterior"
+        }
+        modelName = null; modelPath = null
+        conversationId = null; conversationRevision++; resetRequired = false
+    }
+
+    override fun renameModel(localPath: String, displayName: String): Result<Unit> = runCatching {
+        lifecycle.withLock {
+            val file = File(localPath)
+            require(file.parentFile?.canonicalFile == File(appContext.filesDir, "models").canonicalFile && file.isFile) { "Modelo inválido" }
+            modelPreferences.rename(file, displayName)
+            modelSession.updateDescriptor(modelPreferences.describe(file)).getOrThrow()
+        }
+    }
+
+    override fun deleteInstalledModel(localPath: String): Result<Unit> = modelSession.remove(localPath) {
+        lifecycle.withLock {
+            val library = LocalLibrary(appContext)
+            val file = File(localPath)
+            require(file.parentFile?.canonicalFile == library.modelsDir.canonicalFile && file.isFile) { "Modelo inválido" }
+            if (modelPath == localPath) maintenance(7) { clearNativeModel() }
+            library.deleteModel(localPath)
+        }
     }
 
     override fun resetConversation(): Result<Unit> = runCatching {
@@ -203,23 +279,19 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         }
     }
 
-    override fun unloadModel(): Result<Unit> = runCatching {
+    override fun unloadModel(): Result<Unit> = modelSession.unload {
         lifecycle.withLock {
             check(!destroyed) { "Runtime encerrado" }
-            maintenance(7) {
-                val state = engine.state.value
-                if (state.isModelLoaded || state is InferenceEngine.State.Error || state is InferenceEngine.State.Initialized) engine.cleanUp()
-                modelName = null; modelPath = null; lastError = null
-                conversationId = null; resetRequired = false
-            }
+            maintenance(7) { clearNativeModel(); lastError = null }
         }
     }
 
     override fun generate(requestId: String, payloadJson: String, onToken: (String) -> Unit, onComplete: () -> Unit, onError: (String, String) -> Unit) {
         if (!engine.state.value.isModelLoaded && !resetRequired) { onError("model_not_loaded", "Nenhum modelo GGUF carregado"); return }
+        val admitted = modelSession.admitGeneration {
         synchronized(jobs) {
             if (destroyed || loading || jobs.size >= 4 || jobs.values.any { !it.cancelled.get() && !it.finishing.get() }) {
-                onError("generation_busy", "Há uma operação em andamento"); return
+                onError("generation_busy", "Há uma operação em andamento"); return@admitGeneration
             }
             val predecessors = jobs.values.toList()
             // Reserve the request before starting it, including very short generations.
@@ -234,12 +306,8 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     val messages = requireNotNull(root.optJSONArray("messages")) { "Prompt vazio" }
                     val options = root.optJSONObject("options")
                     val nextConversation = options?.optString("conversationId")?.takeIf { it.isNotBlank() } ?: ""
-                    if (!engine.state.value.isModelLoaded || engine.state.value is InferenceEngine.State.Error) {
-                        loading = true
-                        try {
-                            val file = File(requireNotNull(modelPath) { "Nenhum modelo carregado" })
-                            validateModel(file); loadAndPrime(file)
-                        } finally { loading = false }
+                    check(engine.state.value.isModelLoaded && engine.state.value !is InferenceEngine.State.Error) {
+                        "O backend precisa ser recarregado em Configurações antes de continuar"
                     }
                     val profile = options?.optString("essentialContext", "") ?: ""
                     require(profile.length <= 900) { "Perfil de contexto muito longo" }
@@ -257,9 +325,10 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     require(roles.last() == "user" && contents.last().isNotBlank()) { "Mensagem atual vazia" }
                     conversationId = nextConversation
                     resetRequired = false
-                    val predictLength = options?.optInt("maxTokens", 512)?.coerceIn(16, 1024) ?: 512
+                    val defaults = ModelProfiles.defaults(modelSession.snapshot().active?.profile ?: "generic")
+                    val predictLength = options?.optInt("maxTokens", defaults.maxTokens ?: 512)?.coerceIn(16, 1024) ?: (defaults.maxTokens ?: 512)
                     val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; var outputChars = 0L
-                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial, nextConversation, conversationRevision).collect { token ->
+                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", defaults.thinking ?: true) ?: (defaults.thinking ?: true), request.serial, nextConversation, conversationRevision).collect { token ->
                         if (firstTokenAt == 0L) { firstTokenAt = System.currentTimeMillis(); Log.i(TAG, "first_token_ms=${firstTokenAt - generationStart}") }
                         outputChars += token.length
                         // The bridge owns a bounded ordered buffer; no Main-thread hop per delta.
@@ -292,6 +361,8 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             }
             job.start()
         }
+        }
+        if (!admitted) onError("model_not_ready", "Aguarde o modelo ficar pronto antes de gerar")
     }
 
     override fun stop(requestId: String): Result<Unit> = runCatching { jobs[requestId]?.let { cancel(it, 5) } }

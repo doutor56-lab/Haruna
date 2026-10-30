@@ -29,6 +29,7 @@ export function runtimeCards(native,local,f){
   row('Camadas transformer atribuídas à GPU',number(r.gpuTransformerLayers))
  ],'Configuração lida do contexto criado. K/V são os tipos encaminhados à criação da memória de atenção; estados recorrentes de modelos híbridos podem ter outros tipos. GPU conta camadas transformer, exclui a projeção de saída. Este card só observa. O experimento A/B separado pode solicitar FA off após recarga e CPU conservadora em outro processo; padrões normais preservados.'),
  section('generation','Última geração / atual',[
+  row('Último carregamento · liberação até READY persistido',duration(obs.modelLifecycle?.loadMillis)),
   row('Serial nativo · apenas correlação',has?number(g.serial):'Indisponível'),row('Fase nativa',has?stages[g.stage]||'Desconhecida':'Indisponível'),
   row('Preparação de referências/contexto · JS',duration(v.contextMs)),
   row('Template · tempo acumulado',has?us(g.templateUs):'Indisponível'),row('Tokenização · tempo acumulado',has?us(g.tokenizeUs):'Indisponível'),

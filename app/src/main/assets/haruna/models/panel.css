@@ -1,0 +1,10 @@
+/* Only the additional model labels/controls need room on narrow screens. */
+.topbar .brand{min-width:0;flex:1}
+.topbar .brand>div:last-child{min-width:0}
+.topbar .brand h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar>.actions{flex-shrink:0}
+#modelList .model-row{flex-wrap:wrap}
+#modelList .model-info{flex:1 1 180px}
+#modelList .model-technical{white-space:normal;overflow-wrap:anywhere}
+#modelList .model-actions{flex:1 1 100%}
+#modelRuntimeStatus{overflow-wrap:anywhere}

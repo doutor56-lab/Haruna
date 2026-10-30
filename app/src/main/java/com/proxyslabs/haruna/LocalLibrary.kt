@@ -23,6 +23,8 @@ class LocalLibrary(private val context: Context) {
     val attachmentsDir = File(context.filesDir, "attachments").apply { mkdirs() }
     val documentsDir = File(context.filesDir, "documents").apply { mkdirs() }
 
+    private val modelPreferences = com.proxyslabs.haruna.models.ModelPreferences(context.applicationContext)
+
     private val prefs get() = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun displayName(uri: Uri): String? {
@@ -68,7 +70,7 @@ class LocalLibrary(private val context: Context) {
 
     private fun registerModel(target: File): File {
         if (primaryModel() == null) {
-            prefs.edit().putString(PRIMARY_MODEL, target.absolutePath).apply()
+            check(prefs.edit().putString(PRIMARY_MODEL, target.absolutePath).commit()) { "Não foi possível salvar o modelo principal" }
         }
         return target
     }
@@ -232,7 +234,7 @@ class LocalLibrary(private val context: Context) {
         }
     }
 
-    fun modelsJson(activePath: String?): String {
+    fun modelsJson(activePath: String?, management: JSONObject = JSONObject()): String {
         val primary = prefs.getString(PRIMARY_MODEL, null)
         val array = JSONArray()
 
@@ -243,6 +245,11 @@ class LocalLibrary(private val context: Context) {
                 array.put(
                     JSONObject()
                         .put("name", file.name)
+                        .put("displayName", modelPreferences.describe(file).displayName)
+                        .put("architecture", modelPreferences.describe(file).architecture)
+                        .put("quantization", modelPreferences.describe(file).quantization)
+                        .put("profile", modelPreferences.describe(file).profile)
+                        .put("selected", file.absolutePath == management.optJSONObject("selected")?.optString("path"))
                         .put("path", file.absolutePath)
                         .put("bytes", file.length())
                         .put("primary", file.absolutePath == primary)
@@ -253,6 +260,7 @@ class LocalLibrary(private val context: Context) {
         return JSONObject()
             .put("models", array)
             .put("primaryPath", primary)
+            .put("management", management)
             .toString()
     }
 
@@ -261,7 +269,7 @@ class LocalLibrary(private val context: Context) {
         require(file.parentFile?.canonicalFile == modelsDir.canonicalFile && file.isFile) {
             "Modelo inválido"
         }
-        prefs.edit().putString(PRIMARY_MODEL, file.absolutePath).apply()
+        check(prefs.edit().putString(PRIMARY_MODEL, file.absolutePath).commit()) { "Não foi possível salvar o modelo principal" }
     }
 
     private fun modelFiles(): List<File> = modelsDir.listFiles()?.filter {
@@ -275,6 +283,10 @@ class LocalLibrary(private val context: Context) {
     fun primaryModel(): File? = savedModel(PRIMARY_MODEL)
 
     fun startupModel(): File? {
+        val chosen = modelPreferences.read().selected
+        if (chosen != null) return File(chosen.path).takeIf {
+            it.parentFile?.canonicalFile == modelsDir.canonicalFile && it.isFile && it.extension.equals("gguf", true)
+        } // A missing selected file never silently selects a different GGUF.
         val model = savedModel(LAST_MODEL) ?: primaryModel() ?: modelFiles().firstOrNull() ?: return null
         registerModel(model)
         return model

@@ -1,14 +1,35 @@
 import androidBridge from './android-bridge.js';
-let state='basic'; let lastError=null;
+let snapshot={state:'basic',modelLoaded:false,error:null};
 const listeners=new Set();
-function emit(){ const s=getState(); listeners.forEach(fn=>fn(s)); }
-export function getState(){return {state,error:lastError,available:androidBridge.isAvailable()};}
+function emit(){const state=getState();listeners.forEach(fn=>fn(state));}
+function transient(state){snapshot={...snapshot,state,error:null};if(['loading','switching','unloading','error','not_loaded'].includes(state))snapshot={...snapshot,modelLoaded:false,displayName:null};emit();}
+export function getState(){return {...snapshot,available:androidBridge.isAvailable()};}
 export function subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);}
-export async function refreshStatus(){ if(!androidBridge.isAvailable()){state='basic';emit();return getState();} const s=androidBridge.getStatus(); state=s.state || (s.modelLoaded?'active':'not_loaded'); lastError=s.error||null;emit();return {...getState(),...s}; }
-export async function loadModel(model={action:'pick_local_gguf'}){ if(!androidBridge.isAvailable()) return refreshStatus(); state='loading';lastError=null;emit(); try{const r=androidBridge.loadModel(model); if(r?.pendingSelection || r?.status==='loading') state='loading'; else state=r?.modelLoaded?'active':'not_loaded'; emit(); return r;}catch(e){state='error';lastError=e.message;emit();throw e;} }
-export async function unloadModel(){const r=androidBridge.unloadModel();state='not_loaded';lastError=null;emit();return r;}
-export async function resetConversation(){ if(!androidBridge.isAvailable()) throw new Error('LLM local indisponível'); state='loading';lastError=null;emit(); try{const r=androidBridge.resetConversation(); if(r?.status!=='ok') throw new Error(r?.error||'Não foi possível iniciar uma nova conversa'); state='active';emit();return r;}catch(e){state='error';lastError=e.message;emit();throw e;} }
-export async function generate(messages,options={}){ if(!androidBridge.isAvailable()) throw new Error('LLM local indisponível'); const s=androidBridge.getStatus(); if(!s?.modelLoaded) throw new Error('Selecione e carregue um modelo GGUF primeiro.'); state='generating';lastError=null;emit(); try{const r=await androidBridge.generate(messages,options);state='active';emit();return r;}catch(e){const status=androidBridge.getStatus();if(status?.modelLoaded){state='active';lastError=null;}else{state='error';lastError=e.message;}emit();throw e;} }
-export function stopGeneration(){const r=androidBridge.stopGeneration();if(!r?.draining)state='active';lastError=null;emit();return r;}
+export async function refreshStatus(){
+ if(!androidBridge.isAvailable())snapshot={state:'basic',modelLoaded:false,error:null};
+ else{const status=androidBridge.getStatus();snapshot={...status,state:status.state||(status.modelLoaded?'active':'not_loaded'),error:status.error||null};}
+ emit();return getState();
+}
+export async function loadModel(model={action:'pick_local_gguf'}){
+ if(!androidBridge.isAvailable())return refreshStatus();
+ const result=androidBridge.loadModel(model);await refreshStatus();return result;
+}
+export async function unloadModel(){const result=androidBridge.unloadModel();await refreshStatus();if(result?.status!=='ok')throw new Error(result?.error||'Falha ao descarregar modelo');return result;}
+export async function resetConversation(){
+ if(!androidBridge.isAvailable())throw new Error('LLM local indisponível');
+ transient('loading');
+ try{const result=androidBridge.resetConversation();if(result?.status!=='ok')throw new Error(result?.error||'Não foi possível iniciar uma nova conversa');return result;}
+ finally{await refreshStatus();}
+}
+export async function generate(messages,options={}){
+ if(!androidBridge.isAvailable())throw new Error('LLM local indisponível');
+ const status=await refreshStatus();
+ if(!status.modelLoaded||!['active','generating'].includes(status.state))throw new Error('Selecione e carregue um modelo GGUF primeiro.');
+ transient('generating');
+ try{return await androidBridge.generate(messages,options);}
+ finally{await refreshStatus();}
+}
+export function stopGeneration(){const result=androidBridge.stopGeneration();if(!result?.draining)refreshStatus();return result;}
 window.addEventListener('haruna-native-status-changed',()=>refreshStatus());
+window.addEventListener('haruna-model-import-progress',event=>{if(['cancelled','error','completed','ready'].includes(event.detail?.state||event.detail?.phase))refreshStatus();});
 export default {getState,subscribe,refreshStatus,loadModel,unloadModel,resetConversation,generate,stopGeneration};
