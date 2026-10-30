@@ -20,7 +20,14 @@ class DiagnosticBridge(
     private val app = activity.applicationContext
     private val lab = InferenceLab(activity.applicationContext, backend) { value -> webView.post { if (!closed.get()) webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-lab-result',{detail:JSON.parse(${JSONObject.quote(value.toString())})}))", null) } }
     @JavascriptInterface fun labAvailable(): Boolean = com.proxyslabs.haruna.BuildConfig.DEBUG
-    @JavascriptInterface fun labRun(config: String): String = lab.run(config)
+    @JavascriptInterface fun labRun(config: String): String {
+        if (!com.proxyslabs.haruna.BuildConfig.DEBUG) return "{\"status\":\"error\",\"error\":\"Laboratório somente DEBUG\"}"
+        return runCatching {
+            val recognition = JSONObject(sttStatus()); val speech = JSONObject(ttsStatus())
+            check(!recognition.optBoolean("busy") && speech.optString("state", "idle") in listOf("idle", "error")) { "Aguarde o STT/TTS ocioso antes do benchmark" }
+            lab.run(config)
+        }.getOrElse { JSONObject().put("status", "error").put("error", it.message ?: "Voz ocupada").toString() }
+    }
     @JavascriptInterface fun labCancel() { lab.cancel() }
     private val metrics = AndroidMetricsCollector(activity.applicationContext)
     private val pending = AtomicBoolean(false)
