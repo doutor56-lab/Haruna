@@ -15,6 +15,8 @@ class VoiceCallService : Service() {
         @Volatile var running = false
             private set
     }
+    private val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var ownsCall = false
     private var wake: PowerManager.WakeLock? = null
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -37,13 +39,13 @@ class VoiceCallService : Service() {
                 .setContentIntent(open).setOngoing(true).setCategory(NotificationCompat.CATEGORY_CALL)
                 .addAction(0, "Encerrar", stop).build()
             startForeground(6006, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-            running = true
+            running = true; ownsCall = true
             if (wake == null) wake = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Haruna:LocalVoiceCall").apply {
                 setReferenceCounted(false); acquire(60 * 60 * 1000L)
             }
             // Calls have a finite upper lifetime; the UI can explicitly start another afterwards.
-            android.os.Handler(mainLooper).postDelayed({
-                if (running) { sendBroadcast(Intent(STOP).setPackage(packageName)); stopSelf() }
+            timeoutHandler.postDelayed({
+                if (ownsCall) { sendBroadcast(Intent(STOP).setPackage(packageName)); stopSelf() }
             }, 60 * 60 * 1000L)
         } catch (failure: Exception) {
             android.util.Log.w("HarunaVoice", "Foreground call unavailable", failure)
@@ -53,6 +55,8 @@ class VoiceCallService : Service() {
     }
     override fun onTaskRemoved(rootIntent: Intent?) { sendBroadcast(Intent(STOP).setPackage(packageName)); stopSelf(); super.onTaskRemoved(rootIntent) }
     override fun onDestroy() {
+        ownsCall = false
+        timeoutHandler.removeCallbacksAndMessages(null)
         running = false
         wake?.let { if (it.isHeld) it.release() }; wake = null
         stopForeground(STOP_FOREGROUND_REMOVE)
