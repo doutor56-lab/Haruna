@@ -17,6 +17,11 @@ class DiagnosticBridge(
     activity: MainActivity, private val webView: WebView, private val backend: LlmBackend,
     private val modelFile: () -> File?, private val sttStatus: () -> String, private val ttsStatus: () -> String
 ) : AutoCloseable {
+    private val app = activity.applicationContext
+    private val lab = InferenceLab(activity.applicationContext, backend) { value -> webView.post { if (!closed.get()) webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-lab-result',{detail:JSON.parse(${JSONObject.quote(value.toString())})}))", null) } }
+    @JavascriptInterface fun labAvailable(): Boolean = com.proxyslabs.haruna.BuildConfig.DEBUG
+    @JavascriptInterface fun labRun(config: String): String = lab.run(config)
+    @JavascriptInterface fun labCancel() { lab.cancel() }
     private val metrics = AndroidMetricsCollector(activity.applicationContext)
     private val pending = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
@@ -104,7 +109,7 @@ class DiagnosticBridge(
         } }.onFailure { pending.set(false) }
     }
 
-    override fun close() { closed.set(true); worker.shutdownNow() }
+    override fun close() { lab.cancel(); closed.set(true); worker.shutdownNow() }
 }
 
 

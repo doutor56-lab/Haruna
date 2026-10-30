@@ -115,3 +115,6 @@ apply_diag45_patch()
 
 from patch_android_diag46 import apply_diag46_patch
 apply_diag46_patch()
+
+from patch_android_lab import apply_lab_patch
+apply_lab_patch()

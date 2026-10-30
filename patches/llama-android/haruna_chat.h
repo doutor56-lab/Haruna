@@ -33,7 +33,7 @@ static llama_tokens haruna_tokenize(const common_chat_prompt & prompt) {
 extern "C" JNIEXPORT jint JNICALL
 Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         JNIEnv * env, jobject, jobjectArray roles, jobjectArray contents,
-        jint n_predict, jboolean enable_thinking, jstring conversation_key, jlong conversation_revision) {
+        jint n_predict, jboolean enable_thinking, jstring conversation_key, jlong conversation_revision, jstring lab_config) {
     hm_begin();
     haruna_input_tokens = -1; haruna_output_tokens = -1;
     haruna_history_messages = -1; haruna_template_from_gguf = -1; haruna_context_capacity = -1;
@@ -41,6 +41,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         if (hs_check_cancel()) return 5;
         if (g_model == nullptr || g_context == nullptr || g_sampler == nullptr || !g_chat_templates || roles == nullptr || contents == nullptr)
             throw std::runtime_error("Chat runtime unavailable");
+        hl_configure(haruna_jstring(env,lab_config));
         const int count = env->GetArrayLength(roles);
         if (count < 2 || count > 18 || count != env->GetArrayLength(contents))
             throw std::runtime_error("Invalid chat message count");
@@ -72,6 +73,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             const auto template_start = hm_clock();
             hm_stage = 1;
             auto formatted = common_chat_templates_apply(g_chat_templates.get(), input);
+            if(hl_sampler) { std::lock_guard<std::mutex> lock(hl_lock); hl_prompt.clear(); for(const auto & part: formatted.prompt.parts) hl_prompt+=part.text; }
             hm_template += hm_clock() - template_start;
             if (hs_check_cancel()) return 5;
             const auto tokenize_start = hm_clock();

@@ -10,6 +10,7 @@ plugins {
 }
 
 android {
+    buildFeatures { buildConfig = true }
     namespace = "com.proxyslabs.haruna"
     compileSdk = 36
     ndkVersion = "29.0.13113456"
@@ -19,8 +20,8 @@ android {
         minSdk = 33
         targetSdk = 36
         testInstrumentationRunner = "com.proxyslabs.haruna.diagnostic45.CanonicalRunner"
-        versionCode = 7
-        versionName = "0.6.1"
+        versionCode = 8
+        versionName = "0.7-debug-lab"
         externalNativeBuild { cmake { arguments += "-DCMAKE_BUILD_TYPE=Release" } }
         ndk { abiFilters += listOf("arm64-v8a") }
     }

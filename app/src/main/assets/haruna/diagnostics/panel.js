@@ -1,9 +1,11 @@
+import {inferenceLab} from './lab.js';
 import {experimentControls} from './experiment.js';
 import {knowledgeMetrics} from './metrics.js';
 import {diagnosticCards,diagnosticReport} from './report.js';
 
 const settings=document.querySelector('#settingsView');
 const activityIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h4l3-8 5 16 3-8h5"/></svg>';
+let laboratory=null;
 let experiment=null,experimentInitialized=false;
 let dialog=null,timer=null,ticket=0,native={},cards=[],savedScroll=0,returnFocus=null;
 const launcher=document.createElement('button');launcher.type='button';launcher.className='haruna-dbg-launcher';
@@ -34,7 +36,7 @@ function render(){
   window.HarunaDiagnostics?'Métricas · estado 5 s · memória 10 s · experimento A/B separado':'Ponte Android indisponível · somente metadados locais';
 }
 function finishClose(){
- if(!dialog)return;experiment?.dispose();experiment=null;experimentInitialized=false;stopTimer();const old=dialog;dialog=null;ticket++;native={};cards=[];old.remove();
+ if(!dialog)return;laboratory?.dispose();laboratory=null;experiment?.dispose();experiment=null;experimentInitialized=false;stopTimer();const old=dialog;dialog=null;ticket++;native={};cards=[];old.remove();
  if(settings&&!settings.hidden){settings.scrollTop=savedScroll;if(returnFocus?.isConnected)returnFocus.focus({preventScroll:true})}
  returnFocus=null;
 }
@@ -53,6 +55,7 @@ function open(){
   icon.className=`haruna-dbg-section-icon haruna-dbg-icon-${icons[card.id]}`;icon.setAttribute('aria-hidden','true');label.textContent=card.title;summary.append(icon,label);
   const body=document.createElement('div');body.dataset.dbgBody=card.id;section.append(summary,body);content.appendChild(section);
  }
+ laboratory=inferenceLab();if(laboratory)content.append(laboratory.element);
  dialog=element;
  element.querySelector('.haruna-dbg-close').onclick=close;element.querySelector('.haruna-dbg-done').onclick=close;
  element.querySelector('[data-dbg-copy]').onclick=copy;

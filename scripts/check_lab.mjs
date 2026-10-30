@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {baseline,profiles,summary,difference,exportReport} from '../app/src/main/assets/haruna/diagnostics/lab-core.js';
+assert.equal(baseline.temperature,.3);assert.equal(baseline.thinking,false);assert.equal(baseline.cache,false);
+assert.equal(profiles['Qwen recomendado — experimental'].temperature,1);
+assert.equal(profiles['Phi determinístico — experimental'].temperature,0);
+assert.equal(difference(null,3),null);assert.equal(difference(100,50),-50);
+const result={output:'PRIVATE ANSWER',observation:{generation:{inputTokens:100,outputTokens:10,prefillTokens:100,prefillUs:1000000,decodeUs:2000000,nativeStopCode:2},laboratory:{canonicalFormattedPrompt:'INTERNAL PROMPT'}}};
+assert.equal(summary(result).stopReason,'MAX_TOKENS');assert.equal(summary(result).promptTokensPerSecond,100);
+assert.equal(summary(result).decodeWorkTokensPerSecond,5);
+assert(!exportReport([result]).includes('PRIVATE'));assert(!exportReport([result]).includes('INTERNAL'));
+assert.equal(JSON.parse(exportReport(Array(50).fill(result))).runs.length,30);
+console.log('PASS lab: baseline preserved; separate presets; correct rates/stops; bounded privacy-safe scalar export; no fabricated baseline.');
