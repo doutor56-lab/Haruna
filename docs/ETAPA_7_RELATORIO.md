@@ -28,6 +28,8 @@ Instrumentação anterior reutilizada: modelo/arquitetura/tipo GGUF, configuraç
 - Benchmark RAG congela a busca para o lote, permitindo comparar inferência com o mesmo conteúdo. O tempo da busca é registrado separadamente; TTFT nativo não o inclui.
 - Não há validação automática da qualidade: A/B mostra saídas e variação; nenhuma configuração é promovida automaticamente.
 
+O benchmark do laboratório mede TTFT até o callback Kotlin e mantém a saída temporária para comparação ao terminar. Ele não reproduz o custo de streaming/DOM do chat normal nem mede pixels apresentados. Para separar esse custo, usar os contadores já existentes de streaming/DOM do DBG e Pipeline da última mensagem normal. Não comparar a taxa do fixture isolado como se fosse throughput ponta a ponta do chat.
+
 ## HIPÓTESES e OTIMIZAÇÕES PROPOSTAS
 
 Possíveis gargalos a medir: prefill repetido do Qwen híbrido, volume real do prompt, truncamento por maxTokens, pesquisa RAG, contenção térmica/CPU. Nenhuma causa foi declarada confirmada no aparelho. Ordem futura: prompt, cache, híbrido, sampler, orçamento, RAG, threads, batch/ubatch, FA/KV e só depois backend. Não atualizar llama.cpp nem desativar KleidiAI/REPACK do LLM neste pacote.
@@ -35,6 +37,8 @@ Possíveis gargalos a medir: prefill repetido do Qwen híbrido, volume real do p
 Fontes/score individuais do RAG: N/D no esquema retornado pelo enriquecedor; nenhuma busca adicional é feita só para diagnóstico.
 
 Exportação Android usa ACTION_CREATE_DOCUMENT/SAF e escrita limitada em worker dedicado, sem permissões de armazenamento. Cancelamento do seletor não altera os dados. Arquivo novo: app/src/main/java/com/proxyslabs/haruna/diagnostics/DiagnosticExport.kt. Gravação física exige validação no dispositivo.
+
+Coletor Android compartilhado entre DBG e laboratório, sincronizado para preservar o limite global de PSS de 10 s. O laboratório verifica serial nativo antes/depois: requisição que não entrou na inferência recebe N/D, nunca métricas da geração anterior. Erros de admissão não são rotulados EOS. Lotes recusam troca de modelo entre execuções. A/B registra braço A/B. Snapshots gerais removem o Prompt Inspector; o texto canônico não é retransmitido pelo DBG comum. Arquivo adicional modificado: app/src/main/java/com/proxyslabs/haruna/diagnostics/AndroidMetricsCollector.kt (somente sincronização de snapshot).
 
 ## Teste manual
 

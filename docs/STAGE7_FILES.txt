@@ -19,3 +19,4 @@ app/src/main/assets/haruna/diagnostics/inference.js
 app/src/main/assets/haruna/diagnostics/pipeline.js
 app/src/main/assets/haruna/app.js
 app/src/main/java/com/proxyslabs/haruna/diagnostics/DiagnosticExport.kt
+app/src/main/java/com/proxyslabs/haruna/diagnostics/AndroidMetricsCollector.kt

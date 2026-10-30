@@ -18,7 +18,8 @@ class DiagnosticBridge(
     private val modelFile: () -> File?, private val sttStatus: () -> String, private val ttsStatus: () -> String
 ) : AutoCloseable {
     private val app = activity.applicationContext
-    private val lab = InferenceLab(activity.applicationContext, backend) { value -> webView.post { if (!closed.get()) webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-lab-result',{detail:JSON.parse(${JSONObject.quote(value.toString())})}))", null) } }
+    private val metrics = AndroidMetricsCollector(activity.applicationContext)
+    private val lab = InferenceLab(activity.applicationContext, backend, metrics) { value -> webView.post { if (!closed.get()) webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-lab-result',{detail:JSON.parse(${JSONObject.quote(value.toString())})}))", null) } }
     private val exporter = DiagnosticExport(activity) { message -> webView.post { if (!closed.get()) webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-lab-export',{detail:${JSONObject.quote(message)}}))", null) } }
     @JavascriptInterface fun labExport(json: String): String = runCatching {
         check(com.proxyslabs.haruna.BuildConfig.DEBUG && !closed.get())
@@ -35,7 +36,6 @@ class DiagnosticBridge(
         }.getOrElse { JSONObject().put("status", "error").put("error", it.message ?: "Voz ocupada").toString() }
     }
     @JavascriptInterface fun labCancel() { lab.cancel() }
-    private val metrics = AndroidMetricsCollector(activity.applicationContext)
     private val pending = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
     private val worker = ThreadPoolExecutor(0, 1, 30, TimeUnit.SECONDS, ArrayBlockingQueue<Runnable>(1))
@@ -86,7 +86,7 @@ class DiagnosticBridge(
                             .put("fileBytes", file?.takeIf { it.isFile }?.length() ?: JSONObject.NULL)
                             .put("backend", backend.javaClass.simpleName)
                             .put("context", JSONObject(backend.contextMetrics()))
-                            .put("observation", JSONObject(backend.runtimeMetrics())))
+                            .put("observation", JSONObject(backend.runtimeMetrics()).apply { remove("laboratory") }))
                     }
                     fun voice(source: () -> String): JSONObject = runCatching {
                         val value = JSONObject(source())
