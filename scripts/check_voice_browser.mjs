@@ -81,6 +81,10 @@ try{
   await page.getByRole('button',{name:'Pausar áudio',exact:true}).click();assert.equal(await page.locator('.voice-call-orb').getAttribute('data-state'),'paused');
   await page.getByRole('button',{name:'Continuar áudio',exact:true}).click();assert.equal(await page.locator('.voice-call-orb').getAttribute('data-state'),'speaking');
   await page.getByRole('button',{name:'Voltar ao chat',exact:true}).click();assert(await page.locator('.voice-miniplayer').isVisible());assert.equal(await page.locator('.voice-call').getAttribute('open'),null);
+  const miniBounds=await page.locator('.voice-miniplayer').boundingBox(),composerBounds=await page.locator('#composer').boundingBox();assert(miniBounds.y+miniBounds.height<=composerBounds.y-5,'miniplayer must not cover composer');
+  await page.locator('#input').evaluate(input=>{input.style.height='110px'});await page.waitForTimeout(40);
+  const largeMini=await page.locator('.voice-miniplayer').boundingBox(),largeComposer=await page.locator('#composer').boundingBox();assert(largeMini.y+largeMini.height<=largeComposer.y-5,'miniplayer must follow growing drafts');
+  await page.locator('#input').evaluate(input=>input.style.height='');
   await page.screenshot({path:`stage6-browser/miniplayer-${width}.png`});
   await page.getByRole('button',{name:'Abrir chamada',exact:true}).click();assert(await page.locator('.voice-call').isVisible());assert(await page.locator('.voice-miniplayer').isHidden());
   await page.screenshot({path:`stage6-browser/call-${width}.png`});
