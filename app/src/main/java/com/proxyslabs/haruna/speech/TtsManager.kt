@@ -25,6 +25,12 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
     @Volatile private var copied = 0L
     @Volatile private var total: Long? = null
     @Volatile private var messageId = ""
+    private data class Stream(val id: String, val ticket: Long, val queue: SpeechTextQueue, val speaker: Int, val speed: Float)
+    @Volatile private var textStream: Stream? = null
+    private fun meter(value: Double, id: String, ticket: Long) {
+        if (!closed.get() && generation.get() == ticket)
+            emit(JSONObject().put("meter", true).put("state", "playing").put("messageId", id).put("level", value))
+    }
 
     init { worker.execute { models.cleanTemporary() } }
     fun status(): JSONObject = JSONObject().put("state", state).put("error", error)
@@ -57,7 +63,7 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
         }
         emit(status())
     }
-    fun speak(text: String, id: String) {
+    @Synchronized fun speak(text: String, id: String) {
         require(text.length <= 100000) { "Texto muito longo para uma única leitura" }
         require(!installing.get()) { "Aguarde a instalação da voz" }
         require(models.installed()) { "Voz local não instalada" }
@@ -66,6 +72,7 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
         val prepared = normalizer.normalize(text, JSONObject(prefs.getString("pronunciations", "{}") ?: "{}"))
         require(prepared.isNotBlank()) { "Esta mensagem não contém texto para leitura" }
         val segments = normalizer.chunks(prepared)
+        textStream?.queue?.cancel(); textStream = null
         val ticket = generation.incrementAndGet()
         player.stop(); messageId = id; publish("preparing")
         val speed = prefs.getFloat("speed", 1f)
@@ -86,7 +93,7 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
                     playback?.get()
                     if (!alive()) break
                     if (!started) { player.begin(audio.sampleRate); publish("playing"); started = true }
-                    playback = audioWorker.submit { player.write(audio.samples, ::alive) }
+                    playback = audioWorker.submit { player.write(audio.samples, ::alive) { meter(it, id, ticket) } }
                 }
                 playback?.get(); player.drain(::alive)
             } catch (failure: Throwable) {
@@ -98,7 +105,59 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
             }
         }
     }
-    fun stop(reason: String? = null) {
+    @Synchronized fun beginStream(id: String) {
+        require(!closed.get() && !installing.get()) { "Aguarde a instalação da voz" }
+        require(id.isNotBlank() && id.length <= 150 && models.installed()) { "Voz local não instalada ou pedido inválido" }
+        val speaker = prefs.getInt("speaker", -1)
+        require(speaker in 0 until models.speakers()) { "Escolha uma voz nas configurações" }
+        textStream?.queue?.cancel()
+        val session = Stream(id, generation.incrementAndGet(), SpeechTextQueue(), speaker, prefs.getFloat("speed", 1f))
+        textStream = session; player.stop(); messageId = id; publish("buffering")
+        worker.execute {
+            fun alive() = !closed.get() && generation.get() == session.ticket
+            var playback: java.util.concurrent.Future<*>? = null
+            var started = false
+            try {
+                var text = session.queue.take()
+                if (text != null && alive()) {
+                    require(session.speaker < engine.load(models.directory)) { "Voz indisponível" }
+                }
+                while (text != null && alive()) {
+                    val spoken = normalizer.normalize(text, JSONObject(prefs.getString("pronunciations", "{}") ?: "{}"))
+                    for (segment in normalizer.chunks(spoken)) {
+                        if (!alive()) break
+                        val audio = engine.synthesize(segment, session.speaker, session.speed)
+                        if (!alive()) break
+                        require(audio.samples.isNotEmpty()) { "O motor não gerou áudio" }
+                        playback?.get()
+                        if (!alive()) break
+                        if (!started) { player.begin(audio.sampleRate); started = true; publish("playing") }
+                        playback = audioWorker.submit { player.write(audio.samples, ::alive) { meter(it, session.id, session.ticket) } }
+                    }
+                    text = if (alive()) session.queue.take() else null
+                }
+                playback?.get(); player.drain(::alive)
+            } catch (failure: Throwable) {
+                if (alive()) publish("error", failure.message ?: "Falha na fila de voz")
+            } finally {
+                session.queue.cancel(); player.stop()
+                if (alive()) { textStream = null; if (state != "error") publish("idle") }
+                if (!closed.get()) runCatching { worker.schedule({ if (generation.get() == session.ticket) engine.close() }, 30, TimeUnit.SECONDS) }
+            }
+        }
+    }
+    @Synchronized fun appendStream(id: String, text: String) {
+        val stream = requireNotNull(textStream) { "Fila de fala não iniciada" }
+        require(stream.id == id && generation.get() == stream.ticket) { "Pedido de fala antigo" }
+        stream.queue.offer(text)
+    }
+    @Synchronized fun endStream(id: String) {
+        val stream = requireNotNull(textStream) { "Fila de fala não iniciada" }
+        require(stream.id == id && generation.get() == stream.ticket) { "Pedido de fala antigo" }
+        stream.queue.finish()
+    }
+    @Synchronized fun stop(reason: String? = null) {
+        textStream?.queue?.cancel(); textStream = null
         val ticket = generation.incrementAndGet(); player.stop(); if (!installing.get()) publish("idle", reason = reason)
         if (!closed.get()) runCatching { worker.schedule({ if (generation.get() == ticket) engine.close() }, 30, TimeUnit.SECONDS) }
     }
@@ -132,7 +191,7 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
     }
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
-        models.cancel(); generation.incrementAndGet(); player.stop()
+        models.cancel(); textStream?.queue?.cancel(); textStream = null; generation.incrementAndGet(); player.stop()
         worker.execute { engine.close() }; worker.shutdown(); audioWorker.shutdown()
     }
 }

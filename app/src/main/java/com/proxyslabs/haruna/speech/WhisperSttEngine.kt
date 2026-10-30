@@ -8,22 +8,30 @@ import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
 import com.proxyslabs.haruna.diagnostics.DiagnosticSession
 import java.io.File
 
-interface SttEngine { fun transcribe(directory: File, samples: FloatArray): String }
+interface SttEngine {
+    fun transcribe(directory: File, samples: FloatArray, model: WhisperModels.Model): String
+    fun loaded(): Boolean = false
+}
 
 /** A fresh, short-lived recognizer keeps STT weights out of the LLM/TTS response phase. */
-class WhisperSttEngine : SttEngine {
-    override fun transcribe(directory: File, samples: FloatArray): String {
+class WhisperSttEngine(private val changed: () -> Unit = {}) : SttEngine {
+    @Volatile private var resident = false
+    override fun loaded() = resident
+    override fun transcribe(directory: File, samples: FloatArray, model: WhisperModels.Model): String {
+        SttDiagnostics.model(model.title + " multilíngue INT8")
         val diagnosticStarted = DiagnosticSession.clock()
         fun path(name: String) = File(directory, name).absolutePath
         val recognizer = OfflineRecognizer(config = OfflineRecognizerConfig(
             featConfig = FeatureConfig(sampleRate = 16000, featureDim = 80),
             modelConfig = OfflineModelConfig(whisper = OfflineWhisperModelConfig(
-                encoder = path("tiny-encoder.int8.onnx"), decoder = path("tiny-decoder.int8.onnx"),
+                encoder = path(model.files[0]), decoder = path(model.files[1]),
                 language = SttDiagnostics.LANGUAGE, task = "transcribe", tailPaddings = 300
-            ), tokens = path("tiny-tokens.txt"), modelType = "whisper", numThreads = 2, provider = "cpu", debug = false),
+            ), tokens = path(model.files[2]), modelType = "whisper", numThreads = 2, provider = "cpu", debug = false),
             decodingMethod = "greedy_search"
         ))
+        resident = true
         DiagnosticSession.voiceLoaded("stt", true)
+        changed()
         try {
             val stream = recognizer.createStream()
             try {
@@ -36,7 +44,9 @@ class WhisperSttEngine : SttEngine {
             finally { stream.release() }
         } finally {
             recognizer.release()
+            resident = false
             DiagnosticSession.voiceLoaded("stt", false)
+            changed()
             DiagnosticSession.voiceOperation("stt", diagnosticStarted)
         }
     }

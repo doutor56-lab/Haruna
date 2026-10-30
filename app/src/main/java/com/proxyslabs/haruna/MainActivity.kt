@@ -211,7 +211,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         pendingVoicePermission = null
         if (::recognition.isInitialized) { recognition.stop(); recognition.cancelInstallation() }
-        if (::speech.isInitialized) { speech.stop(); speech.cancelInstallation() }
+        if (::speech.isInitialized) { speech.suspendForBackground(); speech.cancelInstallation() }
         super.onStop()
     }
     override fun onDestroy() {

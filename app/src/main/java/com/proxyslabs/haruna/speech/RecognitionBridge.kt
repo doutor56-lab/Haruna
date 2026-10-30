@@ -35,6 +35,9 @@ class RecognitionBridge(private val activity: MainActivity, private val webView:
     fun denied(id: String) { if (expected == id) { expected = ""; manager.fail("Permissão de microfone negada. Você pode habilitá-la nas configurações do Android.", id) } }
     @JavascriptInterface fun finish(): String = command { manager.finish() }
     @JavascriptInterface fun stop(): String = command { expected = ""; manager.stop() }
+    @JavascriptInterface fun selectModel(id: String): String = command { manager.select(id) }
+    @JavascriptInterface fun removeInstalledModel(id: String): String = command { manager.remove(id) }
+    @JavascriptInterface fun downloadModel(id: String): String = command { manager.install(null, id) }
     @JavascriptInterface fun download(): String = command { manager.install(null) }
     @JavascriptInterface fun importModel(): String = command { activity.runOnUiThread { activity.pickRecognitionModel() } }
     @JavascriptInterface fun cancelInstallation(): String = command { manager.cancelInstallation() }

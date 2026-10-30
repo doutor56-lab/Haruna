@@ -72,7 +72,7 @@ export function hearMessage(text,id){
  if(Number(status.speaker??-1)<0){openSettings();alert('Escolha uma voz e toque em Testar voz. Depois, use Ouvir novamente na mensagem.');return}
  run('speak',text,id);
 }
-window.addEventListener('haruna-tts-status',e=>render(e.detail));
+window.addEventListener('haruna-tts-status',e=>{if(!e.detail?.meter)render(e.detail)});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){run('stop')}else refresh()});
 refresh();
 

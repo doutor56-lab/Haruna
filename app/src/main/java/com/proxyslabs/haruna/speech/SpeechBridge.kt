@@ -18,12 +18,16 @@ class SpeechBridge(private val activity: MainActivity, private val webView: WebV
     @JavascriptInterface fun getStatus(): String = manager.status().toString()
     @JavascriptInterface fun configure(json: String): String = command { manager.configure(json) }
     @JavascriptInterface fun speak(text: String, messageId: String): String = command { activity.stopListening(); manager.speak(text, messageId) }
+    @JavascriptInterface fun beginStream(messageId: String): String = command { activity.stopListening(); manager.beginStream(messageId) }
+    @JavascriptInterface fun appendStream(messageId: String, text: String): String = command { manager.appendStream(messageId, text) }
+    @JavascriptInterface fun endStream(messageId: String): String = command { manager.endStream(messageId) }
     @JavascriptInterface fun stop(): String = command { manager.stop() }
     @JavascriptInterface fun download(): String = command { manager.install(null) }
     @JavascriptInterface fun importModel(): String = command { activity.runOnUiThread { activity.pickVoiceModel() } }
     @JavascriptInterface fun cancelInstallation(): String = command { manager.cancelInstallation() }
     @JavascriptInterface fun removeModel(): String = command { manager.remove() }
     fun importModel(uri: Uri) { runCatching { manager.install(uri) }.onFailure { manager.reportError(it.message ?: "Falha na importação") } }
+    fun suspendForBackground() { manager.stop("app_background") }
     fun prepareForListening(ready: () -> Unit) { manager.prepareForListening(ready) }
     fun selectionFailed(message: String) { manager.reportError(message) }
     fun selectionCancelled() { stop() }

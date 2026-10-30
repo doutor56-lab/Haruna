@@ -5,6 +5,8 @@ import org.json.JSONObject
 /** Scalars only, process-local. No text, identifiers or audio retained. */
 object SttDiagnostics {
     const val LANGUAGE = "pt"
+    private var modelName = "Whisper Tiny multilingual INT8"
+    @Synchronized fun model(name: String) { modelName = name }
     private var rate: Int? = null
     private var audioMs: Double? = null
     private var decodeMs: Double? = null
@@ -17,7 +19,7 @@ object SttDiagnostics {
     @Synchronized fun decoded(ms: Double) { decodeMs = ms.takeIf { it.isFinite() && it >= 0 } }
     @Synchronized fun finished(outcome: String) { lastOutcome = outcome; attempts++; if (outcome == "success") successes++ }
     @Synchronized fun snapshot(): JSONObject = JSONObject()
-        .put("engine", "sherpa-onnx OfflineRecognizer").put("model", "Whisper Tiny multilingual INT8")
+        .put("engine", "sherpa-onnx OfflineRecognizer").put("model", modelName)
         .put("language", LANGUAGE).put("sampleRate", rate ?: JSONObject.NULL)
         .put("audioMs", audioMs ?: JSONObject.NULL).put("decodeMs", decodeMs ?: JSONObject.NULL)
         .put("rtf", if (audioMs != null && audioMs!! > 0 && decodeMs != null) decodeMs!! / audioMs!! else JSONObject.NULL)

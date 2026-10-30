@@ -8,6 +8,8 @@ import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import kotlin.math.sqrt
 
 /** Bounded streaming writes; stop() flushes queued PCM immediately. No WAV files. */
 class TtsAudioPlayer(context: Context, private val focusLost: () -> Unit) {
@@ -29,12 +31,26 @@ class TtsAudioPlayer(context: Context, private val focusLost: () -> Unit) {
                 .setBufferSizeInBytes(buffer).setTransferMode(AudioTrack.MODE_STREAM).build().also { it.play() }
         }
     }
-    fun write(samples: FloatArray, alive: () -> Boolean) {
+    fun write(samples: FloatArray, alive: () -> Boolean, level: (Double) -> Unit = {}) {
+        var lastMeter = 0L
+        val owner = synchronized(lock) { track } ?: return
         var offset = 0
         while (offset < samples.size && alive()) {
-            val n = synchronized(lock) { track?.write(samples, offset, minOf(2048, samples.size - offset), AudioTrack.WRITE_NON_BLOCKING) ?: return }
+            val n = synchronized(lock) {
+                if (track !== owner) return
+                owner.write(samples, offset, minOf(2048, samples.size - offset), AudioTrack.WRITE_NON_BLOCKING)
+            }
             require(n >= 0) { "Falha na reprodução ($n)" }
-            if (n == 0) Thread.sleep(10) else { offset += n; written += n }
+            if (n == 0) Thread.sleep(10) else {
+                val now = SystemClock.elapsedRealtime()
+                if (alive() && now - lastMeter >= 160) {
+                    lastMeter = now
+                    var sum = 0.0
+                    for (i in offset until offset + n) sum += samples[i].toDouble() * samples[i]
+                    if (alive()) level((sqrt(sum / n) * 4).coerceIn(0.0, 1.0))
+                }
+                offset += n; written += n
+            }
         }
     }
     fun drain(alive: () -> Boolean) {

@@ -1,0 +1,20 @@
+{
+  "verifiedBy": "Release/API metadata only; no model weights downloaded or executed",
+  "verifiedDateUTC": "2026-10-30",
+  "llm": [
+    {"name":"Qwen 0.5B","repo":"Qwen/Qwen2.5-0.5B-Instruct-GGUF","revision":"9217f5db79a29953eb74d5343926648285ec7e67","file":"qwen2.5-0.5b-instruct-q4_k_m.gguf","bytes":491400032,"lfsSha256":"74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"},
+    {"name":"Qwen3.5 2B","repo":"unsloth/Qwen3.5-2B-GGUF","revision":"f6d5376be1edb4d416d56da11e5397a961aca8ae","file":"Qwen3.5-2B-Q4_K_M.gguf","bytes":1280835840,"lfsSha256":"aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"},
+    {"name":"Phi-4 Mini 3.8B","repo":"bartowski/microsoft_Phi-4-mini-instruct-GGUF","revision":"7ff82c2aaa4dde30121698a973765f39be5288c0","file":"microsoft_Phi-4-mini-instruct-Q4_K_M.gguf","bytes":2491874688,"lfsSha256":"01999f17c39cc3074afae5e9c539bc82d45f2dd7faa3917c66cbef76fce8c0c2"}
+  ],
+  "stt": [
+    {"name":"Whisper Tiny","archive":"sherpa-onnx-whisper-tiny.tar.bz2","bytes":116204861,"releaseDigest":null,"previouslyRecordedSha256":"c46116994e539aa165266d96b325252728429c12535eb9d8b6a2b10f129e66b1"},
+    {"name":"Whisper Base","archive":"sherpa-onnx-whisper-base.tar.bz2","bytes":207557382,"releaseDigest":null},
+    {"name":"Whisper Small","archive":"sherpa-onnx-whisper-small.tar.bz2","bytes":639387718,"releaseDigest":null}
+  ],
+  "sttRelease":"https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models",
+  "sttFormatReferences":[
+    "https://github.com/k2-fsa/sherpa-onnx/blob/v2.0.0/.github/scripts/test-offline-whisper.sh",
+    "https://github.com/k2-fsa/sherpa-onnx/blob/v2.0.0/scripts/whisper/export-onnx.py"
+  ],
+  "notes":"Official ONNX INT8 encoder/decoder and multilingual tokens. Other runtimes/weight formats are not accepted. Base/Small archive digests were not supplied by this release: recorded local hashes are fingerprints, not a published-source authenticity check. GGUF download manager remains unchanged; LFS hashes are provenance metadata, not a newly added download checksum mechanism."
+}

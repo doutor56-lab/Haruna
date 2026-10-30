@@ -19,8 +19,8 @@ android {
         minSdk = 33
         targetSdk = 36
         testInstrumentationRunner = "com.proxyslabs.haruna.diagnostic45.CanonicalRunner"
-        versionCode = 4
-        versionName = "0.4"
+        versionCode = 6
+        versionName = "0.6"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 

@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicLong
 /** Serial model work; each capture/transcription is explicitly owned by a request ID. */
 class SttManager(private val context: Context, private val emit: (JSONObject) -> Unit) : AutoCloseable {
     private val models = SttModelManager(context)
-    private val engine: SttEngine = WhisperSttEngine()
+    private val engine: SttEngine = WhisperSttEngine { emit(status()) }
     private val recorder = SttAudioRecorder()
     private val worker = Executors.newSingleThreadExecutor()
     private val generation = AtomicLong()
@@ -25,10 +25,12 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
     @Volatile private var mode = "dictation"
     @Volatile private var copied = 0L
     @Volatile private var total: Long? = null
-    init { worker.execute { models.cleanTemporary() } }
+    init { SttDiagnostics.model(models.selected().title + " multilíngue INT8"); worker.execute { models.cleanTemporary() } }
     fun status(): JSONObject = JSONObject().put("state", state).put("error", error)
         .put("installed", models.installed()).put("bytes", models.bytes()).put("busy", active.get()).put("requestId", requestId).put("mode", mode)
         .put("copiedBytes", copied).put("totalBytes", total).put("archiveBytes", SttModelManager.ARCHIVE_BYTES)
+        .put("models", models.list()).put("selectedId", models.selected().id).put("modelName", models.selected().title)
+        .put("loaded", engine.loaded()).put("activeModel", if (engine.loaded()) models.selected().title else JSONObject.NULL)
         .put("diagnostics", SttDiagnostics.snapshot())
     private fun publish(next: String, failure: String? = null, text: String? = null) {
         state = next; error = failure
@@ -36,7 +38,7 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
         emit(value)
     }
     fun fail(message: String, id: String = requestId) { requestId = id; publish("error", message) }
-    fun start(captureMode: String, id: String) {
+    @Synchronized fun start(captureMode: String, id: String) {
         require(!closed.get() && !installing.get()) { "Aguarde a instalação do reconhecimento de voz" }
         require(context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) { "Permita o microfone para usar a voz" }
         require(captureMode == "dictation" || captureMode == "call") { "Modo de captura inválido" }
@@ -50,13 +52,13 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
             var samples = FloatArray(0)
             try {
                 if (!alive()) return@execute
-                samples = recorder.capture(::alive, { if (alive()) publish("listening") }) { level -> if (alive()) emit(status().put("level", level)) }
+                samples = recorder.capture(::alive, { if (alive()) publish("listening") }) { level -> if (alive()) emit(JSONObject().put("meter", true).put("state", "listening").put("requestId", requestId).put("level", level)) }
                 if (!alive()) return@execute
                 SttDiagnostics.captured(samples.size)
                 if (samples.isEmpty()) { SttDiagnostics.finished("no_speech"); publish("no_speech"); return@execute }
                 require(models.installed()) { "Reconhecimento de voz não instalado" }
                 publish("transcribing")
-                val text = engine.transcribe(models.directory, samples)
+                val text = engine.transcribe(models.directory, samples, models.selected())
                 // The engine frees its sessions before returning text to the chat.
                 if (alive()) {
                     val accepted = SttResultPolicy.accept(text)
@@ -69,24 +71,39 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
     }
     fun finish() { if (state == "listening") recorder.finish() }
     fun stop() { generation.incrementAndGet(); recorder.cancel(); if (!installing.get()) publish("idle") }
-    fun install(uri: Uri?) {
+    @Synchronized fun install(uri: Uri?, id: String = "whisper-tiny-int8") {
+        val requested = WhisperModels.byId(id)
         require(!active.get()) { "Encerre a captura e aguarde a transcrição antes de instalar" }
         require(installing.compareAndSet(false, true)) { "Já existe uma instalação em andamento" }
-        models.cancelled.set(false); copied = 0; total = if (uri == null) SttModelManager.ARCHIVE_BYTES else null
+        models.cancelled.set(false); copied = 0; total = if (uri == null) requested.archiveBytes else null
         publish(if (uri == null) "downloading" else "importing")
         worker.execute {
             try {
-                if (!models.installed()) models.install(uri) { phase, count, length -> copied = count; total = length; publish(phase) }
+                models.install(uri, { phase, count, length -> copied = count; total = length; publish(phase) }, id)
+                SttDiagnostics.model(models.selected().title + " multilíngue INT8")
                 publish("installed")
             } catch (failure: Throwable) { publish(if (models.cancelled.get()) "cancelled" else "error", if (models.cancelled.get()) null else failure.message ?: "Falha ao instalar reconhecimento") }
             finally { installing.set(false); copied = 0; total = null; emit(status()) }
         }
     }
     fun cancelInstallation() { if (installing.get()) { models.cancel(); publish("cancelling") } }
-    fun remove() {
-        require(!installing.get() && !active.get()) { "Aguarde a operação atual" }
-        stop()
-        worker.execute { try { models.remove(); publish("idle") } catch (failure: Throwable) { publish("error", failure.message) } }
+    @Synchronized fun select(id: String) {
+        require(!active.get() && installing.compareAndSet(false, true)) { "Aguarde a operação STT atual" }
+        publish("selecting")
+        worker.execute {
+            try { models.select(id); SttDiagnostics.model(models.selected().title + " multilíngue INT8"); publish("idle") }
+            catch (failure: Throwable) { publish("error", failure.message) }
+            finally { installing.set(false); emit(status()) }
+        }
+    }
+    @Synchronized fun remove(id: String = models.selected().id) {
+        require(!active.get() && installing.compareAndSet(false, true)) { "Aguarde a operação STT atual" }
+        publish("removing")
+        worker.execute {
+            try { models.remove(id); SttDiagnostics.model(models.selected().title + " multilíngue INT8"); publish("idle") }
+            catch (failure: Throwable) { publish("error", failure.message) }
+            finally { installing.set(false); emit(status()) }
+        }
     }
     override fun close() { if (closed.compareAndSet(false, true)) { models.cancel(); stop(); worker.shutdown() } }
 }

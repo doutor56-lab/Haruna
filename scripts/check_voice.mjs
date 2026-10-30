@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const root=new URL('../app/src/main/assets/haruna/',import.meta.url);
+const data=source=>`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+const think=data(await readFile(new URL('streaming/think-parser.js',root),'utf8'));
+const moduleText=(await readFile(new URL('voice/stream.js',root),'utf8')).replace("'../streaming/think-parser.js'",JSON.stringify(think));
+const {SentenceQueue,SpeechStream}=await import(data(moduleText));
+let output=[];const queue=new SentenceQueue(x=>output.push(x));
+const first='Esta primeira frase tem um tamanho natural para ser pronunciada. ';
+queue.push(first);assert.equal(output.length,1); // before any end-of-generation signal
+const second='A segunda frase chega depois e precisa manter a ordem correta. ';
+for(const c of second)queue.push(c);queue.finish();queue.finish();
+assert.deepEqual(output,[first.trim(),second.trim()]);
+output=[];const long=new SentenceQueue(x=>output.push(x));long.push('palavra '.repeat(200));long.finish();
+assert(output.every(x=>x.length<=280));assert.equal(output.join(' ').replace(/\s+/g,' ').trim(),'palavra '.repeat(200).trim());
+output=[];const short=new SentenceQueue(x=>output.push(x));short.push('Oi! Tudo bem? Sim.');assert.equal(output.length,0);short.finish();assert.deepEqual(output,['Oi! Tudo bem? Sim.']);
+output=[];const abbrev=new SentenceQueue(x=>output.push(x));abbrev.push('Vamos conversar tranquilamente com o nosso amigo Dr. Silva sobre este assunto. ');abbrev.finish();assert.equal(output.length,1);
+output=[];const speech=new SpeechStream({send:x=>output.push(x)});
+speech.push('<thi',true);speech.push('nk>conteúdo interno</thi',true);assert.equal(output.length,0);speech.push('nk>'+first,true);assert.deepEqual(output,[first.trim()]);speech.finish(first);assert.equal(output.length,1);
+output=[];const implicit=new SpeechStream({send:x=>output.push(x)});implicit.push('pensamento oculto sem marcador inicial',true);assert.equal(output.length,0);implicit.push('</think>'+first,true);implicit.finish(first);assert.deepEqual(output,[first.trim()]);
+output=[];const noMarker=new SpeechStream({send:x=>output.push(x)});noMarker.push(first,true);assert.equal(output.length,0);noMarker.finish(first);assert.deepEqual(output,[first.trim()]);
+output=[];const plain=new SpeechStream({send:x=>output.push(x)});for(const c of first+second)plain.push(c,false);plain.finish(first+second);assert.deepEqual(output,[first.trim(),second.trim()]);
+output=[];const cancelled=new SpeechStream({send:x=>output.push(x)});cancelled.push('Parcial');cancelled.cancel();cancelled.push(first);cancelled.finish(first);assert.equal(output.length,0);
+let failed=0;const full=new SpeechStream({send:()=>{throw Error('queue full')},onError:()=>failed++});assert.doesNotThrow(()=>full.push(first,false));assert.equal(failed,1);full.push(first,false);assert.equal(failed,1);
+const {modelStatus,modelLabel}=await import(data(await readFile(new URL('voice/model-names.js',root),'utf8')));
+assert.equal(modelLabel('Qwen3.5-2B-Q4_K_M.gguf'),'Qwen3.5');assert.equal(modelLabel('microsoft_Phi-4-mini-instruct-Q4_K_M.gguf'),'Phi-4');assert.equal(modelLabel('qwen2.5-0.5b-instruct-q4_k_m.gguf'),'Qwen 0.5B');
+assert.equal(modelStatus({modelLoaded:true,state:'active',modelName:'Qwen3.5-2B-Q4_K_M.gguf'}),'Qwen3.5 local ativo');assert.equal(modelStatus({modelLoaded:true,state:'loading',modelName:'old.gguf'}),'Carregando modelo…');
+console.log('PASS voice JS: natural segments, early speech, order, no repeats, bounds, abbreviations, explicit/implicit thinking guard, final fallback, cancel, overflow isolation and model status.');
