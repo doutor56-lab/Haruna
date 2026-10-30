@@ -28,7 +28,7 @@ object GgufMetadata {
             val count = u64(); require(count <= 100_000)
             val wanted = setOf("general.name", "general.basename", "general.architecture", "general.size_label", "general.file_type")
             val result = linkedMapOf<String, String>()
-            for (index in 0 until count) {
+            for (index in 0 until minOf(count, 256L)) {
                 if (input.filePointer > LIMIT - 16) break
                 try {
                     val key = string(512, true); val type = u32()
@@ -36,8 +36,10 @@ object GgufMetadata {
                         8 -> { val value = string(4096, key in wanted); if (key in wanted && value.isNotBlank()) result[key] = value }
                         9 -> {
                             val element = u32(); val size = u64(); require(size <= LIMIT)
-                            if (element == 8L) repeat(size.toInt()) { string(0, false) }
-                            else { val bytes = Math.multiplyExact(size, width(element).toLong()); skip(bytes) }
+                            // Names/architecture are normally before tokenizer metadata. Never walk
+                            // a vocabulary string array on the synchronous settings/bridge path.
+                            if (element == 8L) break
+                            val bytes = Math.multiplyExact(size, width(element).toLong()); skip(bytes)
                         }
                         else -> {
                             val bytes = width(type)
