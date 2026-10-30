@@ -5,16 +5,17 @@ export const profiles={
  'Phi determinístico — experimental':{...baseline,temperature:0}
 };
 export function summary(result){
- const g=result.observation?.generation||{},r=result.observation?.runtime||{},p=result.observation?.prefix||{};
+ const observed=result.nativeGenerationFresh===false?{runtime:result.observation?.runtime}:result.observation;
+ const g=observed?.generation||{},r=observed?.runtime||{},p=observed?.prefix||{};
  const finite=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
  const rate=(n,t)=>finite(n)&&finite(t)&&t>0?n*1e6/t:null;
- return {completedAt:result.completedAt,model:result.model,configuration:Object.fromEntries(Object.keys(baseline).map(k=>[k,result.configuration?.[k]])),fixture:result.fixture,error:result.error,
-  runtime:r,device:result.after?.device,sampler:result.observation?.decisionProbe?.sampler,thermalBefore:result.thermalBefore,thermalAfter:result.thermalAfter,
+ return {arm:result.arm,nativeGenerationFresh:result.nativeGenerationFresh,completedAt:result.completedAt,model:result.model,configuration:Object.fromEntries(Object.keys(baseline).map(k=>[k,result.configuration?.[k]])),fixture:result.fixture,error:result.error,
+  runtime:r,device:result.after?.device,sampler:observed?.decisionProbe?.sampler,thermalBefore:result.thermalBefore,thermalAfter:result.thermalAfter,
   ttftMs:result.firstDeltaMs,nativeTtftMs:finite(g.firstDeltaUs)?g.firstDeltaUs/1000:null,
   prefillMs:finite(g.prefillUs)?g.prefillUs/1000:null,promptTokens:g.inputTokens,outputTokens:g.outputTokens,
   prefillTokens:g.prefillTokens,promptTokensPerSecond:rate(g.prefillTokens,g.prefillUs),
   decodeWorkTokensPerSecond:rate(g.outputTokens,g.decodeUs),totalMs:result.elapsedMs,
-  stopReason:({1:'EOS/EOG',2:'MAX_TOKENS',3:'ERROR_DECODE',4:'ERROR_PREPARATION',5:'CANCELLED',6:'ERROR_PREFILL',7:'UNLOAD',8:'DESTROY',9:'DETACHED',10:'ERROR_UTF8'})[g.nativeStopCode]||'UNKNOWN',
+  stopReason:result.error==='cancelled'?'CANCELLED':result.error&&!([3,4,5,6,7,8,9,10].includes(g.nativeStopCode))?'ERROR':({1:'EOS/EOG',2:'MAX_TOKENS',3:'ERROR_DECODE',4:'ERROR_PREPARATION',5:'CANCELLED',6:'ERROR_PREFILL',7:'UNLOAD',8:'DESTROY',9:'DETACHED',10:'ERROR_UTF8'})[g.nativeStopCode]||'UNKNOWN',
   prefix:p,cacheRequested:result.configuration?.cache,prefixState:p.planned===true?(p.reusedTokens>0?'HIT':'MISS'):'N/D',reusePercent:finite(p.reusedTokens)&&p.inputTokens>0?p.reusedTokens*100/p.inputTokens:null,memoryBefore:result.before?.memory,memoryAfter:result.after?.memory,rag:result.rag,ragMs:result.configuration?.ragMs,ragChunks:result.configuration?.references?.length,
   note:'Decode mede trabalho nativo; TTFT do laboratório começa na aceitação da chamada DEBUG. RAM são amostras antes/depois, não um pico contínuo.'};
 }

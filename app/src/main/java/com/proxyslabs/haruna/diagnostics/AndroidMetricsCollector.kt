@@ -23,7 +23,7 @@ class AndroidMetricsCollector(context: Context) {
         }.getOrElse { JSONObject() }
     }
 
-    fun snapshot(): JSONObject {
+    @Synchronized fun snapshot(): JSONObject {
         val now = SystemClock.elapsedRealtime()
         if (cached == null || now - lastSample >= 10_000) {
             val values = JSONObject()
@@ -69,3 +69,4 @@ class AndroidMetricsCollector(context: Context) {
                 .put("process64Bit", Process.is64Bit()).put("processUptimeMs", processUptime ?: JSONObject.NULL))
     }
 }
+

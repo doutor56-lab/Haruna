@@ -11,8 +11,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** One canonical fixture; no access to chat/knowledge stores. Only bounded technical state persists. */
-class InferenceLab(private val app: Context, private val backend: LlmBackend, private val emit: (JSONObject)->Unit) {
-    private val metrics=AndroidMetricsCollector(app)
+class InferenceLab(private val app: Context, private val backend: LlmBackend, private val metrics: AndroidMetricsCollector, private val emit: (JSONObject)->Unit) {
     private val active=AtomicBoolean(false)
     @Volatile private var request: String?=null
     fun cancel() { request?.let { backend.stop(it) } }
@@ -28,7 +27,9 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
         require(cfg.getInt("topK") in 0..1000 && cfg.getInt("maxTokens") in 16..1024)
         val seed=cfg.getLong("seed");require(seed in 0..4294967295L)
         check(!com.proxyslabs.haruna.speech.VoiceCallService.running) { "Encerre a chamada antes do benchmark" }
-        check(backend.status().modelLoaded && backend.status().state=="active") { "Carregue um modelo e aguarde o runtime ocioso" }
+        val state=backend.status()
+        check(cfg.optString("expectedModel", "").let { it.isEmpty() || it==state.modelName }) { "Modelo alterado durante o lote; execute novamente com um único modelo" }
+        check(state.modelLoaded && state.state=="active") { "Carregue um modelo e aguarde o runtime ocioso" }
         check(active.compareAndSet(false,true)) { "Benchmark em andamento" }
         val id="lab-"+UUID.randomUUID().toString();request=id
         val start=SystemClock.elapsedRealtimeNanos();var first: Double?=null;val text=StringBuilder();var deltas=0
@@ -38,12 +39,15 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
         messages.put(JSONObject().put("role","user").put("content",prompt + if(cfg.optBoolean("rag") && cfg.optJSONArray("references")!=null) "\n<dados_de_referencia>\n"+cfg.getJSONArray("references").toString()+"\n</dados_de_referencia>" else ""))
         val before=metrics.snapshot()
         val thermal=app.getSystemService(PowerManager::class.java).currentThermalStatus
-        val initial=JSONObject(backend.runtimeMetrics())
+        val initial=JSONObject(backend.runtimeMetrics()).apply { remove("laboratory") }
         val model=backend.status().modelName
         fun complete(error: String?) {
             val elapsed=(SystemClock.elapsedRealtimeNanos()-start)/1e6
             val obs=JSONObject(backend.runtimeMetrics())
-            val result=JSONObject().put("request",id).put("configuration",cfg).put("model",model)
+            val serial=obs.optJSONObject("generation")?.optLong("serial",0L) ?: 0L
+            val fresh=error!="generation_busy" && serial>0 && serial!=(initial.optJSONObject("generation")?.optLong("serial",0L) ?: 0L)
+            if(!fresh) { obs.remove("generation");obs.remove("prefix");obs.remove("decisionProbe");obs.remove("laboratory") }
+            val result=JSONObject().put("nativeGenerationFresh",fresh).put("request",id).put("configuration",cfg).put("model",model)
                 .put("completedAt",System.currentTimeMillis()).put("elapsedMs",elapsed).put("firstDeltaMs",first?:JSONObject.NULL).put("deltas",deltas)
                 .put("output",text.toString()).put("error",error?:JSONObject.NULL).put("observation",obs)
                 .put("before",before).put("after",metrics.snapshot())

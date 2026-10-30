@@ -31,6 +31,7 @@ export function domUpdated(length,visible){
  current.visualUpdates++;current.outputUtf16=Math.max(0,length);
  if(current.clientFirstDomMs===null)current.clientFirstDomMs=t;
  if(visible&&current.clientFirstVisibleMs===null){
+  pipelineMark("perceivedFirstVisibleMs");
   current.clientFirstVisibleMs=t;
   if(!current.firstAck){current.firstAck=true;ack('first')}
  }
@@ -38,6 +39,7 @@ export function domUpdated(length,visible){
 export function presentationFinished(length,visible){
  if(!current||current.finalAck)return;
  domUpdated(length,visible);
+ pipelineMark("presentationCompleteMs");
  current.clientTotalMs=clock()-current.started;
  if(current.clientFirstVisibleMs!==null)current.presentationSpanMs=current.clientTotalMs-current.clientFirstVisibleMs;
  current.finalAck=true;ack('final');
