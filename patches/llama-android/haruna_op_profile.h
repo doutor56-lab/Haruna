@@ -23,6 +23,12 @@ static bool hp_callback(ggml_tensor*t,bool ask,void*){
  {std::lock_guard<std::mutex>l(hp_lock);if(t->op>=0&&t->op<GGML_OP_COUNT){hp_times[t->op]+=elapsed;++hp_counts[t->op];if(std::string(haruna_observed_node_backend(g_context,t)).find("Vulkan")!=std::string::npos)hp_gpu_times[t->op]+=elapsed;}hp_categories[hp_category(t)]+=elapsed;}
  return true;
 }
-static void hp_begin(bool enabled){hp_cpu(false);std::lock_guard<std::mutex>l(hp_lock);hp_enabled=enabled;hp_times.fill(0);hp_counts.fill(0);hp_gpu_times.fill(0);hp_categories.fill(0);for(auto&n:hp_traits)n=0;if(enabled)hp_cpu(true);}
+static void hp_begin(bool enabled){
+#if HARUNA_DIAGNOSTIC_45
+ // Canonical 4.5/4.6 capture owns the same trait counters in these separate builds.
+ hp_enabled=false;return;
+#endif
+ hp_cpu(false);std::lock_guard<std::mutex>l(hp_lock);hp_enabled=enabled;hp_times.fill(0);hp_counts.fill(0);hp_gpu_times.fill(0);hp_categories.fill(0);for(auto&n:hp_traits)n=0;if(enabled)hp_cpu(true);
+}
 static void hp_end(){if(hp_enabled)hp_cpu(false);}
 static HarunaJson hp_snapshot(){std::lock_guard<std::mutex>l(hp_lock);HarunaJson ops=HarunaJson::array();for(int k=0;k<GGML_OP_COUNT;k++)if(hp_counts[k])ops.push_back({{"op",ggml_op_name(static_cast<ggml_op>(k))},{"calls",hp_counts[k]},{"us",hp_times[k]},{"vulkanUs",hp_gpu_times[k]}});return {{"enabled",hp_enabled.load()},{"serializedDiagnostic",hp_enabled.load()},{"productionComparable",!hp_enabled},{"ops",ops},{"categoryUs",hp_categories},{"successfulTraitThreadCalls",hp_traits[0]},{"kleidiAiThreadCalls",hp_traits[1]},{"repackThreadCalls",hp_traits[2]},{"note","Node synchronization/fusion changes in profiling mode; not production TTFT. Categories are heuristic internal names; tensor contents/names not exported."}};}

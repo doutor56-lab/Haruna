@@ -68,3 +68,6 @@ META NÃO ATINGIDA — AGUARDANDO MEDIÇÃO FÍSICA NO SAMSUNG SM-A155M
 
 PORTABILIDADE DO BUILD VULKAN
 O primeiro link completo encontrou uma ABI auxiliar x86_64 da biblioteca (não empacotada no APK ARM64), enquanto o caminho de libvulkan.so estava fixo em ARM64. Corrigido o caminho por ANDROID_ABI, preservando exatamente o caminho ARM64 anterior e os demais parâmetros. Não é mudança de kernel, inferência ou driver. O APK CPU do commit 3f363 e o APK Vulkan após essa correção usam o mesmo código de aplicação, controlador de estado, sampler e runtime; metadados identificam os commits distintos. Não se repete build CPU por uma correção condicionada exclusivamente a Vulkan.
+
+PRESERVAÇÃO DA CAPTURA 4.5/4.6
+HARUNA_DIAGNOSTIC_45!=0 mantém ownership dos contadores extra-traits com a captura canônica: hp_begin retorna antes de resetá-los. Teste check_incremental_counters.py compila e executa o corpo real nos modosOFF/A/B/C/D/E/F. Nos APKs normais entregues a flag é0: o ramo é removido no pré-processador, sem mudança na inferência ou no profiling normal. Esta proteção adicional pertence aos builds diagnósticos separados; commits exatos dos APKs estão em seus metadados.

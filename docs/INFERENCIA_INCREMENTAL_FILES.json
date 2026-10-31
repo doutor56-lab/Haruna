@@ -25,6 +25,7 @@
   "patches/llama-android/haruna_prefix_cache.h",
   "scripts/check_context_runtime.cpp",
   "scripts/check_incremental_browser.mjs",
+  "scripts/check_incremental_counters.py",
   "scripts/check_incremental_messages.mjs",
   "scripts/check_incremental_native.cpp",
   "scripts/check_incremental_scope.py",
