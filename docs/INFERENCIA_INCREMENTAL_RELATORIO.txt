@@ -65,3 +65,6 @@ PROBLEMAS FORA DO ESCOPO
 Degeneração ARM previamente relatada não foi declarada resolvida. Sem Samsung não há novo diagnóstico causal. Não foram alterados voz, armazenamento, downloads, tema, navegação ou RAG funcional. Não houve benchmark físico de afinidade/temperatura; não foram inventados clusters/frequências ou limite de hardware.
 
 META NÃO ATINGIDA — AGUARDANDO MEDIÇÃO FÍSICA NO SAMSUNG SM-A155M
+
+PORTABILIDADE DO BUILD VULKAN
+O primeiro link completo encontrou uma ABI auxiliar x86_64 da biblioteca (não empacotada no APK ARM64), enquanto o caminho de libvulkan.so estava fixo em ARM64. Corrigido o caminho por ANDROID_ABI, preservando exatamente o caminho ARM64 anterior e os demais parâmetros. Não é mudança de kernel, inferência ou driver. O APK CPU do commit 3f363 e o APK Vulkan após essa correção usam o mesmo código de aplicação, controlador de estado, sampler e runtime; metadados identificam os commits distintos. Não se repete build CPU por uma correção condicionada exclusivamente a Vulkan.
