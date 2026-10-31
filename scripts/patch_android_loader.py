@@ -121,3 +121,6 @@ apply_lab_patch()
 
 from patch_android_context_lab import apply_context_lab_patch
 apply_context_lab_patch()
+
+from patch_android_incremental import apply_incremental_patch
+apply_incremental_patch()

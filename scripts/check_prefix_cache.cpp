@@ -38,6 +38,7 @@ struct HarunaJson {
     template<class T> HarunaJson(T) {}
     HarunaJson(std::initializer_list<std::pair<const char *,HarunaJson>>) {}
 };
+#define HARUNA_PREFIX_KV_TEST 1
 #include "../patches/llama-android/haruna_prefix_cache.h"
 static void begin() { hk_begin_request(); hm_prefill_tokens=0; hm_removed=0; }
 static void batch(const llama_tokens & tokens,size_t offset,size_t count,bool completed=true) {

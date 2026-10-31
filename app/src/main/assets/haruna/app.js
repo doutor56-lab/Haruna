@@ -204,7 +204,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
   const out=add('assistant','✦');
   const draft={role:'assistant',content:'',at:now(),interrupted:true};
   preparationStarted();
-  const {prompt,profile}=await enriched(text,files),messages=measured('promptConstructionMs',()=>conversationMessages(chat,prompt,profile));
+  const {prompt,profile}=await enriched(text,files),messages=measured('promptConstructionMs',()=>conversationMessages(chat,prompt,profile,{persistent:status.incrementalConversation===true}));
   contextPrepared();
   chat.messages.push(draft);
   const view=createMessageView({bubble:out,container:messagesEl,onVisual:domUpdated,

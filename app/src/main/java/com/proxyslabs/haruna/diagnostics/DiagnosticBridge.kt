@@ -41,8 +41,9 @@ class DiagnosticBridge(
         val source = JSONObject(backend.runtimeMetrics())
         val result = JSONObject().put("available", source.has("runtime") || source.has("decisionProbe"))
         for ((group, keys) in mapOf(
-            "runtime" to listOf("flashRequested", "flashEffective", "cpuVariant", "threads", "threadsBatch", "nCtx", "nBatch", "nUbatch", "kvActualK", "kvActualV", "contextExperiment", "modelHybrid", "modelRecurrent"),
+            "runtime" to listOf("flashRequested", "flashEffective", "cpuVariant", "threads", "threadsBatch", "nCtx", "nBatch", "nUbatch", "kvActualK", "kvActualV", "contextExperiment", "modelHybrid", "modelRecurrent", "gpuTransformerLayers"),
             "decisionProbe" to listOf("fixedSeedDBG", "flashOffRequestedDBG", "cpuConservativeEffectiveDBG", "cpuLoadFallbackDBG"),
+            "accelerator" to listOf("vulkanAvailable","pendingLayers","loadedRequestedLayers","requiresModelReload"),
             "debugControls" to listOf("cpuConservativePending", "cpuConservativeAvailable")
         )) {
             val values = JSONObject(); val actual = source.optJSONObject(group)
@@ -51,6 +52,17 @@ class DiagnosticBridge(
         }
         result.toString()
     }.getOrDefault("{\"available\":false}")
+    @JavascriptInterface fun labOffload(layers: Int): String = runCatching {
+        check(com.proxyslabs.haruna.BuildConfig.DEBUG && !closed.get())
+        check(!JSONObject(sttStatus()).optBoolean("busy") && JSONObject(ttsStatus()).optString("state","idle") in listOf("idle","error")) { "Aguarde voz ociosa" }
+        check(pending.compareAndSet(false,true)) { "Operação DBG em andamento" }
+        worker.execute {
+            val result=runCatching{(backend as? LlamaCppBackend)?.labReloadOffload(layers)?.getOrThrow() ?: error("Backend indisponível")}
+            pending.set(false)
+            webView.post{if(!closed.get())webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-lab-offload',{detail:${JSONObject.quote(if(result.isSuccess) "Modelo recarregado; confira camadas efetivas no DBG." else "Falha no offload: "+(result.exceptionOrNull()?.message?:"indisponível"))}}))",null)}
+        }
+        JSONObject().put("status","ok").toString()
+    }.getOrElse { JSONObject().put("status","error").put("error",it.message?:"Offload indisponível").toString() }
     @JavascriptInterface fun labModel(): String = if (com.proxyslabs.haruna.BuildConfig.DEBUG && !closed.get()) backend.status().modelName ?: "" else ""
     @JavascriptInterface fun labPromptInspector(): String = if (com.proxyslabs.haruna.BuildConfig.DEBUG && !closed.get()) runCatching { JSONObject(backend.runtimeMetrics()).optJSONObject("laboratory")?.optString("canonicalFormattedPrompt", "") ?: "" }.getOrDefault("") else ""
     @JavascriptInterface fun labCancel() { lab.cancel() }

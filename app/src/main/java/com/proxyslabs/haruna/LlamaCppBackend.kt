@@ -91,6 +91,10 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     }
 
     override fun installedModelPath(): String? = modelPath.takeIf { !loading && engine.state.value.isModelLoaded }
+    fun incrementalConversation(): Boolean = runCatching {
+        val runtime = JSONObject(engine.runtimeMetrics()).optJSONObject("runtime")
+        status().modelLoaded && runtime?.optString("architecture") == "qwen35" && runtime.optBoolean("modelHybrid")
+    }.getOrDefault(false)
     override fun subscribeStatus(listener: () -> Unit): () -> Unit {
         statusListeners.add(listener)
         return { statusListeners.remove(listener) }
@@ -191,6 +195,21 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         notifyStatus()
     }
 
+    /** Explicit DEBUG action only. One-shot offload request; subsequent normal loads remain CPU. */
+    fun labReloadOffload(layers: Int): Result<Unit> = runCatching {
+        check(BuildConfig.DEBUG && layers in setOf(0,8,99)) { "Offload experimental somente DEBUG" }
+        lifecycle.withLock {
+            check(!destroyed) { "Runtime encerrado" }
+            val file=File(requireNotNull(modelPath) { "Carregue primeiro o modelo que será testado" });validateModel(file)
+            maintenance(7) {
+                runBlocking(Dispatchers.IO) {
+                    engine.cleanUp();waitUntilInitialized();engine.configureOffload(layers);loadAndPrime(file)
+                }
+                modelName=file.name;modelPath=file.absolutePath;lastError=null;conversationId=null;resetRequired=false
+            }
+        }
+    }.onFailure { lastError=friendlyLoadError(it);notifyStatus() }
+
     override fun resetConversation(): Result<Unit> = runCatching {
         lifecycle.withLock {
             check(!destroyed) { "Runtime encerrado" }
@@ -243,7 +262,8 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     }
                     val profile = options?.optString("essentialContext", "") ?: ""
                     require(profile.length <= 900) { "Perfil de contexto muito longo" }
-                    val originalSystem = HarunaIdentity.systemPrompt(requireNotNull(modelName)) +
+                    val stableSystem = HarunaIdentity.systemPrompt(requireNotNull(modelName))
+                    val originalSystem = stableSystem +
                         if (profile.isBlank()) "" else "\n" + profile
                     val labVariant = options?.optString("labSystemPromptVariant", "current") ?: "current"
                     val labAuthorized = BuildConfig.DEBUG && requestId.startsWith("lab-") &&
@@ -253,7 +273,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     val system = com.proxyslabs.haruna.diagnostics.LabSystemPrompt.apply(originalSystem, labVariant, labAuthorized)
                     val roles = mutableListOf("system")
                     val contents = mutableListOf(system)
-                    require(messages.length() in 1..17) { "Número de mensagens inválido" }
+                    require(messages.length() in 1..(if(incrementalConversation()) 127 else 17)) { "Número de mensagens inválido" }
                     for (i in 0 until messages.length()) {
                         val message = messages.getJSONObject(i)
                         val role = message.optString("role")
@@ -265,7 +285,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     resetRequired = false
                     val predictLength = options?.optInt("maxTokens", 512)?.coerceIn(16, 1024) ?: 512
                     val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; var outputChars = 0L
-                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial, nextConversation, conversationRevision, if (BuildConfig.DEBUG) options?.optString("labConfig", "")?.takeIf { it.isNotEmpty() } ?: if (options?.optBoolean("labInspector", false) == true) "{\"inspectOnly\":true}" else "" else "").collect { token ->
+                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial, nextConversation, conversationRevision, if (BuildConfig.DEBUG) options?.optString("labConfig", "")?.takeIf { it.isNotEmpty() } ?: if (options?.optBoolean("labInspector", false) == true) "{\"inspectOnly\":true}" else "" else "", stableSystem).collect { token ->
                         if (firstTokenAt == 0L) { firstTokenAt = System.currentTimeMillis(); Log.i(TAG, "first_token_ms=${firstTokenAt - generationStart}") }
                         outputChars += token.length
                         // The bridge owns a bounded ordered buffer; no Main-thread hop per delta.

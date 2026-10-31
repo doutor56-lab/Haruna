@@ -1,6 +1,6 @@
 // Runs exclusively in the existing serialized inference owner with the current cancellation ticket.
 static HarunaContextConfig hc_parse(const HarunaJson & p){
-    HarunaContextConfig c;c.context=p.value("nCtx",8192);c.batch=p.value("nBatch",512);c.ubatch=p.value("nUbatch",512);
+    HarunaContextConfig c;c.profile=p.value("profileOps",false);c.context=p.value("nCtx",8192);c.batch=p.value("nBatch",512);c.ubatch=p.value("nUbatch",512);
     const auto fa=p.value("flashAttention",std::string("auto")),k=p.value("typeK",std::string("f16")),v=p.value("typeV",std::string("f16"));
     if(fa!="auto"&&fa!="on"&&fa!="off")throw std::runtime_error("Invalid FA request");
     c.fa=fa=="auto"?-1:fa=="on"?1:0;
@@ -10,7 +10,7 @@ static HarunaContextConfig hc_parse(const HarunaJson & p){
     if(llama_model_is_recurrent(g_model)&&!llama_model_is_hybrid(g_model)&&(c.k||c.v))throw std::runtime_error("No attention KV type can be confirmed for a purely recurrent model");
     if(c.v&&c.fa!=1)throw std::runtime_error("Q8 V requires explicitly enabled Flash Attention");
     if(hd_fa_off&&c.fa!=0)throw std::runtime_error("Restore legacy FA OFF before using this lab FA setting");
-    c.experimental=!(c.context==8192&&c.batch==512&&c.ubatch==512&&c.fa==-1&&!c.k&&!c.v);
+    c.experimental=c.profile||!(c.context==8192&&c.batch==512&&c.ubatch==512&&c.fa==-1&&!c.k&&!c.v);
     return c;
 }
 static void hc_ensure(const HarunaContextConfig & requested){

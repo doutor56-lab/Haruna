@@ -14,7 +14,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 class InferenceLab(private val app: Context, private val backend: LlmBackend, private val metrics: AndroidMetricsCollector, private val emit: (JSONObject)->Unit) {
     private val active=AtomicBoolean(false)
     @Volatile private var request: String?=null
-    fun cancel() { request?.let { backend.stop(it) } }
+    private data class SequenceRun(val id:String,val fingerprint:String,val model:String,val turns:MutableList<Pair<String,String>> = mutableListOf())
+    private val sequenceLock=Any()
+    private var sequence:SequenceRun?=null
+    fun cancel() { synchronized(sequenceLock){sequence=null};request?.let { backend.stop(it) } }
+
     fun run(raw: String): String = try {
         check(BuildConfig.DEBUG) { "Disponível somente em DEBUG" }
         require(raw.length<=4000)
@@ -39,13 +43,27 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
         val state=backend.status()
         check(cfg.optString("expectedModel", "").let { it.isEmpty() || it==state.modelName }) { "Modelo alterado durante o lote; execute novamente com um único modelo" }
         check(state.modelLoaded && state.state=="active") { "Carregue um modelo e aguarde o runtime ocioso" }
+        val step=cfg.optInt("sessionStep",-1)
+        require(step in -1..2) { "Turno de teste inválido" }
+        val sessionId=cfg.optString("sessionId","")
+        val fingerprint=JSONObject(cfg.toString()).apply{remove("sessionStep");remove("expectedModel")}.toString()
+        val sessionRun=if(step>=0) synchronized(sequenceLock){
+            require(sessionId.matches(Regex("[a-zA-Z0-9-]{1,80}")) && !cfg.optBoolean("rag") && !cfg.optBoolean("history") && !cfg.optBoolean("thinking")) { "Sessão sintética exige RAG/histórico/thinking OFF" }
+            if(step==0) SequenceRun(sessionId,fingerprint,state.modelName?:"") else requireNotNull(sequence).also{
+                require(it.id==sessionId && it.fingerprint==fingerprint && it.model==(state.modelName?:"") && it.turns.size==step) { "Sessão mudou ou foi interrompida; inicie pelo turno 1" }
+            }
+        }else null
         check(active.compareAndSet(false,true)) { "Benchmark em andamento" }
+        if(step==0) synchronized(sequenceLock){sequence=sessionRun}
         val id="lab-"+UUID.randomUUID().toString();request=id
         val start=SystemClock.elapsedRealtimeNanos();var first: Double?=null;val text=StringBuilder();var deltas=0
         val prompt="Explique em português, em três frases completas, por que o céu parece azul."
+        val turnPrompt=when(step){1->"Agora explique isso de forma ainda mais simples.";2->"Dê um exemplo do cotidiano.";else->prompt}
         val messages=JSONArray()
+        if(sessionRun!=null) synchronized(sequenceLock){sessionRun.turns.forEach{(user,answer)->messages.put(JSONObject().put("role","user").put("content",user)).put(JSONObject().put("role","assistant").put("content",answer))}}
+
         if(cfg.optBoolean("history")) messages.put(JSONObject().put("role","user").put("content","Estamos conversando sobre fenômenos da natureza.")).put(JSONObject().put("role","assistant").put("content","Podemos explicar esses fenômenos usando a ciência."))
-        messages.put(JSONObject().put("role","user").put("content",prompt + if(cfg.optBoolean("rag") && cfg.optJSONArray("references")!=null) "\n<dados_de_referencia>\n"+cfg.getJSONArray("references").toString()+"\n</dados_de_referencia>" else ""))
+        messages.put(JSONObject().put("role","user").put("content",turnPrompt + if(cfg.optBoolean("rag") && cfg.optJSONArray("references")!=null) "\n<dados_de_referencia>\n"+cfg.getJSONArray("references").toString()+"\n</dados_de_referencia>" else ""))
         val before=metrics.snapshot()
         val thermal=app.getSystemService(PowerManager::class.java).currentThermalStatus
         val initial=JSONObject(backend.runtimeMetrics()).apply { remove("laboratory") }
@@ -55,17 +73,21 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
             val obs=JSONObject(backend.runtimeMetrics())
             val serial=obs.optJSONObject("generation")?.optLong("serial",0L) ?: 0L
             val fresh=error!="generation_busy" && serial>0 && serial!=(initial.optJSONObject("generation")?.optLong("serial",0L) ?: 0L)
-            if(!fresh) { obs.remove("generation");obs.remove("prefix");obs.remove("decisionProbe");obs.remove("laboratory") }
+            if(!fresh) { obs.remove("generation");obs.remove("prefix");obs.remove("decisionProbe");obs.remove("laboratory");obs.remove("incremental");obs.remove("opProfile") }
             val result=JSONObject().put("nativeGenerationFresh",fresh).put("request",id).put("configuration",cfg).put("model",model)
                 .put("completedAt",System.currentTimeMillis()).put("elapsedMs",elapsed).put("firstDeltaMs",first?:JSONObject.NULL).put("deltas",deltas)
                 .put("output",text.toString()).put("error",error?:JSONObject.NULL).put("observation",obs)
                 .put("before",before).put("after",metrics.snapshot())
                 .put("thermalBefore",thermal).put("thermalAfter",app.getSystemService(PowerManager::class.java).currentThermalStatus)
                 .put("runtimeBefore",initial).put("fixture","sky-v1").put("rag",if(cfg.optBoolean("rag")) "ON — contexto congelado para o lote A/B" else "OFF")
+            if(sessionRun!=null){
+                synchronized(sequenceLock){if(sequence===sessionRun){if(error==null && step<2)sessionRun.turns.add(turnPrompt to text.toString())else sequence=null}}
+                result.put("fixture","sky-session-v1").put("sessionStep",step)
+            }
             request=null;active.set(false);emit(result)
         }
         backend.generate(id,JSONObject().put("messages",messages).put("options",JSONObject()
-            .put("conversationId","lab-sky-v1").put("enableThinking",cfg.optBoolean("thinking",false))
+            .put("conversationId",if(sessionRun==null) "lab-sky-v1" else "lab-session-"+sessionRun.id).put("enableThinking",cfg.optBoolean("thinking",false))
             .put("maxTokens",cfg.getInt("maxTokens")).put("labSystemPromptVariant",variant).put("labConfig",cfg.toString())).toString(),
             { delta -> if(first==null) first=(SystemClock.elapsedRealtimeNanos()-start)/1e6;deltas++;if(text.length<65536)text.append(delta.take(65536-text.length)) },
             { complete(null) }, { code,_ -> complete(code) })

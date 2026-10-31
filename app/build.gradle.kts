@@ -16,12 +16,15 @@ android {
     ndkVersion = "29.0.13113456"
 
     defaultConfig {
-        applicationId = "com.proxyslabs.haruna.runtimeb"
+        applicationId = "com.proxyslabs.haruna.incremental"
         minSdk = 33
         targetSdk = 36
         testInstrumentationRunner = "com.proxyslabs.haruna.diagnostic45.CanonicalRunner"
         versionCode = 8
-        versionName = "0.7-debug-lab-runtime-b"
+        versionName = "0.7-incremental"
+        val useVulkan = providers.gradleProperty("harunaVulkan").orElse("false").get().toBoolean()
+        if(useVulkan) { applicationId = "com.proxyslabs.haruna.incremental.vulkan";versionName = "0.7-incremental-vulkan" }
+        manifestPlaceholders["harunaLabel"] = if(useVulkan) "Haruna incremental GPU" else "Haruna incremental"
         externalNativeBuild { cmake { arguments += "-DCMAKE_BUILD_TYPE=Release" } }
         ndk { abiFilters += listOf("arm64-v8a") }
     }

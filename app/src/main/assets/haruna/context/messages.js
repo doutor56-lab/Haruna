@@ -39,6 +39,17 @@ export function fitReferences(items,budget){
  for(const item of items)if(referenceContent('',[...selected,item]).length<=budget)selected.push(item);
  return selected;
 }
-export function conversationMessages(chat,prompt,systemContext=''){
- return [...recentMessages(chat,{budget:7200-prompt.length-systemContext.length}),{role:'user',content:prompt}];
+export function conversationMessages(chat,prompt,systemContext='',{persistent=false}={}){
+ if(!persistent)return [...recentMessages(chat,{budget:7200-prompt.length-systemContext.length}),{role:'user',content:prompt}];
+ // Preserve exact message contents while they fit. Native token accounting remains authoritative.
+ const pairs=[];let user=null;
+ for(const m of chat.messages.slice(0,-1)){
+  if(!m||m.error||m.interrupted||typeof m.content!=='string')continue;
+  if(m.role==='user')user=m;
+  else if(m.role==='assistant'&&user){pairs.push([{role:'user',content:user.content},{role:'assistant',content:m.content}]);user=null}
+ }
+ const budget=Math.max(0,24000-prompt.length-systemContext.length);
+ let size=pairs.reduce((n,p)=>n+p[0].content.length+p[1].content.length,0);
+ while(pairs.length>62||size>budget){const p=pairs.shift();if(!p)break;size-=p[0].content.length+p[1].content.length}
+ return [...pairs.flat(),{role:'user',content:prompt}];
 }

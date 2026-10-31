@@ -30,10 +30,30 @@ static llama_tokens haruna_tokenize(const common_chat_prompt & prompt) {
     return tokens;
 }
 
+// Boundaries are derived from the SAME official template, then proven token-by-token.
+static size_t hi_prefix_cut(const llama_tokens&full,const std::vector<common_chat_msg>&messages,bool thinking){
+    common_chat_templates_inputs input;input.messages=messages;input.use_jinja=true;input.add_generation_prompt=false;input.enable_thinking=thinking;
+    auto t=hm_clock();auto formatted=common_chat_templates_apply(g_chat_templates.get(),input);hm_template+=hm_clock()-t;
+    t=hm_clock();const auto prefix=haruna_tokenize(formatted.prompt);hm_tokenize+=hm_clock()-t;
+    return std::min(haruna_incremental::Session<llama_token>::common(full,prefix),full.empty()?size_t(0):full.size()-1);
+}
+static int hi_prefill(const llama_tokens&tokens,size_t reused){
+    std::vector<size_t> cuts;
+    for(const auto n:{hi_system_boundary,hi_turn_boundary,tokens.size()})if(n>reused&&n<=tokens.size())cuts.push_back(n);
+    std::sort(cuts.begin(),cuts.end());cuts.erase(std::unique(cuts.begin(),cuts.end()),cuts.end());
+    size_t start=reused;
+    for(const auto end:cuts){if(hs_check_cancel())return 5;const int code=decode_tokens_in_batches(g_context,g_batch,tokens,0,end==tokens.size(),static_cast<int>(start),static_cast<int>(end));if(code)return code;
+        if(end==hi_system_boundary)hi_capture(0,end);
+        if(end==hi_turn_boundary)hi_capture(1,end);
+        start=end;
+    }
+    return 0;
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         JNIEnv * env, jobject, jobjectArray roles, jobjectArray contents,
-        jint n_predict, jboolean enable_thinking, jstring conversation_key, jlong conversation_revision, jstring lab_config) {
+        jint n_predict, jboolean enable_thinking, jstring conversation_key, jlong conversation_revision, jstring lab_config, jstring stable_system) {
     hm_begin();
     haruna_input_tokens = -1; haruna_output_tokens = -1;
     haruna_history_messages = -1; haruna_template_from_gguf = -1; haruna_context_capacity = -1;
@@ -42,8 +62,9 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         if (g_model == nullptr || g_context == nullptr || g_sampler == nullptr || !g_chat_templates || roles == nullptr || contents == nullptr)
             throw std::runtime_error("Chat runtime unavailable");
         hl_configure(haruna_jstring(env,lab_config));
+        const auto preparation_start=hm_clock();
         const int count = env->GetArrayLength(roles);
-        if (count < 2 || count > 18 || count != env->GetArrayLength(contents))
+        if (count < 2 || count > (hi_eligible()?128:18) || count != env->GetArrayLength(contents))
             throw std::runtime_error("Invalid chat message count");
         std::vector<common_chat_msg> messages;
         for (int i = 0; i < count; ++i) {
@@ -61,7 +82,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         if (messages.back().role != ROLE_USER) throw std::runtime_error("Chat must end with a user message");
         const int limit = llama_n_ctx(g_context) - OVERFLOW_HEADROOM;
         const int predict = std::max(16, std::min(1024, static_cast<int>(n_predict)));
-        llama_tokens tokens;
+        llama_tokens tokens;common_chat_prompt canonical;
         while (true) {
             if (hs_check_cancel()) return 5;
             common_chat_templates_inputs input;
@@ -81,7 +102,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             tokens = haruna_tokenize(formatted.prompt);
             hm_tokenize += hm_clock() - tokenize_start;
             if (hs_check_cancel()) return 5;
-            if (!tokens.empty() && static_cast<int>(tokens.size()) + predict <= limit) break;
+            if (!tokens.empty() && static_cast<int>(tokens.size()) + predict <= limit){canonical=std::move(formatted.prompt);break;}
             if (messages.size() <= 2) throw std::runtime_error("Chat input exceeds context capacity");
             // Evict only oldest history, never identity, current profile or current user input.
             const size_t remove = messages[1].role == ROLE_USER && messages.size() > 3 &&
@@ -89,15 +110,31 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             messages.erase(messages.begin() + 1, messages.begin() + 1 + remove);
             hm_removed += remove;
         }
+        if(hi_enabled&&hi_eligible()){
+            const auto stable=haruna_jstring(env,stable_system);
+            try{hi_turn_boundary=hi_prefix_cut(tokens,messages,enable_thinking);
+                if(messages.back().content.find("<dados_de_referencia>")!=std::string::npos){
+                    for(size_t i=canonical.parts.size();i>0;--i)if(canonical.parts[i-1].is_input&&canonical.parts[i-1].text==messages.back().content){
+                        auto before=canonical;before.parts.resize(i-1);const auto t=hm_clock();const auto prefix=haruna_tokenize(before);hm_tokenize+=hm_clock()-t;
+                        hi_turn_boundary=haruna_incremental::Session<llama_token>::common(tokens,prefix);hi_note("checkpointBeforeTransientInput",true);break;
+                    }
+                }
+            }catch(...){hi_turn_boundary=0;}
+            if(!stable.empty()&&messages.front().content.compare(0,stable.size(),stable)==0){
+                try{common_chat_msg base;base.role=ROLE_SYSTEM;base.content=stable;hi_system_boundary=hi_prefix_cut(tokens,{base},enable_thinking);}catch(...){hi_system_boundary=0;}
+            }
+        }
         const auto key=haruna_jstring(env,conversation_key);
         if (key.size()>160) throw std::runtime_error("Invalid conversation identity");
         const size_t reuse=hk_reconcile(tokens,key,conversation_revision,enable_thinking);
         reset_long_term_states(false); reset_short_term_states(); hd_prepare_sampler(); common_sampler_reset(g_sampler);
         hs_sampler_reset_observed();
         hm_input = tokens.size(); hm_stage = 3;
+        hi_note("preparationUs",hm_clock()-preparation_start);hi_note("contextRecreated",hc_rebuild_us>0);
         const auto prefill_start = hm_clock();
-        const auto prefill_result = decode_tokens_in_batches(g_context, g_batch, tokens, 0, true, static_cast<int>(reuse));
+        const auto prefill_result = hi_active?hi_prefill(tokens,reuse):decode_tokens_in_batches(g_context, g_batch, tokens, 0, true, static_cast<int>(reuse));
         hm_prefill = hm_clock() - prefill_start;
+        hi_note("prefillUs",hm_prefill.load());hi_note("tokenizeUs",hm_tokenize.load());
         if (prefill_result != 0) {
             if (hs_check_cancel()) return 5;
             hm_finish(6);

@@ -15,7 +15,7 @@ static void hl_configure(const std::string & json) {
     hl_inspector=false;
     const bool inspect_only=!json.empty() && HarunaJson::parse(json).value("inspectOnly",false);
     if (json.empty() || inspect_only) {
-        hl_inspector=inspect_only;
+        hl_inspector=inspect_only;hp_begin(false);hi_configure(true,false);
         hc_requested=HarunaJson::object();hc_ensure(HarunaContextConfig{});hc_observe();
         if (hl_sampler) { if(g_context&&hl_threads>0)llama_set_n_threads(g_context,hl_threads,hl_threads_batch);auto * old=g_sampler;g_sampler=new_sampler(DEFAULT_SAMPLER_TEMP);common_sampler_free(old);hl_sampler=false; }
         return;
@@ -23,6 +23,8 @@ static void hl_configure(const std::string & json) {
     hl_inspector=true;
     if(hd_fixed_seed||hd_sampler_fixed)throw std::runtime_error("Restore previous DBG experiment before lab");
     const auto p=HarunaJson::parse(json);
+    hp_begin(p.value("profileOps",false));
+    hi_configure(p.value("cache",false),p.value("sessionStep",-1)==0);
     const auto requested=hc_parse(p);const bool recreated=!(hc_config==requested)||!g_context;hc_requested={{"nCtx",requested.context},{"nBatch",requested.batch},{"nUbatch",requested.ubatch},{"flashAttention",p.value("flashAttention",std::string("auto"))},{"typeK",p.value("typeK",std::string("f16"))},{"typeV",p.value("typeV",std::string("f16"))}};hc_ensure(requested);
     if(recreated){hl_threads=llama_n_threads(g_context);hl_threads_batch=llama_n_threads_batch(g_context);}
     hc_observe();

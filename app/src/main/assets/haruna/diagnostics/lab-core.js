@@ -10,6 +10,8 @@ export function summary(result){
  const finite=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
  const rate=(n,t)=>finite(n)&&finite(t)&&t>0?n*1e6/t:null;
  return {systemPromptVariant:result.configuration?.systemPromptVariant||"current",systemPromptExperiment:result.configuration?.systemPromptVariant==="factual_precision_experimental",batch:result.batch,arm:result.arm,nativeGenerationFresh:result.nativeGenerationFresh,completedAt:result.completedAt,model:result.model,configuration:Object.fromEntries(Object.keys(baseline).map(k=>[k,result.configuration?.[k]])),fixture:result.fixture,error:result.error,
+  inputEvaluation:observed?.opProfile?.enabled===true?'PROFILE_NOT_COMPARABLE':observed?.incremental?.reusedTokens>0?'WARM_CACHED':g.prefillTokens===g.inputTokens?'FULL_PREFILL':'N/D',
+  sessionStep:result.sessionStep,accelerator:observed?.accelerator,incremental:observed?.incremental,opProfile:observed?.opProfile,
   runtime:r,device:result.after?.device,sampler:observed?.decisionProbe?.sampler,thermalBefore:result.thermalBefore,thermalAfter:result.thermalAfter,
   ttftMs:result.firstDeltaMs,nativeTtftMs:finite(g.firstDeltaUs)?g.firstDeltaUs/1000:null,
   nativeTotalMs:finite(g.endUs)?g.endUs/1000:null,decodeMs:finite(g.decodeUs)?g.decodeUs/1000:null,contextRecreationMs:finite(r.contextExperiment?.recreationUs)?r.contextExperiment.recreationUs/1000:null,

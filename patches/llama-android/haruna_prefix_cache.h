@@ -16,6 +16,7 @@ static std::atomic<int> hk_confirmed{0};
 static std::atomic<bool> hk_valid{false};
 static bool hk_prepared_request=false, hk_prefill_complete=false;
 static size_t hk_prompt_boundary=0;
+#include "haruna_incremental_native.h"
 
 static int64_t hk_memory_count() {
     if (!g_context) return 0;
@@ -42,6 +43,7 @@ static void hk_publish() {
     hk_confirmed=static_cast<int>(hk_ledger.confirmed.size()); hk_valid=hk_ledger.valid;
 }
 static void hk_invalidate(HkReason reason, bool clear_memory) {
+    hi_invalidate(reason);
     if (clear_memory) hk_clear_memory();
     hk_ledger.invalidate(reason); hk_publish();
     std::lock_guard<std::mutex> guard(hk_lock);
@@ -54,6 +56,7 @@ static void hk_release() {
     std::lock_guard<std::mutex> guard(hk_lock); hk_observation.after=0;
 }
 static void hk_begin_request() {
+    hi_begin();
     hk_prepared_request=false; hk_prefill_complete=false; hk_prompt_boundary=0;
     std::lock_guard<std::mutex> guard(hk_lock);
     const auto conversation=hk_observation.conversation;
@@ -61,6 +64,7 @@ static void hk_begin_request() {
     hk_observation.invalidation=hk_ledger.invalidation;
 }
 static size_t hk_reconcile(const llama_tokens & tokens,const std::string & key,int64_t revision,bool thinking) {
+    if(hi_enabled&&hi_eligible())return hi_reconcile(tokens,key,revision,thinking);
     const auto started=hm_clock(), before=hk_memory_count();
     const bool supported=g_model && g_context && llama_get_memory(g_context) &&
         !llama_model_is_recurrent(g_model) && !llama_model_is_hybrid(g_model) &&
@@ -85,21 +89,24 @@ static size_t hk_reconcile(const llama_tokens & tokens,const std::string & key,i
     return plan.reuse;
 }
 static void hk_confirm_prefill(const llama_tokens & tokens,size_t start,size_t count) {
+    if(hi_active){hi_confirm(tokens,start,count);return;}
     if (!hk_prepared_request || !hk_ledger.tracking) return;
     hk_ledger.append(start,tokens.begin()+start,tokens.begin()+start+count);
     if (hk_ledger.valid && !hk_bounds(hk_ledger.confirmed.size())) hk_ledger.invalidate(HkReason::memory_mismatch);
     hk_publish();
 }
 static void hk_confirm_decode(llama_token token,llama_pos position) {
+    if(hi_active){hi_confirm_token(token,position);return;}
     if (!hk_prepared_request || !hk_ledger.tracking) return;
     hk_ledger.append(static_cast<size_t>(position),&token,&token+1); hk_publish();
 }
 static void hk_prefill_finished() {
     hk_prefill_complete=true;
     std::lock_guard<std::mutex> guard(hk_lock);
-    hk_observation.after_prefill=hk_memory_count(); hk_observation.after=hk_observation.after_prefill;
+    hk_observation.after_prefill=hi_active?hi_frontier()+1:hk_memory_count(); hk_observation.after=hk_observation.after_prefill;
 }
 static void hk_finish_request(int reason) {
+    if(hi_active){hi_finished(reason);return;}
     const auto before_cleanup=hk_memory_count();
     if (reason==5 || reason==9) {
         const auto phase=!hk_prepared_request ? HkReason::cancelled_before_prepare :

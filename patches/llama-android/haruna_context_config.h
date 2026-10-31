@@ -1,9 +1,9 @@
 // Context creation only. No sampler/template/cache algorithm changes.
 #include "haruna_thread_policy.h"
 struct HarunaContextConfig {
-    bool experimental=false;
+    bool experimental=false,profile=false;
     int context=8192,batch=512,ubatch=512,fa=-1,k=0,v=0;
-    bool operator==(const HarunaContextConfig & b) const {return experimental==b.experimental&&context==b.context&&batch==b.batch&&ubatch==b.ubatch&&fa==b.fa&&k==b.k&&v==b.v;}
+    bool operator==(const HarunaContextConfig & b) const {return experimental==b.experimental&&profile==b.profile&&context==b.context&&batch==b.batch&&ubatch==b.ubatch&&fa==b.fa&&k==b.k&&v==b.v;}
 };
 static HarunaContextConfig hc_config;
 static HarunaJson hc_requested;
@@ -17,5 +17,6 @@ static void hc_apply(llama_context_params & p,llama_model * model,bool allow_exp
     if(!allow_experiment||!hc_config.experimental)return;
     p.n_ctx=hc_config.context;p.n_batch=hc_config.batch;p.n_ubatch=hc_config.ubatch;
     p.type_k=hc_config.k?GGML_TYPE_Q8_0:GGML_TYPE_F16;p.type_v=hc_config.v?GGML_TYPE_Q8_0:GGML_TYPE_F16;
+    if(hc_config.profile){p.cb_eval=hp_callback;p.cb_eval_user_data=nullptr;}
     if(hc_config.fa>=0)p.flash_attn_type=hc_config.fa?LLAMA_FLASH_ATTN_TYPE_ENABLED:LLAMA_FLASH_ATTN_TYPE_DISABLED;
 }

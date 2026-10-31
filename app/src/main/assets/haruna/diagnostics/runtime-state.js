@@ -1,8 +1,9 @@
 // UI-only interpretation of existing DBG observations. Never configures the runtime.
 const bool=value=>typeof value==='boolean'?value:null;
 export function runtimeState(source={}){
- const obs=source.llm?.observation||source, r=obs.runtime||{}, p=obs.decisionProbe||{}, c=obs.debugControls||{};
+ const obs=source.llm?.observation||source, r=obs.runtime||{}, p=obs.decisionProbe||{}, c=obs.debugControls||{},a=obs.accelerator||{};
  return {available:source.available!==false&&!!(obs.runtime||obs.decisionProbe),
+  gpuAvailable:bool(a.vulkanAvailable),gpuRequested:a.loadedRequestedLayers??null,gpuActual:r.gpuTransformerLayers??null,
   fixedSeed:bool(p.fixedSeedDBG),context:r.nCtx??null,batch:r.nBatch??null,ubatch:r.nUbatch??null,k:r.kvActualK??null,v:r.kvActualV??null,hybrid:bool(r.modelHybrid),recurrent:bool(r.modelRecurrent),
   faOff:bool(p.flashOffRequestedDBG),faContext:r.flashRequested??null,faActual:r.flashEffective===1?'Ativo':r.flashEffective===0?'Inativo':'Não confirmado',
   cpuPending:bool(c.cpuConservativePending),cpuActual:bool(p.cpuConservativeEffectiveDBG),cpuAvailable:bool(c.cpuConservativeAvailable),cpuFallback:bool(p.cpuLoadFallbackDBG),

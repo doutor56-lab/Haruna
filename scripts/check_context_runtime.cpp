@@ -9,7 +9,8 @@
 using HarunaJson=nlohmann::ordered_json;
 enum ggml_type{GGML_TYPE_F16,GGML_TYPE_Q8_0};
 enum llama_flash_attn_type{LLAMA_FLASH_ATTN_TYPE_AUTO=-1,LLAMA_FLASH_ATTN_TYPE_DISABLED=0,LLAMA_FLASH_ATTN_TYPE_ENABLED=1};
-struct llama_context_params{int n_threads=4,n_threads_batch=4,n_ctx=8192,n_batch=512,n_ubatch=512;ggml_type type_k=GGML_TYPE_F16,type_v=GGML_TYPE_F16;llama_flash_attn_type flash_attn_type=LLAMA_FLASH_ATTN_TYPE_AUTO;};
+struct ggml_tensor{};static bool hp_callback(ggml_tensor*,bool,void*){return true;}
+struct llama_context_params{bool(*cb_eval)(ggml_tensor*,bool,void*)=nullptr;void*cb_eval_user_data=nullptr;int n_threads=4,n_threads_batch=4,n_ctx=8192,n_batch=512,n_ubatch=512;ggml_type type_k=GGML_TYPE_F16,type_v=GGML_TYPE_F16;llama_flash_attn_type flash_attn_type=LLAMA_FLASH_ATTN_TYPE_AUTO;};
 struct llama_model{const char * arch="qwen35";uint64_t count=2000000000ULL;bool hybrid=true,recurrent=false;};
 static void llama_model_meta_val_str(llama_model*m,const char*,char*b,size_t n){std::strncpy(b,m->arch,n);}
 static uint64_t llama_model_n_params(llama_model*m){return m->count;}

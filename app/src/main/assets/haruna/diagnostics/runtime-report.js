@@ -2,6 +2,7 @@
 export function runtimeCards(native,local,f){
  const {section,row,number,bytes,duration,clean,valid}=f;
  const obs=native.llm?.observation||{},r=obs.runtime||{},g=obs.generation||{};
+ const inc=obs.incremental||{};
  const k=obs.prefix||{},planned=k.planned===true;
  const p=native.session?.pipeline||{},v=local.inference||p.visual||{},t=p.transport||{};
  const has=valid(g.serial)&&g.serial>0;
@@ -14,7 +15,14 @@ export function runtimeCards(native,local,f){
  const gap=same&&valid(g.firstDeltaUs)&&valid(p.firstDomAckBootUs)?p.firstDomAckBootUs-g.nativeStartBootUs-g.firstDeltaUs:null;
  const sendGap=same&&valid(g.firstDeltaUs)&&valid(p.firstWebViewSendBootUs)?p.firstWebViewSendBootUs-g.nativeStartBootUs-g.firstDeltaUs:null;
  return [
- section('runtime','Runtime',[
+ section('incremental','Sequência híbrida · estado completo',[
+ row('Modo / motivo',`${clean(inc.mode)} / ${clean(inc.reason||inc.invalidation)}`),
+ row('Prompt / novos / avaliados / reutilizados',`${number(inc.promptTokens)} / ${number(inc.newTokens)} / ${number(inc.evaluatedTokens)} / ${number(inc.reusedTokens)}`),
+ row('n_past antes / após restore / final',`${number(inc.nPastBefore)} / ${number(inc.nPastAfterRestore)} / ${number(inc.nPastAfter)}`),
+ row('Sequência / reset',`${number(inc.sequenceId)} / ${yes(inc.sequenceReset)}`),row('Estado recorrente',clean(inc.recurrentStatePreserved)),
+ row('KV preservado',yes(inc.kvPreserved)),row('Snapshots completos em RAM',bytes(inc.snapshotBytes)),row('Captura / restore',`${us(inc.captureUs)} / ${us(inc.restoreUs)}`)
+ ],'Append exige igualdade dos tokens e fronteira válida. Restore serializa atenção + recorrência/convolução, nunca KV-only. Snapshots voláteis e limitados a 128 MiB; sistema estático sem perfil pessoal. Reuse reduz tokens efetivamente avaliados, não altera o tamanho do prompt. Benchmark com cache OFF continua frio e integral.'),
+ section('runtime' ,'Runtime',[
   row('llama.cpp · commit compilado',clean(r.llamaCommit)),row('ABI nativa',clean(r.abi)),
   row('Dispositivos dos buffers efetivos',clean(r.bufferDevices)),row('Variante CPU carregada · dladdr',clean(r.cpuVariant)),
   row('ARM · DOTPROD detectado',yes(r.dotprod)),row('ARM · FP16 vetorial detectado',yes(r.fp16)),row('ARM · I8MM detectado',yes(r.i8mm)),

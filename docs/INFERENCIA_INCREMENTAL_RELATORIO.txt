@@ -1,0 +1,67 @@
+HARUNA — INTERVENÇÃO FINAL DE INFERÊNCIA
+
+STATUS: META NÃO ATINGIDA / NÃO DEMONSTRADA NO APARELHO
+Não existe acesso ao Samsung nesta execução. Não foram medidos novos TTFT, tok/s, RAM ou temperatura do telefone. Build e equivalência funcional não demonstram TTFT <=5 s, nem impossibilidade física. A entrega prepara a comparação física e preserva as versões anteriores.
+
+BASE E SEGURANÇA
+Branch inicial: experiment/llama-runtime-b
+Commit inicial: be5f3d353e0a877b69d55f93567195f6c60eabd7
+Checkpoint: checkpoint/haruna-before-incremental-be5f3d3
+Branch experimental: experiment/haruna-incremental
+llama.cpp: 4d71b42fd87db24b8b7c808c151b713aa4459cfd, inalterado como revisão.
+Versão funcional anterior feature/haruna-stage6-offline-voice (2231fc7) e runtime B (be5f3d3) preservados. APKs novos em pacotes separados com dados próprios; não copiam dados da Haruna anterior.
+
+CAUSA CONFIRMADA NO CÓDIGO
+O contexto e modelo já eram persistentes. A reconciliação de prefixo recusava modelos híbridos/recorrentes e limpava a memória a cada requisição. A proteção era correta para poda KV-only, mas não distinguia continuação sem rollback e restore de estado completo. Além disso, o empacotamento normal mantinha apenas quatro pares/3200 caracteres; o descarte de pares antigos invalidava o prefixo em conversas maiores. Renderização histórica pode retirar marcadores de geração/thinking presentes nos tokens realmente avaliados.
+
+MECANISMO IMPLEMENTADO
+Caminho específico para general.architecture=qwen35 e llama_model_is_hybrid, usando metadados reais. Sem mudança de pesos, sampler, Jinja, tokenização de autoridade ou operadores matemáticos.
+1. O mesmo prompt final é renderizado e tokenizado integralmente para prova. NÃO é tokenização apenas do delta; o custo pequeno de tokenização permanece visível.
+2. Mesmo proprietário (modelo/contexto/template/conversa/revisão/thinking/threads), fronteira real e igualdade integral do prefixo permitem append sem limpar estado. Só o sufixo novo é avaliado.
+3. Se o template/histórico mudar antes da fronteira, NÃO há seq_rm parcial híbrido. Limpa a sequência e restaura checkpoint completo compatível, validado por igualdade de IDs de tokens, bytes consumidos e seq_pos_max.
+4. API oficial llama_state_seq_*_ext, FLAGS_NONE: inclui memória de atenção e estado recorrente/convolucional. Não usa PARTIAL_ONLY nem snapshot apenas KV.
+5. Dois checkpoints RAM limitados a 128 MiB somados: prefixo estável de identidade e fronteira anterior à geração do turno. Checkpoint de turno é privado da conversa/revisão. O estável contém somente a identidade-base de Haruna, sem Perfil Essencial; próximo prompt deve coincidir token a token. Não persiste KV ou tokens em disco.
+6. Não captura lotes abortados; captura apenas após decode concluído e fronteira confirmada. Cancelamento descarta o estado corrente incerto; checkpoints concluídos podem sobreviver. Erro/NaN/Inf descarta tudo. Nenhuma resposta é filtrada, reescrita ou reexecutada para esconder degeneração.
+7. Mudança de modelo/contexto/template/threads/thinking invalida checkpoints. Nova conversa/revisão elimina checkpoint de turno. Histórico, memória e RAG diferentes reduzem reuse automaticamente conforme prova de tokens. Conteúdo recuperado transitório pode usar checkpoint antes do conteúdo da última fala, sem alterar RAG.
+8. Ao alcançar capacidade mantém truncamento nativo atual; não desloca nem poda memória recorrente de forma insegura. Faz restore seguro ou prefill frio.
+9. Histórico de inferência Qwen35 preserva conteúdo exato até 62 pares/24000 caracteres. Limite real continua 8192 tokens no nativo. Histórico visual, armazenamento, recentMessages usado por RAG e seleção de outros modelos permanecem iguais.
+
+LIMITAÇÕES DO REUSE
+Quando o template muda tokens antes de uma resposta antiga, não é possível continuar arbitrariamente a partir do fim sem recomputar esse trecho recorrente. O restore do checkpoint anterior à geração pode precisar reavaliar a última resposta, além da nova mensagem. Respostas longas podem continuar acima de 5 s. Checkpoints acima de 128 MiB não são criados; fallback frio é explícito. Captura/restore consomem RAM e tempo, contabilizados separadamente; TTFT inclui esses custos. Nenhum warm-up oculto foi introduzido.
+
+UPSTREAM
+Investigadas APIs e implementação local: llama-memory-hybrid.cpp encadeia state_write/read de atenção e recorrência, FLAGS_NONE. seq_pos_min híbrido não equivale a início zero; a fronteira usada é seq_pos_max. Correção posterior upstream ab3768cdc24644bdc285bc07b575ca367b1e1dd9 (PR31368) recusa rollback recorrente além dos snapshots disponíveis no último ubatch. Não foi incorporada cegamente: o caminho novo não executa rollback parcial, apenas append ou restore completo. Revisão 4d71 permanece para comparação e preserva patches Android. Nenhuma atualização geral de dependências.
+
+PROFILING
+Botão separado “Perfilar prefill frio · diagnóstico”. Callback oficial cb_eval mede tempo por operador e categorias heurísticas (FFN, Gated DeltaNet, convolução/scan, atenção, matmul, cópias, normalização). Contadores de execução extra-traits identificam chamadas KleidiAI/REPACK realmente realizadas. Observer somente leitura informa backend do nó (CPU/Vulkan). Sem tensores, nomes ou conteúdo privado exportados. Callback força sincronização entre nós e muda fusão: resultado marcado PROFILE_NOT_COMPARABLE, não serve como TTFT de produção. Desativado no chat normal. Nenhum hotspot foi declarado culpado sem medição física.
+
+VULKAN
+Segundo APK opcional, mesmo núcleo e GGUF, GGML_VULKAN=ON. Um único llama.cpp por APK, sem seletor de runtime. CPU permanece padrão explícito n_gpu_layers=0 e devices vazio; Vulkan só após ação DEBUG de unload/reload, pedido 8 ou 99 camadas. Pedido e camadas efetivas separados; operadores híbridos podem cair para CPU. Sem confirmação de GPU, benchmark é bloqueado para não rotular CPU como GPU. Reabrir/carregar normalmente volta a CPU; não há preferência GPU persistente. GPU pode falhar, aquecer, consumir mais RAM ou ser mais lenta. Não foi testada fisicamente. Bibliotecas/headers/glslc são ferramentas de build; nenhum áudio/dado é enviado à rede para inferência.
+
+PARÂMETROS E PRIVACIDADE
+Referência controlada: 2/6, 8192, 512/512, F16/F16, FA OFF, CPU automática, thinking OFF, temperature .3, topK40, topP.95, minP.05, penalties0/repeat1, seed424242,max256. Não se alteraram sampler nem padrões de contexto/batch/KV. O chat normal mantém seu comportamento FA existente; selecione OFF no laboratório para repetir a referência física, sem confundir Auto com OFF.
+Experimento de system prompt atual/factual intacto e factual restrito ao DBG autorizado. Nenhuma persona promovida. Benchmark canônico frio, métricas e três repetições existentes preservados quando cache OFF; cache ON é explicitamente WARM_CACHED. Não use benchmark com cache ON como cold TTFT.
+Exportação técnica aditiva haruna-lab-v1 inclui incremental/opProfile/accelerator/fixture/sessionStep e inputEvaluation. Sem IDs de tokens, system prompt, respostas, documentos ou conversas privadas. Respostas sintéticas continuam apenas em RAM para inspeção humana. Benchmark frio não foi encurtado; saída máxima não foi reduzida.
+
+TESTES
+Automático host: controlador ASan/UBSan; isolamento de conversa/modelo/contexto; prefixos alterados; cold forçado; cleanup; antigo KV guard; configuração contexto; RAG vazio; streaming; histórico append e caminho anterior; browser DBG com bridges fake incluindo A/B, privacidade, sessão ordenada de 3 turnos e profiling separado; experimento factual anterior preservado.
+Teste nativo REAL do llama.cpp pinado: fixture Qwen35 pequeno com pesos ALEATÓRIOS criado pelo gerador de teste upstream, não GGUF 2B do usuário. Compara logits finais contra prefill frio após append32->64, restore completo de turno32 e restore estável de nova conversa16. NMSE=0 nas três comparações locais, sem NaN/Inf. Prova limitada ao fixture/CPU host. Não mede qualidade, ARM, GPU ou velocidade no Samsung. Fixture não incorporado ao APK/artifacts; não é treinamento de modelo útil.
+Build Android completo CPU/Vulkan e testes correspondentes: resultado verificável nos metadados de CI e relatório final de entrega. Nunca considerar concluído um build que falhou.
+
+ANTES -> DEPOIS
+ANTES (números físicos fornecidos pelo usuário): aproximadamente361 tokens, reuse0, prefill10.3s/~35tok/s, TTFTmediano10.5s, decode6.5tok/s. RAM: não informada neste ensaio.
+DEPOIS cold CPU: N/D no dispositivo. DEPOIS segundo/terceiro turno/histórico maior: N/D no dispositivo. DEPOIS Vulkan: N/D no dispositivo. Não há ganho físico alegado.
+361/35 explica aproximadamente10.3s para prefill completo. Com a mesma taxa seria necessário avaliar menos de aproximadamente170 tokens para TTFT<5s descontando overhead. É projeção aritmética, não limite físico nem medição desta versão. Incremental reduz trabalho repetido; Vulkan busca maior taxa para cold prefill. Somente o teste real decidirá.
+
+TESTE FÍSICO FOCADO
+Não mantenha A/B e APK novo carregados simultaneamente. Use o MESMO GGUF, conferindo SHA-256 externamente; importe manualmente no sandbox novo. Não copie ou altere dados privados do app anterior automaticamente. Precisa espaço para cópia.
+1. CPU: no DBG selecione exatamente referência acima, RAG/history OFF, cache OFF. Execute canônico três repetições. Exporte CPU_COLD.json. Inspecione todas respostas, motivo de parada, NaN/Inf, térmico e RAM.
+2. Mesma configuração, cache ON: “Executar conversa ·3 turnos”. Turno1 força cold; seguintes preservam a sequência. Repita a sessão completa três vezes se possível, sem escolher apenas o melhor caso. Exporte CPU_SESSION.json. Compare evaluatedTokens/reusedTokens/nPast/prefill/TTFT por turno; não misture mediana cold/warm.
+3. No chat normal da cópia experimental faça conversa curta, segundo/terceiro turno e mais de quatro pares. Copie DBG; valide conteúdo e isolamento ao trocar conversa, editar contexto, cancelar prefill/decode e enviar novamente. Falha deve cair em estado conhecido, sem vazamento.
+4. GPU opcional: abra SOMENTE APK GPU, importe mesmo GGUF. Faça CPU0 como controle desta build, depois reload8; confirme Vulkan/camadas atribuídas, mesma referência e protocolo. Se estável, reload99. Cold e sessão separados. Anote tempo de carga/shaders, térmico, memória, erros/fallback. Pare se falhar ou piorar; CPU0 continua disponível. Não modifique outros parâmetros.
+5. Meta só atingida se mediana TTFT<=5s, respostas corretas/estáveis e todos os runs apresentados. Warm1–3s é meta, não promessa. Se não atingir, envie JSONs técnicos e avaliação textual separada. Nenhuma migração de runtime, afinidade ou alteração de kernels especulativa foi aplicada.
+
+PROBLEMAS FORA DO ESCOPO
+Degeneração ARM previamente relatada não foi declarada resolvida. Sem Samsung não há novo diagnóstico causal. Não foram alterados voz, armazenamento, downloads, tema, navegação ou RAG funcional. Não houve benchmark físico de afinidade/temperatura; não foram inventados clusters/frequências ou limite de hardware.
+
+META NÃO ATINGIDA — AGUARDANDO MEDIÇÃO FÍSICA NO SAMSUNG SM-A155M
