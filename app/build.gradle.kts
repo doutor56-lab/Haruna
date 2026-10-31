@@ -96,8 +96,8 @@ val fetchSherpaAar by tasks.registering {
 // Silero is a tiny runtime asset, not a user speech model. Fetch it only at build
 // time from sherpa-onnx's official model release and fail closed on byte mismatch.
 val fetchSileroVad by tasks.registering {
-    val expected = "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
-    val target = generatedVadAssets.map { it.file("silero_vad.onnx") }
+    val expected = "c36d490aff5ab924ca6c7aeec4d8f6bd3d22db6fa17611b9c5b17eae58ac3a20"
+    val target = generatedVadAssets.map { it.file("silero_vad.int8.onnx") }
     inputs.property("sha256", expected)
     outputs.file(target)
     doLast {
@@ -106,10 +106,10 @@ val fetchSileroVad by tasks.registering {
             output.parentFile.mkdirs()
             val part = File(output.parentFile, output.name + ".part")
             try {
-                val connection = URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx").toURL().openConnection()
+                val connection = URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.int8.onnx").toURL().openConnection()
                 connection.connectTimeout = 30000; connection.readTimeout = 60000
                 connection.getInputStream().use { input -> part.outputStream().use { input.copyTo(it) } }
-                check(sha256(part) == expected) { "Official Silero VAD checksum mismatch" }
+                check(sha256(part) == expected) { "Official Silero VAD INT8 checksum mismatch" }
                 Files.move(part.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING)
             } finally { part.delete() }
         }
