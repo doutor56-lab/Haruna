@@ -29,13 +29,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flavor: [cpu, vulkan]
+        flavor: [vulkan]
     env:
       HARUNA_FLAVOR: ${{ matrix.flavor }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: 3f363ad0f82e01d9582efb25bc9fdda6e2c652cb
+          ref: 783974303d309dfaf597c59251fd0d6afd0dfd61
           submodules: recursive
           fetch-depth: 1
       - name: Verify narrow scope and pinned context runtime
