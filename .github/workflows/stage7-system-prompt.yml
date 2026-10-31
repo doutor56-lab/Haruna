@@ -1,0 +1,132 @@
+name: Haruna Stage 7 system prompt experiment
+on:
+  push:
+    branches: [build/stage7-system-prompt]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  LLAMA_CPP_REVISION: 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: a72f9c7b84d2cb3e90e3d47bd37905a8081598af
+          submodules: recursive
+          fetch-depth: 1
+      - name: Verify DBG UI scope and unchanged native baseline
+        run: |
+          echo "HARUNA_SOURCE_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          git fetch --depth=1 origin 1d323b817a61457d208007aa1a17633d9ab1051b
+          python3 scripts/check_system_prompt_scope.py
+          git -C third_party/llama.cpp fetch --depth=1 origin "$LLAMA_CPP_REVISION"
+          git -C third_party/llama.cpp checkout --detach "$LLAMA_CPP_REVISION"
+          python3 scripts/patch_android_loader.py
+          python3 scripts/check_diag45_binding.py
+          python3 scripts/check_decision_probes.py
+          python3 scripts/check_diag45.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Focused voice and existing streaming RAG checks
+        run: |
+          mkdir -p stage6-tests
+          set -o pipefail
+          node scripts/check_lab.mjs | tee stage6-tests/lab-js.txt
+          node scripts/check_voice.mjs | tee stage6-tests/voice-js.txt
+          node scripts/check_streaming.mjs | tee stage6-tests/streaming-js.txt
+          node scripts/check_prefix_rag.mjs | tee stage6-tests/rag-fastpath.txt
+          g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined scripts/check_prefix_cache.cpp -o /tmp/prefix-check
+          ASAN_OPTIONS=detect_leaks=0 /tmp/prefix-check | tee stage6-tests/prefix-native.txt
+      - name: Browser flow with fake bridges and offline network
+        run: |
+          npm install --prefix /tmp/haruna-stage6-browser --cache /tmp/haruna-stage6-npm-cache --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          set -o pipefail
+          HARUNA_CHROME="$(command -v google-chrome || command -v chromium)" HARUNA_PLAYWRIGHT_PACKAGE=/tmp/haruna-stage6-browser/package.json node scripts/check_voice_browser.mjs | tee stage6-tests/voice-browser.txt
+          HARUNA_CHROME="$(command -v google-chrome || command -v chromium)" node scripts/check_lab_browser.mjs | tee stage6-tests/lab-browser.txt
+          HARUNA_CHROME="$(command -v google-chrome || command -v chromium)" node scripts/check_system_prompt_browser.mjs | tee stage6-tests/system-browser.txt
+          HARUNA_CHROME="$(command -v google-chrome || command -v chromium)" node scripts/check_dbg_ui.mjs | tee stage6-tests/dbg-ui-browser.txt
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Existing Android toolchain
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.13113456" "cmake;3.31.6"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Compile Android Kotlin before full native build
+        run: gradle :app:compileDebugKotlin --stacktrace --no-daemon
+      - name: Pure Kotlin voice queue and existing streaming checks
+        run: |
+          set -o pipefail
+          python3 scripts/check_system_prompt.py | tee stage6-tests/system-kotlin.txt
+          python3 scripts/check_voice.py | tee stage6-tests/voice-kotlin.txt
+          python3 scripts/check_stream_delivery.py | tee stage6-tests/streaming-kotlin.txt
+      - name: Build full normal APK and compile diagnostic instrumentation
+        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace --no-daemon
+      - name: Check actual Whisper JNI symbol isolation
+        run: python3 scripts/check_stt_native.py
+      - name: Separate installer from technical delivery
+        run: |
+          mkdir -p stage6-install stage6-technical
+          cp app/build/outputs/apk/debug/app-debug.apk stage6-install/Haruna-stage7-system-prompt.apk
+          cp docs/SYSTEM_PROMPT_RELATORIO.md docs/SYSTEM_PROMPT_FILES.txt stage6-technical/
+          cp -r stage6-tests stage6-browser dbg-ui-browser stage6-technical/
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,os,subprocess,zipfile
+          apk=Path('stage6-install/Haruna-stage7-system-prompt.apk')
+          digest=hashlib.sha256(apk.read_bytes()).hexdigest()
+          tools=Path(os.environ['ANDROID_HOME'])/'build-tools/36.0.0'
+          badging=subprocess.check_output([str(tools/'aapt'),'dump','badging',str(apk)],text=True)
+          assert "package: name='com.proxyslabs.haruna'" in badging and "versionName='0.7-debug-lab'" in badging and "versionCode='8'" in badging
+          assert 'com.proxyslabs.haruna.diagnostic45' not in badging
+          with zipfile.ZipFile(apk) as z:
+            names=set(z.namelist())
+            for file in ['diagnostics/lab.js','diagnostics/lab-view.js','diagnostics/runtime-state.js','diagnostics/lab-core.js','diagnostics/pipeline.js','diagnostics/voice-observer.js','voice/call-view.js','voice/call-reference.css','voice/stream.js','voice/stage6.css','voice/stage6-ui.js','voice/model-names.js','recovery-runtime.js','streaming/message-view.js']:
+              assert 'assets/haruna/'+file in names
+            assert '<h1>Haruna</h1>' in z.read('assets/haruna/index.html').decode()
+            assert 'lib/arm64-v8a/libggml-cpu-android_armv8.2_2.so' in names
+            assert 'lib/arm64-v8a/libharuna_whisper_stt.so' in names
+            assert not any(p.lower().endswith(('.gguf','.onnx','.tar.bz2')) for p in names)
+            assert 'assets/haruna/models/panel.css' not in names
+          assert [p.name for p in Path('stage6-install').iterdir()]==['Haruna-stage7-system-prompt.apk']
+          run=f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          metadata={'baseCommit':'1d323b817a61457d208007aa1a17633d9ab1051b','sourceCommit':os.environ['HARUNA_SOURCE_REVISION'],'llamaCommit':os.environ['LLAMA_CPP_REVISION'],'run':run,'apk':'Haruna-stage7-system-prompt.apk','sha256':digest,'version':'0.7-debug-lab','applicationId':'com.proxyslabs.haruna','diagnosticMode':'OFF','build':'SUCCESS','automaticTests':'PASS','deviceTestsExecuted':False,'modelInferenceExecuted':False,'nativeSourceChanged':False,'benchmarkProtocolChanged':False,'installerArtifact':'Haruna-stage7-system-prompt-FINAL','technicalArtifact':'HARUNA_SYSTEM_PROMPT_TECNICO'}
+          Path('stage6-technical/BUILD_METADATA.json').write_text(json.dumps(metadata,indent=2)+'\n')
+          Path('stage6-technical/SHA256SUMS.txt').write_text(digest+'  Haruna-stage7-system-prompt.apk\n')
+          report=Path('stage6-technical/SYSTEM_PROMPT_RELATORIO.md');text=report.read_text();end='ETAPA 7 — DBG REORGANIZADO — AGUARDANDO VALIDAÇÃO NO DISPOSITIVO'
+          text=text.removesuffix(end+'\n')
+          text+='\n## Resultado real do CI\n\n- Commit final: `'+metadata['sourceCommit']+'`.\n- Workflow/run: '+run+'\n- Build completo normal/instrumentação: SUCCESS.\n- APK: `Haruna-stage7-system-prompt.apk`, versão 0.7-debug-lab, pacote normal, diagnóstico OFF.\n- SHA-256: `'+digest+'`.\n'
+          text+='- Testes automáticos: DBG organizado e controles solicitado/efetivo em 360/768 px (fakes), voz JavaScript, browser real com bridges simuladas/offline 360 e 768 px, fila/formato Kotlin, streaming Kotlin/JS, RAG fast path e prefixo/KV, guards de preservação: PASS. Logs separados.\n'
+          text+='- Testes físicos/áudio real/inferência GGUF ou ONNX: NÃO EXECUTADOS.\n- Instalador separado `Haruna-stage7-system-prompt-FINAL` (ZIP apenas com APK). Artifact técnico `HARUNA_SYSTEM_PROMPT_TECNICO` sem APK/modelos.\n\n'+end+'\n'
+          report.write_text(text)
+          print(json.dumps(metadata,indent=2))
+          PY
+      - name: Publish installer only
+        uses: actions/upload-artifact@v4
+        with:
+          name: Haruna-stage7-system-prompt-FINAL
+          path: stage6-install/Haruna-stage7-system-prompt.apk
+          if-no-files-found: error
+      - name: Publish technical report checksums and test evidence separately
+        uses: actions/upload-artifact@v4
+        with:
+          name: HARUNA_SYSTEM_PROMPT_TECNICO
+          path: stage6-technical/
+          if-no-files-found: error
+      - name: Preserve failed check evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HARUNA_SYSTEM_PROMPT_FAILED_CHECKS
+          path: |
+            stage6-tests/
+            stage6-browser/
+            dbg-ui-browser/
+          if-no-files-found: ignore
