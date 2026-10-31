@@ -10,7 +10,7 @@ def apply_context_lab_patch():
   s=s.replace('static llama_context *init_context(', '#include "haruna_context_config.h"\nstatic llama_context *init_context(',1)
   s=s.replace('const int n_ctx = DEFAULT_CONTEXT_SIZE) {','const int n_ctx = DEFAULT_CONTEXT_SIZE, bool use_lab_context = false) {',1)
   s=s.replace('    ctx_params.n_threads_batch = n_threads;', '    ctx_params.n_threads_batch = n_threads;\n    hc_apply(ctx_params, model, use_lab_context);',1)
-  s=s.replace('        auto *context = init_context(g_model);','        hc_config={};hc_requested=HarunaJson::object();\n        auto *context = init_context(g_model);',1)
+  s=s.replace('        auto *context = init_context(g_model);','        hc_config={};hc_requested=HarunaJson::object();hc_rebuild_us=0;\n        auto *context = init_context(g_model);',1)
   s=s.replace('hs_resources = 15; hm_context();','hs_resources = 15; hm_context();hl_model_prepared();hc_observe();',1)
   s=s.replace('i += BATCH_SIZE)', 'i += llama_n_batch(context))')
   s=s.replace('std::min((int) tokens.size() - i, BATCH_SIZE)', 'std::min((int) tokens.size() - i, (int)llama_n_batch(context))')

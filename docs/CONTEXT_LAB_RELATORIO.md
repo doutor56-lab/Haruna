@@ -62,7 +62,7 @@ Repetições padrão 3, referência de seed 424242, fixture sky-v1, ordem A1 B1 
 
 ## JSON e privacidade
 
-Schema haruna-lab-v1 preservado com campos aditivos em configuration/runtime/contextExperiment e nativeTotalMs/decodeMs/contextRecreationMs. O solicitado nativo retém somente os seis parâmetros técnicos novos; não copia referências, mensagens ou caminhos. Identificador systemPromptVariant continua sem conteúdo do system prompt. Exportação mantém somente escalares técnicos, sem respostas, prompt, documentos ou histórico pessoal. Respostas completas continuam temporárias na RAM para inspeção humana. Perfis locais antigos sem campos novos herdam os padrões ao abrir o formulário.
+Schema haruna-lab-v1 preservado com campos aditivos em configuration/runtime/contextExperiment e nativeTotalMs/decodeMs/contextRecreationMs. O solicitado nativo retém somente os seis parâmetros técnicos novos; não copia referências, mensagens ou caminhos. Identificador systemPromptVariant continua sem conteúdo do system prompt. Exportação mantém somente escalares técnicos, sem respostas, prompt, documentos ou histórico pessoal. Respostas completas continuam temporárias na RAM para inspeção humana. Perfis locais antigos sem campos novos são mesclados aos padrões ao selecionar o perfil. O teste reproduziu a seleção de um perfil antigo após um experimento com contexto 2048/FA OFF: os campos ausentes devem voltar a 8192/512/512/Auto/F16, sem herdar silenciosamente o experimento anterior. Esse caso de compatibilidade dos controles novos foi corrigido dentro do escopo.
 
 ## Validação e limites
 
