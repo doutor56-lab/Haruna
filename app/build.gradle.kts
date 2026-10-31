@@ -34,10 +34,6 @@ android {
     sourceSets.getByName("main").assets.srcDir(generatedVadAssets)
     externalNativeBuild { cmake { path = file("src/main/cpp/stt/CMakeLists.txt"); version = "3.31.6" } }
 
-    // llama.android discovers the GGML CPU variants by scanning
-    // applicationInfo.nativeLibraryDir at runtime. Force JNI libraries to be
-    // extracted on install so ggml_backend_load_all_from_path() can see them
-    // as real files instead of leaving them only inside the APK.
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -100,7 +96,7 @@ val fetchSherpaAar by tasks.registering {
 // Silero is a tiny runtime asset, not a user speech model. Fetch it only at build
 // time from sherpa-onnx's official model release and fail closed on byte mismatch.
 val fetchSileroVad by tasks.registering {
-    val expected = "a35ebf52fd3ce5f1469b2a36158dba761bc47b973ea3382b3186ca15b1f5af28"
+    val expected = "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
     val target = generatedVadAssets.map { it.file("silero_vad.onnx") }
     inputs.property("sha256", expected)
     outputs.file(target)
