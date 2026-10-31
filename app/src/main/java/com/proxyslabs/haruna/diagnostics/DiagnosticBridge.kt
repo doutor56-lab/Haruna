@@ -41,7 +41,7 @@ class DiagnosticBridge(
         val source = JSONObject(backend.runtimeMetrics())
         val result = JSONObject().put("available", source.has("runtime") || source.has("decisionProbe"))
         for ((group, keys) in mapOf(
-            "runtime" to listOf("flashRequested", "flashEffective", "cpuVariant", "threads", "threadsBatch"),
+            "runtime" to listOf("flashRequested", "flashEffective", "cpuVariant", "threads", "threadsBatch", "nCtx", "nBatch", "nUbatch", "kvActualK", "kvActualV", "contextExperiment", "modelHybrid", "modelRecurrent"),
             "decisionProbe" to listOf("fixedSeedDBG", "flashOffRequestedDBG", "cpuConservativeEffectiveDBG", "cpuLoadFallbackDBG"),
             "debugControls" to listOf("cpuConservativePending", "cpuConservativeAvailable")
         )) {

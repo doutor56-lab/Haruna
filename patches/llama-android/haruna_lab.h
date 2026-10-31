@@ -6,18 +6,26 @@ static HarunaJson hl_snapshot() { std::lock_guard<std::mutex> lock(hl_lock); ret
 // Lab settings only arrive from the DEBUG-only canonical benchmark owner.
 static bool hl_sampler=false, hl_inspector=false;
 static int hl_threads=0, hl_threads_batch=0;
+static void hl_model_prepared(){
+    hl_sampler=false;hl_inspector=false;hl_threads=llama_n_threads(g_context);hl_threads_batch=llama_n_threads_batch(g_context);
+    std::lock_guard<std::mutex> lock(hl_lock);hl_prompt.clear();
+}
 static void hl_configure(const std::string & json) {
     { std::lock_guard<std::mutex> lock(hl_lock); hl_prompt.clear(); }
     hl_inspector=false;
     const bool inspect_only=!json.empty() && HarunaJson::parse(json).value("inspectOnly",false);
     if (json.empty() || inspect_only) {
         hl_inspector=inspect_only;
+        hc_requested=HarunaJson::object();hc_ensure(HarunaContextConfig{});hc_observe();
         if (hl_sampler) { if(g_context&&hl_threads>0)llama_set_n_threads(g_context,hl_threads,hl_threads_batch);auto * old=g_sampler;g_sampler=new_sampler(DEFAULT_SAMPLER_TEMP);common_sampler_free(old);hl_sampler=false; }
         return;
     }
     hl_inspector=true;
-    if(hd_fixed_seed||hd_fa_off||hd_sampler_fixed)throw std::runtime_error("Restore previous DBG experiment before lab");
+    if(hd_fixed_seed||hd_sampler_fixed)throw std::runtime_error("Restore previous DBG experiment before lab");
     const auto p=HarunaJson::parse(json);
+    const auto requested=hc_parse(p);const bool recreated=!(hc_config==requested)||!g_context;hc_requested={{"nCtx",requested.context},{"nBatch",requested.batch},{"nUbatch",requested.ubatch},{"flashAttention",p.value("flashAttention",std::string("auto"))},{"typeK",p.value("typeK",std::string("f16"))},{"typeV",p.value("typeV",std::string("f16"))}};hc_ensure(requested);
+    if(recreated){hl_threads=llama_n_threads(g_context);hl_threads_batch=llama_n_threads_batch(g_context);}
+    hc_observe();
     if(!hl_sampler){hl_threads=llama_n_threads(g_context);hl_threads_batch=llama_n_threads_batch(g_context);}
     const int nt=p.value("threads",0),nb=p.value("threadsBatch",0);
     if(nt<0||nt>16||nb<0||nb>16)throw std::runtime_error("Invalid lab threads");

@@ -114,6 +114,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         haruna_template_from_gguf = common_chat_templates_was_explicit(g_chat_templates.get()) ? 1 : 0;
         haruna_context_capacity = llama_n_ctx(g_context);
         hm_context();
+        if(hc_config.experimental&&hc_config.fa>=0&&haruna_observed_flash(g_context)!=hc_config.fa)throw std::runtime_error("Effective FA not confirmed");
         hm_stage = 4;
         return 0;
     } catch (...) {

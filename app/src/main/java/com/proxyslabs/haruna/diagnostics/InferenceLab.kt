@@ -25,9 +25,15 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
         for ((key,limits) in mapOf("temperature" to (0.0..2.0),"topP" to (0.001..1.0),"minP" to (0.0..1.0),"presence" to (-2.0..2.0),"frequency" to (-2.0..2.0),"repeat" to (0.5..2.0))) {
             val x=cfg.getDouble(key);require(x.isFinite()&&x in limits) { "Valor inválido: $key" }
         }
-        for(key in listOf("topK","maxTokens","seed","threads","threadsBatch")) { if(!cfg.has(key))continue; val value=cfg.getDouble(key);require(value.isFinite() && value==kotlin.math.floor(value)) { "Use número inteiro: $key" } }
+        for(key in listOf("topK","maxTokens","seed","threads","threadsBatch","nCtx","nBatch","nUbatch")) { if(!cfg.has(key))continue; val value=cfg.getDouble(key);require(value.isFinite() && value==kotlin.math.floor(value)) { "Use número inteiro: $key" } }
         require(cfg.optInt("threads",0) in 0..16 && cfg.optInt("threadsBatch",0) in 0..16)
         require(cfg.getInt("topK") in 0..1000 && cfg.getInt("maxTokens") in 16..1024)
+        require(cfg.optInt("nCtx",8192) in setOf(1024,2048,4096,8192)) { "Contexto não suportado" }
+        val batch=cfg.optInt("nBatch",512);val ubatch=cfg.optInt("nUbatch",512)
+        require(batch in 32..1024 && ubatch in 32..512 && ubatch<=batch && batch<=cfg.optInt("nCtx",8192)) { "Batch/ubatch inválidos" }
+        require(cfg.optString("flashAttention","auto") in setOf("auto","on","off"))
+        require(cfg.optString("typeK","f16") in setOf("f16","q8_0") && cfg.optString("typeV","f16") in setOf("f16","q8_0"))
+        require(cfg.optString("typeV","f16")!="q8_0" || cfg.optString("flashAttention","auto")=="on") { "V Q8 exige FA ON explícita" }
         val seed=cfg.getLong("seed");require(seed in 0..4294967295L)
         check(!com.proxyslabs.haruna.speech.VoiceCallService.running) { "Encerre a chamada antes do benchmark" }
         val state=backend.status()

@@ -118,3 +118,6 @@ apply_diag46_patch()
 
 from patch_android_lab import apply_lab_patch
 apply_lab_patch()
+
+from patch_android_context_lab import apply_context_lab_patch
+apply_context_lab_patch()

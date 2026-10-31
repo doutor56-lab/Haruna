@@ -24,6 +24,10 @@ export function runtimeCards(native,local,f){
   row('Threads · decode / batch',`${number(r.threads)} / ${number(r.threadsBatch)}`),row('Contexto configurado',number(r.nCtx)),
   row('Batch / ubatch',`${number(r.nBatch)} / ${number(r.nUbatch)}`),row('Sequências · capacidade',number(r.nSeqMax)),
   row('K / V · tipos aplicados na criação',`${clean(r.kvK)} / ${clean(r.kvV)}`),
+  row('Contexto solicitado · laboratório',number(r.contextExperiment?.requested?.nCtx)),
+  row('Batch / ubatch solicitados · laboratório',`${number(r.contextExperiment?.requested?.nBatch)} / ${number(r.contextExperiment?.requested?.nUbatch)}`),
+  row('Contexto experimental · estado',clean(r.contextExperiment?.state)),
+  row('K / V · tensores efetivos',`${clean(r.kvActualK)} / ${clean(r.kvActualV)}`),
   row('Flash Attention · solicitada',clean(r.flashRequested)),
   row('Flash Attention · efetiva',r.flashEffective===1?'Ativa':r.flashEffective===0?'Inativa':'Indisponível / negociação pendente'),
   row('Camadas transformer atribuídas à GPU',number(r.gpuTransformerLayers))
