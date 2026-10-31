@@ -5,10 +5,25 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: write
 env:
   LLAMA_CPP_REVISION: 4d71b42fd87db24b8b7c808c151b713aa4459cfd
 jobs:
+  retire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Retire only superseded incremental build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          actual=$(gh api repos/doutor56-lab/Haruna/actions/runs/41235761626 --jq '.head_sha')
+          state=$(gh api repos/doutor56-lab/Haruna/actions/runs/41235761626 --jq '.status')
+          if [ "$actual" = "e8973e655663e4f4f18225b839ff1ab562d9fb62" ] && [ "$state" != "completed" ]; then
+            gh api --method POST repos/doutor56-lab/Haruna/actions/runs/41235761626/cancel
+          fi
   build:
+    needs: retire
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -20,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: 2cee57febb16993a8e79aa52e32ffcc5ed4c8b44
+          ref: 3f363ad0f82e01d9582efb25bc9fdda6e2c652cb
           submodules: recursive
           fetch-depth: 1
       - name: Verify narrow scope and pinned context runtime

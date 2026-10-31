@@ -38,7 +38,7 @@ static void hi_confirm_token(llama_token token,llama_pos pos){if(!hi_session.app
 static void hi_capture(int slot,size_t boundary){
  if(hs_check_cancel())return;
  const auto started=hm_clock();
- const bool ok=hi_session.capture(slot,boundary,hi_frontier(),[]{return llama_state_seq_get_size_ext(g_context,0,LLAMA_STATE_SEQ_FLAGS_NONE);},[](std::vector<uint8_t>&v){return llama_state_seq_get_data_ext(g_context,v.data(),v.size(),0,LLAMA_STATE_SEQ_FLAGS_NONE);});
+ bool ok=false;try{ok=hi_session.capture(slot,boundary,hi_frontier(),[]{return llama_state_seq_get_size_ext(g_context,0,LLAMA_STATE_SEQ_FLAGS_NONE);},[](std::vector<uint8_t>&v){return llama_state_seq_get_data_ext(g_context,v.data(),v.size(),0,LLAMA_STATE_SEQ_FLAGS_NONE);});}catch(const std::bad_alloc&){hi_note("captureSkipped","memory_allocation");}
  hi_note(slot==0?"systemCheckpointCaptured":"turnCheckpointCaptured",ok);hi_note("snapshotBytes",hi_session.bytes());
  {std::lock_guard<std::mutex>l(hi_lock);hi_observation["captureUs"]=hi_observation.value("captureUs",int64_t(0))+hm_clock()-started;}
 }
