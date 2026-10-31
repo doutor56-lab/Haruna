@@ -16,12 +16,12 @@ android {
     ndkVersion = "29.0.13113456"
 
     defaultConfig {
-        applicationId = "com.proxyslabs.haruna"
+        applicationId = "com.proxyslabs.haruna.runtimeb"
         minSdk = 33
         targetSdk = 36
         testInstrumentationRunner = "com.proxyslabs.haruna.diagnostic45.CanonicalRunner"
         versionCode = 8
-        versionName = "0.7-debug-lab"
+        versionName = "0.7-debug-lab-runtime-b"
         externalNativeBuild { cmake { arguments += "-DCMAKE_BUILD_TYPE=Release" } }
         ndk { abiFilters += listOf("arm64-v8a") }
     }
