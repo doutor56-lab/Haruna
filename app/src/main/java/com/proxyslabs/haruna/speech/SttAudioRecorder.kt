@@ -30,7 +30,7 @@ class SttAudioRecorder(private val context: Context) {
         assetManager = context.assets,
         config = VadModelConfig(
             sileroVadModelConfig = SileroVadModelConfig(
-                model = "silero_vad.onnx",
+                model = "silero_vad.int8.onnx",
                 threshold = 0.5F,
                 minSilenceDuration = 0.45F,
                 minSpeechDuration = 0.10F,
@@ -100,9 +100,6 @@ class SttAudioRecorder(private val context: Context) {
                     level((rms / 5000.0).coerceIn(0.0, 1.0))
                 }
 
-                // Silero owns endpointing. When automatic pause is enabled, use the
-                // completed neural speech segment itself so Whisper does not receive
-                // seconds of leading room silence captured before the user spoke.
                 if (!vad.empty()) {
                     speechSeen = true
                     if (automaticPause) {
@@ -115,8 +112,6 @@ class SttAudioRecorder(private val context: Context) {
                 if (!speechSeen && used >= RATE * NO_SPEECH_SECONDS) break
             }
 
-            // Manual finish or the hard capture limit may arrive before Silero emits a
-            // completed segment. flush() lets it finalize the current neural segment.
             vad.flush()
             if (!vad.empty()) {
                 speechSeen = true
@@ -126,8 +121,6 @@ class SttAudioRecorder(private val context: Context) {
             }
             if (!alive() || !speechSeen) return FloatArray(0)
 
-            // Automatic mode returns only Silero's padded speech segment. Manual mode
-            // intentionally preserves the full user-controlled waveform.
             return completedSegment ?: samples.copyOf(used)
         } finally {
             recorder = null
