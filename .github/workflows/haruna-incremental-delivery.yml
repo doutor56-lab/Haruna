@@ -1,0 +1,92 @@
+name: Haruna final inference installers and provenance
+on:
+  push:
+    branches: [build/haruna-incremental-delivery]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  delivery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: 335be05ef7104e91b776911b285aeccdeb533a80
+          fetch-depth: 1
+      - name: Validate canonical counter ownership and unchanged ordinary profile code
+        run: |
+          git fetch --depth=1 origin 3f363ad0f82e01d9582efb25bc9fdda6e2c652cb
+          git fetch --depth=1 origin be5f3d353e0a877b69d55f93567195f6c60eabd7
+          python3 scripts/check_incremental_counters.py
+          python3 - <<'PY'
+          import subprocess,re,json
+          from pathlib import Path
+          old=subprocess.check_output(['git','show','3f363ad0f82e01d9582efb25bc9fdda6e2c652cb:patches/llama-android/haruna_op_profile.h'],text=True)
+          current=Path('patches/llama-android/haruna_op_profile.h').read_text()
+          def body(s):
+            value=s[s.index('static void hp_begin('):s.index('\nstatic void hp_end')]
+            return re.sub(r'\s+','',subprocess.check_output(['cpp','-P','-DHARUNA_DIAGNOSTIC_45=0'],input=value,text=True))
+          assert body(old)==body(current)
+          changed=set(subprocess.check_output(['git','diff','--name-only','be5f3d353e0a877b69d55f93567195f6c60eabd7','HEAD'],text=True).splitlines())
+          allowed=set(json.loads(Path('docs/INFERENCIA_INCREMENTAL_FILES.json').read_text()))
+          assert changed<=allowed,changed-allowed
+          assert '4d71b42fd87db24b8b7c808c151b713aa4459cfd' in subprocess.check_output(['git','ls-tree','HEAD','third_party/llama.cpp'],text=True)
+          print('PASS: canonical counter modes and ordinary preprocessed profile body preserved; scoped final source and pinned runtime.')
+          PY
+      - name: Download only already-built verified installer and technical artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41236818020 --repo doutor56-lab/Haruna --name Haruna-incremental-cpu-APK --dir installers-cpu
+          gh run download 41236818020 --repo doutor56-lab/Haruna --name HARUNA_INCREMENTAL_cpu_TECNICO --dir technical/cpu
+          gh run download 41239107227 --repo doutor56-lab/Haruna --name Haruna-incremental-vulkan-APK --dir installers-vulkan
+          gh run download 41239107227 --repo doutor56-lab/Haruna --name HARUNA_INCREMENTAL_vulkan_TECNICO --dir technical/vulkan
+      - name: Verify binary hashes, exact source origins and privacy-safe report
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,zipfile,subprocess
+          from pathlib import Path
+          expected={'cpu':('3f363ad0f82e01d9582efb25bc9fdda6e2c652cb','95ea104c1d19039ac2a51f515adcb9fdbd0c149256523176e4ea66a3ec24717f'),'vulkan':('783974303d309dfaf597c59251fd0d6afd0dfd61','a4ac776de24afff97c3621ff708d655cd26779a773d6b27448e8a01a0a8532a1')}
+          sources={};sums=[]
+          for flavor,(source,sha) in expected.items():
+            m=json.loads(Path('technical',flavor,'BUILD_METADATA.json').read_text())
+            apk=Path('installers-'+flavor,m['apk']);actual=hashlib.sha256(apk.read_bytes()).hexdigest()
+            assert actual==sha==m['sha256'] and m['sourceCommit']==source and m['build']=='SUCCESS'
+            assert m['deviceTestsExecuted'] is False and m['real2BModelInferenceExecuted'] is False and m['targetMet'] is False
+            assert m['llamaCommit']=='4d71b42fd87db24b8b7c808c151b713aa4459cfd' and m['offloadDefault']==0
+            assert [p.name for p in apk.parent.iterdir()]==[apk.name]
+            with zipfile.ZipFile(apk) as z:
+              names=z.namelist();assert sum(n.endswith('/libllama.so') for n in names)==1
+              assert ('lib/arm64-v8a/libggml-vulkan.so' in names)==(flavor=='vulkan')
+              assert not any(n.lower().endswith(('.gguf','.onnx','.tar.bz2')) for n in names)
+            sources[flavor]=m;sums.append(actual+'  '+apk.name)
+          run=f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          meta={'finalSourceCommit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'deliveryRun':run,'binaryOrigins':sources,'laterSourceOnlyChange':'Canonical diagnostic counter guard and regression test/docs; inactive preprocessor branch in ordinary APKs. No claim that these APKs were rebuilt from final source. Exact binary source SHAs above.','deviceTestsExecuted':False,'physicalTTFTMs':None,'targetMet':False,'status':'META NAO ATINGIDA / NAO DEMONSTRADA NO APARELHO'}
+          Path('technical/BUILD_METADATA_FINAL.json').write_text(json.dumps(meta,indent=2)+'\n')
+          Path('technical/SHA256SUMS.txt').write_text('\n'.join(sums)+'\n')
+          files=json.loads(Path('docs/INFERENCIA_INCREMENTAL_FILES.json').read_text())
+          report=Path('docs/INFERENCIA_INCREMENTAL_RELATORIO.txt').read_text()+'\nARQUIVOS-FONTE MODIFICADOS\n'+'\n'.join(files)+'\n'
+          report+='\nCI separado: .github/workflows/haruna-incremental.yml (compilação) e .github/workflows/haruna-incremental-delivery.yml (agregação/proveniência).\n'
+          report+='\nRESULTADOS REAIS DO CI E ORIGEM DOS APKs\n'+json.dumps(meta,indent=2,ensure_ascii=False)+'\n'
+          report+='\nTodos os testes automáticos e builds completos dos APKs passaram nos jobs de origem. O primeiro job Vulkan de41236818020 falhou por link auxiliar x86_64; corrigido e compilado em41239107227. O job CPU do primeiro run passou. Nenhuma inferência Qwen2B/ARM/GPU física ou medição TTFT no Samsung foi executada. A agregação não recompila nem altera os APKs; hashes conferidos.\n'
+          report+='\nMETA NÃO ATINGIDA — AGUARDANDO MEDIÇÃO FÍSICA NO SAMSUNG SM-A155M\n'
+          Path('technical/HARUNA_INFERENCIA_FINAL_RELATORIO.txt').write_text(report)
+          print(json.dumps(meta,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haruna-incremental-CPU-FINAL
+          path: installers-cpu/Haruna-incremental-CPU.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haruna-incremental-Vulkan-FINAL
+          path: installers-vulkan/Haruna-incremental-Vulkan.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HARUNA_INFERENCIA_FINAL_TECNICO
+          path: technical/
+          if-no-files-found: error
