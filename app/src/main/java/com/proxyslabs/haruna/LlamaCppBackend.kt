@@ -243,8 +243,14 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     }
                     val profile = options?.optString("essentialContext", "") ?: ""
                     require(profile.length <= 900) { "Perfil de contexto muito longo" }
-                    val system = HarunaIdentity.systemPrompt(requireNotNull(modelName)) +
+                    val originalSystem = HarunaIdentity.systemPrompt(requireNotNull(modelName)) +
                         if (profile.isBlank()) "" else "\n" + profile
+                    val labVariant = options?.optString("labSystemPromptVariant", "current") ?: "current"
+                    val labAuthorized = BuildConfig.DEBUG && requestId.startsWith("lab-") &&
+                        options?.optString("labConfig", "")?.takeIf { it.isNotEmpty() }?.let {
+                            JSONObject(it).optString("systemPromptVariant", "current") == labVariant
+                        } == true
+                    val system = com.proxyslabs.haruna.diagnostics.LabSystemPrompt.apply(originalSystem, labVariant, labAuthorized)
                     val roles = mutableListOf("system")
                     val contents = mutableListOf(system)
                     require(messages.length() in 1..17) { "Número de mensagens inválido" }

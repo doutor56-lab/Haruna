@@ -1,4 +1,4 @@
-export const baseline={temperature:.3,topK:40,topP:.95,minP:.05,presence:0,frequency:0,repeat:1,seed:4294967295,maxTokens:256,thinking:false,history:false,cache:false,rag:false,threads:0,threadsBatch:0};
+export const baseline={systemPromptVariant:"current",temperature:.3,topK:40,topP:.95,minP:.05,presence:0,frequency:0,repeat:1,seed:4294967295,maxTokens:256,thinking:false,history:false,cache:false,rag:false,threads:0,threadsBatch:0};
 export const profiles={
  'Haruna padrão':baseline,
  'Qwen recomendado — experimental':{...baseline,temperature:1,topK:20,topP:1,minP:0,presence:2},
@@ -9,7 +9,7 @@ export function summary(result){
  const g=observed?.generation||{},r=observed?.runtime||{},p=observed?.prefix||{};
  const finite=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
  const rate=(n,t)=>finite(n)&&finite(t)&&t>0?n*1e6/t:null;
- return {batch:result.batch,arm:result.arm,nativeGenerationFresh:result.nativeGenerationFresh,completedAt:result.completedAt,model:result.model,configuration:Object.fromEntries(Object.keys(baseline).map(k=>[k,result.configuration?.[k]])),fixture:result.fixture,error:result.error,
+ return {systemPromptVariant:result.configuration?.systemPromptVariant||"current",systemPromptExperiment:result.configuration?.systemPromptVariant==="factual_precision_experimental",batch:result.batch,arm:result.arm,nativeGenerationFresh:result.nativeGenerationFresh,completedAt:result.completedAt,model:result.model,configuration:Object.fromEntries(Object.keys(baseline).map(k=>[k,result.configuration?.[k]])),fixture:result.fixture,error:result.error,
   runtime:r,device:result.after?.device,sampler:observed?.decisionProbe?.sampler,thermalBefore:result.thermalBefore,thermalAfter:result.thermalAfter,
   ttftMs:result.firstDeltaMs,nativeTtftMs:finite(g.firstDeltaUs)?g.firstDeltaUs/1000:null,
   prefillMs:finite(g.prefillUs)?g.prefillUs/1000:null,promptTokens:g.inputTokens,outputTokens:g.outputTokens,

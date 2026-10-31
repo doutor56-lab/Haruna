@@ -19,6 +19,9 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
         check(BuildConfig.DEBUG) { "Disponível somente em DEBUG" }
         require(raw.length<=4000)
         val cfg=JSONObject(raw)
+        val variant=cfg.optString("systemPromptVariant",LabSystemPrompt.CURRENT)
+        require(variant in setOf(LabSystemPrompt.CURRENT,LabSystemPrompt.FACTUAL)) { "Variante de system prompt inválida" }
+        cfg.put("systemPromptVariant",variant)
         for ((key,limits) in mapOf("temperature" to (0.0..2.0),"topP" to (0.001..1.0),"minP" to (0.0..1.0),"presence" to (-2.0..2.0),"frequency" to (-2.0..2.0),"repeat" to (0.5..2.0))) {
             val x=cfg.getDouble(key);require(x.isFinite()&&x in limits) { "Valor inválido: $key" }
         }
@@ -57,7 +60,7 @@ class InferenceLab(private val app: Context, private val backend: LlmBackend, pr
         }
         backend.generate(id,JSONObject().put("messages",messages).put("options",JSONObject()
             .put("conversationId","lab-sky-v1").put("enableThinking",cfg.optBoolean("thinking",false))
-            .put("maxTokens",cfg.getInt("maxTokens")).put("labConfig",cfg.toString())).toString(),
+            .put("maxTokens",cfg.getInt("maxTokens")).put("labSystemPromptVariant",variant).put("labConfig",cfg.toString())).toString(),
             { delta -> if(first==null) first=(SystemClock.elapsedRealtimeNanos()-start)/1e6;deltas++;if(text.length<65536)text.append(delta.take(65536-text.length)) },
             { complete(null) }, { code,_ -> complete(code) })
         JSONObject().put("status","ok").put("request",id).toString()

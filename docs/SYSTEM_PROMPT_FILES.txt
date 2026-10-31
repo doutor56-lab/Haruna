@@ -1,0 +1,12 @@
+app/src/main/java/com/proxyslabs/haruna/LlamaCppBackend.kt
+app/src/main/java/com/proxyslabs/haruna/diagnostics/InferenceLab.kt
+app/src/main/java/com/proxyslabs/haruna/diagnostics/LabSystemPrompt.kt
+app/src/main/assets/haruna/diagnostics/lab.js
+app/src/main/assets/haruna/diagnostics/lab-core.js
+app/src/main/assets/haruna/diagnostics/lab-view.js
+scripts/check_system_prompt.py
+scripts/check_system_prompt.kt
+scripts/check_system_prompt_browser.mjs
+scripts/check_system_prompt_scope.py
+docs/SYSTEM_PROMPT_FILES.txt
+docs/SYSTEM_PROMPT_RELATORIO.md
