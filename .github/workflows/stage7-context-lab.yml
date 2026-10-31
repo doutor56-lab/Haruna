@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: 78942e889390485f36ec4b50dddec801b286f791
+          ref: 2231fc7480ec0d6c4ca4434f8f76feb06c64e385
           submodules: recursive
           fetch-depth: 1
       - name: Verify narrow scope and pinned context runtime
