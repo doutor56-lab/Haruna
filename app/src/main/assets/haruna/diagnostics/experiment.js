@@ -1,30 +1,29 @@
-// Explicit diagnostic A/B only. Never auto-applies, never reloads a model/process.
+import {readRuntime,runtimeState,runtimeRows,experimentIssues} from './runtime-state.js';
+// Existing configureExperiment API only. No reload, process restart or native changes.
 export function experimentControls(native,ticket){
- const section=document.createElement('details');section.className='haruna-dbg-card';
- const heading=document.createElement('summary');heading.textContent='Experimento temporário · degeneração Samsung';
- const body=document.createElement('div'),note=document.createElement('p');note.className='haruna-dbg-note';
- note.textContent='Altera somente o experimento solicitado. Seed 424242: próxima geração. FA: descarregue e carregue o modelo. CPU: force a parada do app e reabra. Seed/FA voltam ao padrão ao encerrar o processo; a seleção de CPU deve ser restaurada aqui. Não altera prompt, sampling normal, memória ou RAG.';
- body.append(note);const obs=native.llm?.observation||{},probe=obs.decisionProbe||{},controls=obs.debugControls||{};
- function choice(label,checked,disabled=false){
-  const row=document.createElement('p'),wrap=document.createElement('label'),input=document.createElement('input');
-  input.type='checkbox';input.checked=checked;input.disabled=disabled;wrap.append(input,document.createTextNode(' '+label));row.append(wrap);body.append(row);return input;
+ const section=document.createElement('details');section.className='haruna-dbg-card haruna-lab-process';
+ const heading=document.createElement('summary');heading.textContent='Controles do processo · experimental';
+ const body=document.createElement('div');body.className='haruna-lab-area-body';
+ const note=document.createElement('p');note.className='haruna-dbg-note';
+ note.textContent='Escopo global de diagnóstico: afeta a inferência do processo enquanto ativo, não o perfil normal nem cada braço A/B. Nada é aplicado ao selecionar: use Solicitar alteração. FA exige recarregar o modelo; CPU exige novo processo. Não há recarga ou reinício automático. Seed/FA voltam ao padrão em um novo processo; a solicitação de CPU persiste até ser restaurada aqui. FA OFF existe no runtime, mas o laboratório canônico atual a recusa: suporte parcial, sem contornar a proteção.';body.append(note);
+ function select(title,options){const label=document.createElement('label');label.className='haruna-lab-field';const caption=document.createElement('span');caption.textContent=title;const input=document.createElement('select');input.setAttribute('aria-label',title);for(const [value,text]of options)input.add(new Option(text,value));label.append(caption,input);body.append(label);return input}
+ const fa=select('Flash Attention · solicitação',[['auto','Padrão / Auto'],['off','OFF experimental · benchmark indisponível']]);
+ const cpu=select('Backend CPU · próximo processo',[['auto','Atual / automático'],['conservative','Conservador']]);
+ const legacy=document.createElement('details');legacy.className='haruna-dbg-card';const label=document.createElement('summary');label.textContent='Controle herdado de seed · diagnóstico';legacy.append(label);const fixed=document.createElement('input');fixed.type='checkbox';fixed.setAttribute('aria-label','Seed DBG herdada 424242');const fixedLabel=document.createElement('label');fixedLabel.className='haruna-lab-field';fixedLabel.append(fixed,document.createTextNode('Seed DBG fixa: 424242. O benchmark exige este controle herdado desligado.'));legacy.append(fixedLabel);body.append(legacy);
+ const observed=document.createElement('div'),status=document.createElement('p'),warning=document.createElement('p');status.className='haruna-lab-status';status.setAttribute('role','status');warning.className='haruna-lab-warning';
+ const apply=document.createElement('button'),restore=document.createElement('button');apply.type=restore.type='button';apply.className=restore.className='haruna-lab-action';apply.textContent='Solicitar alteração';restore.textContent='Restaurar solicitações do processo';
+ let source=native,busy=false,dirty=false,freshRead=true,state=readRuntime(window.HarunaDiagnostics,source);
+ const draftDiffers=()=>fa.value!==(state.faOff?'off':'auto')||cpu.value!==(state.cpuPending?'conservative':'auto')||fixed.checked!==(state.fixedSeed===true);
+ function update(snapshot){if(snapshot)source=snapshot;if(!snapshot){state=readRuntime(window.HarunaDiagnostics,source);freshRead=true}else if(!(freshRead&&snapshot.snapshotAgeMs>0)){state=runtimeState(snapshot);freshRead=false}if(!dirty&&!busy){fa.value=state.faOff?'off':'auto';cpu.value=state.cpuPending?'conservative':'auto';fixed.checked=state.fixedSeed===true}
+  const known=state.faOff!==null&&state.cpuPending!==null&&state.fixedSeed!==null;
+  fa.disabled=cpu.disabled=fixed.disabled=busy||!known;cpu.options[1].disabled=state.cpuAvailable!==true;apply.disabled=restore.disabled=busy||!known||!window.HarunaDiagnostics?.configureExperiment;
+  const dl=document.createElement('dl');for(const [key,value]of runtimeRows(state)){const row=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key;dd.textContent=value;row.append(dt,dd);dl.append(row)}observed.replaceChildren(dl);
+  const issues=experimentIssues(state);warning.textContent=[dirty&&draftDiffers()?'Edição ainda não enviada. O estado efetivo não mudou.':'',...issues.blocking,...issues.warnings].filter(Boolean).join(' ');warning.hidden=!warning.textContent;
  }
- const fixed=choice('Seed DBG fixa: 424242',probe.fixedSeedDBG===true);
- const fa=choice('Flash Attention desligada (somente experimento)',probe.flashOffRequestedDBG===true);
- const cpu=choice('CPU conservadora armv8.0_1 (próximo processo)',controls.cpuConservativePending===true,controls.cpuConservativeAvailable!==true);
- const apply=document.createElement('button'),restore=document.createElement('button'),status=document.createElement('p');
- apply.type=restore.type='button';apply.textContent='Aplicar experimento';restore.textContent='Restaurar padrões';status.className='haruna-dbg-note';status.setAttribute('role','status');
- async function send(reset){
-  if(reset){fixed.checked=false;fa.checked=false;cpu.checked=false}
-  try{
-   if(!window.HarunaDiagnostics?.configureExperiment)throw Error();
-   apply.disabled=restore.disabled=true;status.textContent='Aguardando aplicação no runtime ocioso…';
-   window.HarunaDiagnostics.configureExperiment(ticket,JSON.stringify({fixedSeed:fixed.checked,flashOff:fa.checked,conservativeCpu:cpu.checked}));
-  }catch{apply.disabled=restore.disabled=false;status.textContent='Controle Android indisponível.'}
- }
+ for(const input of [fa,cpu,fixed])input.onchange=()=>{dirty=true;update();window.dispatchEvent(new CustomEvent('haruna-dbg-control-draft'))};
+ function send(reset){if(reset){fa.value='auto';cpu.value='auto';fixed.checked=false}if(busy)return;busy=true;dirty=true;status.textContent='Solicitação enviada; aguardando confirmação. Não confirma aplicação no contexto/processo atual.';update();try{window.HarunaDiagnostics.configureExperiment(ticket,JSON.stringify({fixedSeed:fixed.checked,flashOff:fa.value==='off',conservativeCpu:cpu.value==='conservative'}))}catch{busy=false;status.textContent='Controle Android indisponível. Nada foi confirmado.';update()}window.dispatchEvent(new CustomEvent('haruna-dbg-control-draft'))}
  apply.onclick=()=>send(false);restore.onclick=()=>send(true);
- const listener=event=>{if(event.detail?.ticket!==ticket)return;apply.disabled=restore.disabled=false;status.textContent=event.detail.message};
- window.addEventListener('haruna-dbg-experiment',listener);
- body.append(apply,restore,status);section.append(heading,body);
- return {element:section,dispose:()=>window.removeEventListener('haruna-dbg-experiment',listener)};
+ const listener=event=>{if(event.detail?.ticket!==ticket)return;busy=false;if(event.detail.ok)dirty=false;status.textContent=event.detail.message||'Resposta recebida; confira solicitado e efetivo.';update();window.dispatchEvent(new CustomEvent('haruna-dbg-control-draft'))};window.addEventListener('haruna-dbg-experiment',listener);
+ body.append(observed,warning,apply,restore,status);section.append(heading,body);update();
+ return {element:section,update,currentState:()=>state,pendingChanges:()=>busy?['Aguarde a confirmação da solicitação DBG.']:dirty&&draftDiffers()?['Há edição de FA/CPU/seed herdada ainda não enviada. Solicite ou restaure a edição antes do benchmark.']:[],dispose:()=>window.removeEventListener('haruna-dbg-experiment',listener)};
 }

@@ -22,8 +22,9 @@ function refresh(){if(!dialog||document.hidden)return;requestSnapshot();render()
 function render(){
  if(!dialog)return;
  if(!experimentInitialized&&native.llm?.observation){
-  experiment=experimentControls(native,ticket);dialog.querySelector('.haruna-dbg-content').append(experiment.element);experimentInitialized=true;
+  experiment=experimentControls(native,ticket);(laboratory?.runtimeHost||dialog.querySelector('.haruna-dbg-content')).append(experiment.element);experimentInitialized=true;
  }
+ experiment?.update(native);laboratory?.refreshRuntime(native);
  cards=diagnosticCards(native,knowledgeMetrics());
  for(const card of cards){
   const body=dialog.querySelector(`[data-dbg-body="${card.id}"]`);body.replaceChildren();
@@ -49,13 +50,14 @@ function open(){
  const icons={stability:'layers',runtime:'brain',configuration:'layers',generation:'brain',streaming:'layers',context:'layers',decision:'brain',memory:'memory',llm:'brain',knowledge:'memory',voice:'volume',subsystems:'layers',device:'device'};
  cards=diagnosticCards({},{});
  const content=element.querySelector('.haruna-dbg-content');
+ const diagnostic=document.createElement('details');diagnostic.className='haruna-dbg-card haruna-dbg-observation';diagnostic.open=true;const diagnosticTitle=document.createElement('summary');diagnosticTitle.textContent='Diagnóstico · somente observação';diagnostic.append(diagnosticTitle);const diagnosticBody=document.createElement('div');diagnosticBody.className='haruna-lab-area-body';diagnostic.append(diagnosticBody);content.append(diagnostic);
  for(const card of cards){
-  const section=document.createElement('details');section.className=`haruna-dbg-card haruna-dbg-${card.id}`;section.open=true;
+  const section=document.createElement('details');section.className=`haruna-dbg-card haruna-dbg-${card.id}`;section.open=['generation','llm'].includes(card.id);
   const summary=document.createElement('summary'),icon=document.createElement('i'),label=document.createElement('span');
   icon.className=`haruna-dbg-section-icon haruna-dbg-icon-${icons[card.id]}`;icon.setAttribute('aria-hidden','true');label.textContent=card.title;summary.append(icon,label);
-  const body=document.createElement('div');body.dataset.dbgBody=card.id;section.append(summary,body);content.appendChild(section);
+  const body=document.createElement('div');body.dataset.dbgBody=card.id;section.append(summary,body);diagnosticBody.appendChild(section);
  }
- laboratory=inferenceLab();if(laboratory)content.prepend(laboratory.element);
+ laboratory=inferenceLab({pendingControls:()=>experiment?.pendingChanges()||[],runtimeObservation:()=>experiment?.currentState()});if(laboratory)content.append(laboratory.element);
  dialog=element;
  element.querySelector('.haruna-dbg-close').onclick=close;element.querySelector('.haruna-dbg-done').onclick=close;
  element.querySelector('[data-dbg-copy]').onclick=copy;

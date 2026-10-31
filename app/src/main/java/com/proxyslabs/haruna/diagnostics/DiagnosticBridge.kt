@@ -35,6 +35,22 @@ class DiagnosticBridge(
             lab.run(config)
         }.getOrElse { JSONObject().put("status", "error").put("error", it.message ?: "Voz ocupada").toString() }
     }
+    /** Scalar-only fresh view of EXISTING controls; no model/context mutation or memory sampling. */
+    @JavascriptInterface fun labRuntimeState(): String = runCatching {
+        check(com.proxyslabs.haruna.BuildConfig.DEBUG && !closed.get())
+        val source = JSONObject(backend.runtimeMetrics())
+        val result = JSONObject().put("available", source.has("runtime") || source.has("decisionProbe"))
+        for ((group, keys) in mapOf(
+            "runtime" to listOf("flashRequested", "flashEffective", "cpuVariant", "threads", "threadsBatch"),
+            "decisionProbe" to listOf("fixedSeedDBG", "flashOffRequestedDBG", "cpuConservativeEffectiveDBG", "cpuLoadFallbackDBG"),
+            "debugControls" to listOf("cpuConservativePending", "cpuConservativeAvailable")
+        )) {
+            val values = JSONObject(); val actual = source.optJSONObject(group)
+            for (key in keys) if (actual?.has(key) == true) values.put(key, actual.get(key))
+            result.put(group, values)
+        }
+        result.toString()
+    }.getOrDefault("{\"available\":false}")
     @JavascriptInterface fun labModel(): String = if (com.proxyslabs.haruna.BuildConfig.DEBUG && !closed.get()) backend.status().modelName ?: "" else ""
     @JavascriptInterface fun labPromptInspector(): String = if (com.proxyslabs.haruna.BuildConfig.DEBUG && !closed.get()) runCatching { JSONObject(backend.runtimeMetrics()).optJSONObject("laboratory")?.optString("canonicalFormattedPrompt", "") ?: "" }.getOrDefault("") else ""
     @JavascriptInterface fun labCancel() { lab.cancel() }

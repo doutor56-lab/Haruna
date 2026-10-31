@@ -1,0 +1,12 @@
+app/src/main/java/com/proxyslabs/haruna/diagnostics/DiagnosticBridge.kt
+app/src/main/assets/haruna/diagnostics/panel.js
+app/src/main/assets/haruna/diagnostics/panel.css
+app/src/main/assets/haruna/diagnostics/lab.js
+app/src/main/assets/haruna/diagnostics/experiment.js
+app/src/main/assets/haruna/diagnostics/lab-view.js
+app/src/main/assets/haruna/diagnostics/runtime-state.js
+scripts/check_lab_browser.mjs
+scripts/check_dbg_ui.mjs
+scripts/check_dbg_ui_scope.py
+docs/DBG_UI_RELATORIO.md
+docs/DBG_UI_FILES.txt
