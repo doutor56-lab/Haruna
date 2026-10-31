@@ -60,6 +60,7 @@ class SttAudioRecorder(private val context: Context) {
         val frame = ShortArray(WINDOW)
         var used = 0
         var speechSeen = false
+        var completedSegment: FloatArray? = null
         var lastLevel = 0L
         val vad = createVad()
         try {
@@ -99,11 +100,16 @@ class SttAudioRecorder(private val context: Context) {
                     level((rms / 5000.0).coerceIn(0.0, 1.0))
                 }
 
-                // Silero owns endpointing. A completed segment means speech followed by
-                // the configured neural silence interval; no fixed 1.6 s RMS timer remains.
+                // Silero owns endpointing. When automatic pause is enabled, use the
+                // completed neural speech segment itself so Whisper does not receive
+                // seconds of leading room silence captured before the user spoke.
                 if (!vad.empty()) {
                     speechSeen = true
-                    if (automaticPause) break
+                    if (automaticPause) {
+                        completedSegment = vad.front().samples.copyOf()
+                        vad.pop()
+                        break
+                    }
                     while (!vad.empty()) vad.pop()
                 }
                 if (!speechSeen && used >= RATE * NO_SPEECH_SECONDS) break
@@ -112,12 +118,17 @@ class SttAudioRecorder(private val context: Context) {
             // Manual finish or the hard capture limit may arrive before Silero emits a
             // completed segment. flush() lets it finalize the current neural segment.
             vad.flush()
-            if (!vad.empty()) speechSeen = true
+            if (!vad.empty()) {
+                speechSeen = true
+                if (automaticPause && completedSegment == null) {
+                    completedSegment = vad.front().samples.copyOf()
+                }
+            }
             if (!alive() || !speechSeen) return FloatArray(0)
 
-            // Keep the original captured waveform for Whisper. VAD is used only for
-            // speech/no-speech and endpoint decisions, avoiding lossy reconstruction.
-            return samples.copyOf(used)
+            // Automatic mode returns only Silero's padded speech segment. Manual mode
+            // intentionally preserves the full user-controlled waveform.
+            return completedSegment ?: samples.copyOf(used)
         } finally {
             recorder = null
             runCatching { audio.stop() }
