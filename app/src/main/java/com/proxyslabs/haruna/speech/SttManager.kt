@@ -17,7 +17,7 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
     private val engine: SttEngine = WhisperSttEngine { emit(status()) }
     private val cppEngine: SttEngine = WhisperCppEngine { emit(status()) }
     private fun selectedEngine() = if (models.selected().engine == "cpp") cppEngine else engine
-    private val recorder = SttAudioRecorder()
+    private val recorder = SttAudioRecorder(context)
     private val worker = Executors.newSingleThreadExecutor()
     private val generation = AtomicLong()
     private val installing = AtomicBoolean(false)
@@ -37,6 +37,7 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
         .put("models", models.list()).put("selectedId", models.selected().id).put("modelName", models.selected().title)
         .put("loaded", (engine.loaded() || cppEngine.loaded())).put("activeModel", if ((engine.loaded() || cppEngine.loaded())) models.selected().title else JSONObject.NULL)
         .put("automaticPause", voicePrefs.getBoolean("automatic_pause", true))
+        .put("vad", "silero")
         .put("diagnostics", SttDiagnostics.snapshot())
     private fun publish(next: String, failure: String? = null, text: String? = null) {
         state = next; error = failure
@@ -114,4 +115,3 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
     }
     override fun close() { if (closed.compareAndSet(false, true)) { models.cancel(); stop(); worker.shutdown() } }
 }
-
