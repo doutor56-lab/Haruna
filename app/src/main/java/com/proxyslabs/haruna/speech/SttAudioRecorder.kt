@@ -1,31 +1,67 @@
 package com.proxyslabs.haruna.speech
 
+import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import com.k2fsa.sherpa.onnx.SileroVadModelConfig
+import com.k2fsa.sherpa.onnx.Vad
+import com.k2fsa.sherpa.onnx.VadModelConfig
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.sqrt
 
-/** Bounded PCM capture; background calls require the explicit foreground service. No audio is saved to disk. */
-class SttAudioRecorder {
-    companion object { const val RATE = 16000; const val MAX_SECONDS = 20 }
+/** Bounded PCM capture with neural endpointing. No audio is saved to disk. */
+class SttAudioRecorder(private val context: Context) {
+    companion object {
+        const val RATE = 16000
+        const val MAX_SECONDS = 20
+        private const val WINDOW = 512
+        private const val NO_SPEECH_SECONDS = 10
+    }
+
     @Volatile private var recorder: AudioRecord? = null
     private val finishRequested = AtomicBoolean(false)
+
     fun prepare() { finishRequested.set(false) }
     fun finish() { finishRequested.set(true); runCatching { recorder?.stop() } }
     fun cancel() = finish()
-    fun capture(alive: () -> Boolean, started: () -> Unit, level: (Double) -> Unit, automaticPause: Boolean = true): FloatArray {
+
+    private fun createVad(): Vad = Vad(
+        assetManager = context.assets,
+        config = VadModelConfig(
+            sileroVadModelConfig = SileroVadModelConfig(
+                model = "silero_vad.onnx",
+                threshold = 0.5F,
+                minSilenceDuration = 0.45F,
+                minSpeechDuration = 0.10F,
+                windowSize = WINDOW,
+                maxSpeechDuration = MAX_SECONDS.toFloat(),
+            ),
+            sampleRate = RATE,
+            numThreads = 1,
+            provider = "cpu",
+            debug = false,
+        ),
+    )
+
+    fun capture(
+        alive: () -> Boolean,
+        started: () -> Unit,
+        level: (Double) -> Unit,
+        automaticPause: Boolean = true,
+    ): FloatArray {
         if (!alive() || finishRequested.get()) return FloatArray(0)
         val minBuffer = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         require(minBuffer > 0) { "Microfone não suporta captura em 16 kHz" }
         val audio = AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
             .setAudioFormat(AudioFormat.Builder().setSampleRate(RATE).setChannelMask(AudioFormat.CHANNEL_IN_MONO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
-            .setBufferSizeInBytes(maxOf(minBuffer * 2, 6400)).build()
+            .setBufferSizeInBytes(maxOf(minBuffer * 2, 8192)).build()
         val samples = FloatArray(RATE * MAX_SECONDS)
-        val frame = ShortArray(320)
-        var used = 0; var lastVoice = 0; var voicedSamples = 0; var speech = false
-        var candidateStart = 0; var speechStart = 0
-        var noise = 120.0; var lastLevel = 0L
+        val frame = ShortArray(WINDOW)
+        var used = 0
+        var speechSeen = false
+        var lastLevel = 0L
+        val vad = createVad()
         try {
             require(audio.state == AudioRecord.STATE_INITIALIZED) { "Não foi possível inicializar o microfone" }
             require(audio.sampleRate == RATE && audio.channelCount == 1 && audio.audioFormat == AudioFormat.ENCODING_PCM_16BIT) {
@@ -44,30 +80,50 @@ class SttAudioRecorder {
                     throw IllegalStateException("Falha na captura do microfone ($count)")
                 }
                 var squares = 0.0
-                for (i in 0 until count) { val v = frame[i].toDouble(); squares += v * v; samples[used + i] = (v / 32768.0).toFloat() }
+                val vadFrame = FloatArray(count)
+                for (i in 0 until count) {
+                    val v = frame[i].toDouble()
+                    squares += v * v
+                    val normalized = (v / 32768.0).toFloat()
+                    samples[used + i] = normalized
+                    vadFrame[i] = normalized
+                }
                 used += count
+                vad.acceptWaveform(vadFrame)
+                if (vad.isSpeechDetected()) speechSeen = true
+
                 val rms = sqrt(squares / count)
-                if (used <= RATE / 4 && rms < 600.0) noise = noise * 0.9 + rms * 0.1
-                val voiced = rms > maxOf(300.0, noise * 2.8)
-                if (voiced) {
-                    if (voicedSamples == 0) candidateStart = used - count
-                    voicedSamples += count; lastVoice = used
-                    if (!speech && voicedSamples >= RATE / 10) { speech = true; speechStart = candidateStart }
-                } else { voicedSamples = 0 }
-                if (!speech && !voiced) noise = (noise * 0.995 + rms * 0.005).coerceAtMost(1500.0)
                 val now = android.os.SystemClock.elapsedRealtime()
-                if (now - lastLevel >= 160) { lastLevel = now; level((rms / 5000.0).coerceIn(0.0, 1.0)) }
-                if (automaticPause && speech && used - lastVoice > RATE * 16 / 10) break
-                if (!speech && used >= RATE * 10) break
+                if (now - lastLevel >= 160) {
+                    lastLevel = now
+                    level((rms / 5000.0).coerceIn(0.0, 1.0))
+                }
+
+                // Silero owns endpointing. A completed segment means speech followed by
+                // the configured neural silence interval; no fixed 1.6 s RMS timer remains.
+                if (!vad.empty()) {
+                    speechSeen = true
+                    if (automaticPause) break
+                    while (!vad.empty()) vad.pop()
+                }
+                if (!speechSeen && used >= RATE * NO_SPEECH_SECONDS) break
             }
-            // An energy gate avoids decoding silence; it is not a learned VAD model.
-            // Keep 320 ms before onset and 650 ms after speech, without all the initial silence.
-            return if (alive() && speech) samples.copyOfRange(maxOf(0, speechStart - RATE * 32 / 100), minOf(used, lastVoice + RATE * 65 / 100)) else FloatArray(0)
+
+            // Manual finish or the hard capture limit may arrive before Silero emits a
+            // completed segment. flush() lets it finalize the current neural segment.
+            vad.flush()
+            if (!vad.empty()) speechSeen = true
+            if (!alive() || !speechSeen) return FloatArray(0)
+
+            // Keep the original captured waveform for Whisper. VAD is used only for
+            // speech/no-speech and endpoint decisions, avoiding lossy reconstruction.
+            return samples.copyOf(used)
         } finally {
             recorder = null
-            runCatching { audio.stop() }; audio.release()
+            runCatching { audio.stop() }
+            audio.release()
+            vad.release()
             samples.fill(0f)
         }
     }
 }
-
