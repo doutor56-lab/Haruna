@@ -14,6 +14,7 @@ export function readRuntime(bridge,fallback={}){
  return runtimeState(fallback);
 }
 export function runtimeRows(s){return [
+ ['GPU · camadas solicitadas / atribuídas',`${s.gpuRequested??'N/D'} / ${s.gpuActual??'N/D'}`],
  ['FA herdada solicitada · processo',s.faOff===true?'OFF experimental':s.faOff===false?'Padrão / Auto':'Não confirmado'],
  ['FA do contexto carregado',s.faContext??'Não confirmado'],['FA efetiva',s.faActual],
  ['CPU solicitada · próximo processo',s.cpuPending===true?'Conservadora':s.cpuPending===false?'Atual / automática':'Não confirmado'],
@@ -31,5 +32,5 @@ export function experimentIssues(s){
 }
 export function runtimeChanged(saved,current){
  if(!saved)return false;
- return ['faOff','faContext','cpuPending','cpuActual','cpuVariant'].some(k=>saved[k]!==null&&current[k]!==null&&saved[k]!==current[k]);
+ return ['faOff','faContext','cpuPending','cpuActual','cpuVariant','gpuRequested','gpuActual'].some(k=>saved[k]!==null&&current[k]!==null&&saved[k]!==current[k]);
 }

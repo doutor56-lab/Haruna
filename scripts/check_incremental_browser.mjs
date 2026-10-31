@@ -21,6 +21,12 @@ await page.getByRole('button',{name:'Exportar JSON sem respostas',exact:true}).c
 await page.evaluate(()=>calls.splice(0));
 await page.getByRole('button',{name:'Perfilar prefill frio · diagnóstico',exact:true}).click();await page.waitForFunction(()=>calls.length===1);await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>calls[0].profileOps),true);assert.equal(await page.evaluate(()=>calls[0].cache),false);
 assert.equal(await page.getByLabel('Camadas GPU solicitadas').isDisabled(),true);
+await page.evaluate(()=>{calls.splice(0);HarunaDiagnostics.labOffload=()=>JSON.stringify({status:'ok'});window.observed={runtime:{gpuTransformerLayers:0,cpuVariant:'TEST',flashEffective:0},decisionProbe:{cpuConservativeEffectiveDBG:false,flashOffRequestedDBG:false,fixedSeedDBG:false},debugControls:{cpuConservativePending:false},accelerator:{loadedRequestedLayers:0,vulkanAvailable:true}};lab.refreshRuntime(observed)});
+await page.getByRole('button',{name:'Salvar como A',exact:true}).click();
+await page.evaluate(()=>{observed.runtime.gpuTransformerLayers=8;observed.accelerator.loadedRequestedLayers=8;lab.refreshRuntime(observed)});
+await page.getByLabel('Camadas GPU solicitadas').selectOption('8');
+await page.getByRole('button',{name:'Salvar como B',exact:true}).click();
+await page.getByRole('button',{name:'Executar A/B',exact:true}).click();await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>calls.length),0);assert((await page.locator('body').textContent()).includes('FA/CPU/GPU observado ao salvar A/B mudou'));
 await page.evaluate(()=>lab.dispose());assert.equal(await page.locator('textarea').inputValue(),'');assert.deepEqual(errors,[]);
 console.log('PASS incremental DBG browser: 3-turn ordered session, shared seed, full-state cache toggle, explicit non-comparable profiling, GPU-disabled guard, private export; existing lab UI, A/B repetition and shared seed, technical persistence privacy, opt-in inspector, Android export dispatch, opt-in one-shot private inspector, disposal. SIMULATED BACKEND ONLY, no real inference.');
 }finally{await browser.close();server.close()}
