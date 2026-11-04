@@ -7,10 +7,11 @@ if os.environ.get('HARUNA_KOTLIN_TOOLS'):
     jars=list(Path(os.environ['HARUNA_KOTLIN_TOOLS']).glob('*.jar'))
 else:
     cache=Path.home()/'.gradle/caches/modules-2/files-2.1'
-    artifacts=['kotlin-compiler-embeddable','kotlin-stdlib','kotlin-script-runtime','kotlin-reflect','kotlin-daemon-embeddable','kotlinx-coroutines-core-jvm','trove4j','annotations']
+    artifacts=[('org.jetbrains.kotlin',name) for name in ['kotlin-compiler-embeddable','kotlin-stdlib','kotlin-script-runtime','kotlin-reflect','kotlin-daemon-embeddable']]
+    artifacts += [('org.jetbrains.kotlinx','kotlinx-coroutines-core-jvm'),('org.jetbrains.intellij.deps','trove4j'),('org.jetbrains','annotations')]
     jars=[]
-    for name in artifacts:
-        candidates=list(cache.glob('*/'+name+'/*/*/*.jar'))
+    for group,name in artifacts:
+        candidates=list((cache/group/name).glob('*/*/*.jar'))
         if candidates:jars.append(max(candidates,key=lambda p:tuple(map(int,re.findall(r'\d+',p.parents[1].name)))))
 if not any(p.name.startswith('kotlin-compiler-embeddable') for p in jars):
     raise SystemExit('Run Gradle compileDebugKotlin first or set HARUNA_KOTLIN_TOOLS to existing compiler jars.')
