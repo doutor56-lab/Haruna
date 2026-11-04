@@ -17,6 +17,9 @@ if (harunaVulkanEnabled) {
                     externalNativeBuild {
                         cmake {
                             arguments += "-DGGML_VULKAN=ON"
+                            System.getenv("HARUNA_VULKAN_INCLUDE_DIR")?.takeIf { it.isNotBlank() }?.let {
+                                arguments += "-DVulkan_INCLUDE_DIR=$it"
+                            }
                         }
                     }
                 }
