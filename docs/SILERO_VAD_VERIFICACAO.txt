@@ -53,3 +53,6 @@ FORA DO ESCOPO / PRESERVADO
 Sem redesign, troca de STT/TTS, mudança de personalidade, memória, RAG, streamingLLM, cachehíbrido, sampler, threads ou runtimeLLM. A branch não inclui o commit335be05 de proteção canônica de contadores da outra linha de trabalho; isso foi registrado e não foi feito merge automático. O workflow incremental separado continua preso ao experimento7839743: não deve ser usado para afirmar que construiu este Silero. O workflowAndroid desta branch é o destino da validação.
 
 SILERO INTEGRADO NO CÓDIGO E TESTADO LOCALMENTE — VALIDAÇÃO ANDROID/FÍSICA AINDA PENDENTE
+
+CONTROLE DE CI
+Push e PR desta mesma branch compartilham grupo de concorrência para não compilar o mesmo código duas vezes em paralelo. Essa configuração não altera o aplicativo.
