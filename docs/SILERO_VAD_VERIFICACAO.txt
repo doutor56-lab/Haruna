@@ -1,0 +1,55 @@
+HARUNA — VERIFICAÇÃO DE luna/silero-vad
+
+Base: aab110afc667c1a2051cf7c1475dc0ce3ee094b7.
+Checkpoint criado antes das correções: checkpoint/silero-vad-aab110a.
+Trabalho preservado nesta mesma branch, sem merge da branch experimental de inferência.
+
+O QUE REALMENTE FOI ADICIONADO NA BRANCH
+Comparação com a base de inferência: a contribuição de voz está em app/build.gradle.kts, SttAudioRecorder.kt e SttManager.kt. RecognitionBridge, voice-chat.js, SentenceQueue/SpeechStream, WhisperSttEngine e demais elementos de voz citados já existiam e não foram reimplementados nesta revisão. Sherpa-onnx2.0.0 também já era dependência antes do Silero. A branch tem o runtime4d71b42 no gitlink; não será feito downgrade de inferência.
+
+FLUXO CONFIRMADO NO CÓDIGO
+RecognitionBridge.start -> permissão de microfone -> prepareToListen -> SttManager.start -> SttAudioRecorder.capture -> AudioRecordPCM16 mono16kHz -> normalização [-1,1] -> Vad.acceptWaveform em janelas512 -> isSpeechDetected/empty/front/pop -> segmento de fala -> SttManager.selectedEngine -> WhisperSttEngine ou WhisperCppEngine -> texto/política de resultado -> evento haruna-stt-status.
+Ditado insere rascunho. Chamada envia o texto ao chat, recebe streaming, usa SpeechStream/TTS e retoma escuta depois do áudio. A seleção de engines, modelo STT e fluxo TTS permanecem inalterados.
+
+VAD REAL, NÃO APENAS INDICADOR
+O recorder usa Vad com context.assets, modelo silero_vad.int8.onnx, providerCPU,1thread,16kHz,window512,threshold0.5,minSilence0.45s,minSpeech0.10s,maxSpeech20s. O campo de status vad=silero indica a engine configurada; não é prova isolada de execução no Android.
+AutomaticPauseON retorna o primeiro segmento concluído. OFF drena segmentos intermediários mas mantém captura até conclusão manual/limite; retorna o PCM acumulado. Flush trata a conclusão manual. Sem fala, o limite é10s; toda captura tem teto20s. Cancelamento usa ticket/alive do manager existente e descarta o resultado. Áudio não é salvo em disco nem enviado para servidor.
+
+ARTEFATO OFICIAL E API
+URL: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.int8.onnx
+SHA-256 confirmado do download local: c36d490aff5ab924ca6c7aeec4d8f6bd3d22db6fa17611b9c5b17eae58ac3a20
+Tamanho real:212860bytes.
+API conferida: android/SherpaOnnxAar/sherpa_onnx/src/main/java/com/k2fsa/sherpa/onnx/Vad.kt, tagv2.0.0 do projeto oficial. Métodos, parâmetros e construtor usados pelo recorder existem nessa versão.
+A tarefa fetchSileroVad já registra os assets gerados e depende de preBuild; faz download em tempo de BUILD com checksum. Uso do modelo instalado é offline. O AAR2.0.0 continua o mesmo; nenhuma dependência de runtime foi adicionada nesta revisão.
+
+CORREÇÕES PONTUAIS
+1. SttAudioRecorder: createVad acontecia antes do try/finally de AudioRecord. Se falhasse por asset/ONNX/JNI, o objeto AudioRecord já criado não era liberado. A criação agora fica dentro da proteção do microfone; um finally interno libera o VAD depois de criado. Não foram modificados valores do VAD, lógica de segmentação ou enginesSTT/TTS.
+2. Workflow Android: estava forçando7894e8 enquanto a branch fixa4d71b42. Agora verifica o pin existente, sem fetch/checkout para versão antiga. Não altera o gitlink, parâmetros nem código LLM.
+3. Workflow: inclui push da branchluna/silero-vad, compilaKotlin e roda o teste focado antes do APK, e verifica no ZIP o assetSilero com hash exato, libsherpa-onnx-jni.so e libharuna_whisper_stt.so ARM64, além dos assetsUI anteriores.
+4. Novo scripts/check_silero.py: teste executável do recorder real com doubles de Android/VAD, sem framework/dependência de app adicional.
+
+VALIDADO LOCALMENTE
+PASS — Kotlin2.3.0 compila e executa o recorder real com doubles: segmento concluído enviado como recorte; falha ao criarVAD liberaAudioRecord; falhas de start/read liberam ambos; conclusão manual usa flush; automaticPauseOFF não termina no primeiro segmento; cancelamento não retorna áudio; silêncio respeita limite e libera recursos.
+PASS — recorder real compila contra Vad.kt OFICIAL2.0.0, com classesAndroidstub. Isso verifica assinaturas, não executa JNIAndroid.
+PASS — arquivoINT8 real carrega e EXECUTA na engine sherpa-onnx2.0.0 CPULinux.63janelas de silêncio,512amostrascada, não produziram segmento após flush. Não é teste de microfone, fala positiva ou Whisper.
+PASS — sintaxePython do verificador de APK e proteção contra downgrade no workflow.
+Ferramentas de teste foram baixadas apenas no ambiente de desenvolvimento. Não foram adicionadas dependências ao aplicativo nem baixados modelosWhisper/GGUF grandes.
+
+CI E APK — LIMITAÇÕES
+O run anterior41248628213/job124689570613 falhou antes de executar etapas: runner vazio e steps[]. Não há erro de compilação demonstrado por esse run. A causa da infraestrutura não foi presumida como quota ou cobrança. O resultado do build após esta revisão será informado separadamente com o run real.
+Não existe APK desta revisão confirmado até o build concluir e passar pela inspeção do ZIP. O guard de empacotamento é uma verificação preparada, não prova antecipada de que o APK contém o modelo.
+
+PENDENTE NO DISPOSITIVO
+1. Instalar APK quando disponível e confirmar as permissões do microfone.
+2. Em modo avião, ditar: Olá Haruna, que horas são? Confirmar texto/português com o Whisper instalado.
+3. Com pausa automáticaON, falar e fazer pausa maior que0.45s; avaliar corte de finais de palavras e comportamento em ruído real. Esses thresholds não foram calibrados no aparelho nesta revisão.
+4. Com pausaOFF, fazer duas falas separadas e concluir manualmente; ambas devem ser transcritas.
+5. Silêncio sem fala deve encerrar como no_speech; nenhuma mensagem deve ser enviada ao LLM.
+6. Cancelar antes/durante escuta e abrir outra captura; confirmar liberação do microfone.
+7. Chamada: ouvir -> transcrever -> LLM -> TTS -> retomar escuta. Verificar que o VAD não captura a própria vozTTS.
+8. Testar erro de asset/JNI em build de desenvolvimento e confirmar que nova tentativa não mantém o microfone ocupado.
+
+FORA DO ESCOPO / PRESERVADO
+Sem redesign, troca de STT/TTS, mudança de personalidade, memória, RAG, streamingLLM, cachehíbrido, sampler, threads ou runtimeLLM. A branch não inclui o commit335be05 de proteção canônica de contadores da outra linha de trabalho; isso foi registrado e não foi feito merge automático. O workflow incremental separado continua preso ao experimento7839743: não deve ser usado para afirmar que construiu este Silero. O workflowAndroid desta branch é o destino da validação.
+
+SILERO INTEGRADO NO CÓDIGO E TESTADO LOCALMENTE — VALIDAÇÃO ANDROID/FÍSICA AINDA PENDENTE

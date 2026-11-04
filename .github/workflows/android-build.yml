@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [main, recovery/haruna-82d3c47]
+    branches: [main, recovery/haruna-82d3c47, luna/silero-vad]
   pull_request:
   workflow_dispatch:
 
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  LLAMA_CPP_REVISION: 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10
+  LLAMA_CPP_REVISION: 4d71b42fd87db24b8b7c808c151b713aa4459cfd
 
 jobs:
   build:
@@ -23,10 +23,10 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Update llama.cpp Android runtime
+      - name: Verify pinned llama.cpp Android runtime
         run: |
-          git -C third_party/llama.cpp fetch --depth=1 origin "$LLAMA_CPP_REVISION"
-          git -C third_party/llama.cpp checkout --detach "$LLAMA_CPP_REVISION"
+          test "$(git -C third_party/llama.cpp rev-parse HEAD)" = "$LLAMA_CPP_REVISION"
+          echo "HARUNA_SOURCE_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           echo "Using llama.cpp $(git -C third_party/llama.cpp rev-parse HEAD)"
 
       - name: Patch Android loader diagnostics
@@ -70,13 +70,18 @@ jobs:
       - name: Clean stale Android outputs
         run: gradle clean --no-daemon
 
+      - name: Compile Kotlin and validate Silero capture
+        run: |
+          gradle :app:compileDebugKotlin --stacktrace --no-daemon
+          python3 scripts/check_silero.py
+
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
 
       - name: Verify packaged Haruna UI
         shell: python
         run: |
-          import zipfile
+          import hashlib, zipfile
           apk='app/build/outputs/apk/debug/app-debug.apk'
           with zipfile.ZipFile(apk) as z:
               names=set(z.namelist())
@@ -87,10 +92,14 @@ jobs:
                   'assets/haruna/llm-engine.js',
                   'assets/haruna/android-bridge.js',
                   'assets/haruna/haruna-icon.svg',
+                  'assets/silero_vad.int8.onnx',
+                  'lib/arm64-v8a/libsherpa-onnx-jni.so',
+                  'lib/arm64-v8a/libharuna_whisper_stt.so',
               }
               missing=required - names
               if missing:
                   raise SystemExit(f'Missing Haruna assets in APK: {sorted(missing)}')
+              assert hashlib.sha256(z.read('assets/silero_vad.int8.onnx')).hexdigest() == 'c36d490aff5ab924ca6c7aeec4d8f6bd3d22db6fa17611b9c5b17eae58ac3a20', 'Silero asset checksum mismatch'
               html=z.read('assets/haruna/index.html').decode('utf-8')
               js=z.read('assets/haruna/app.js').decode('utf-8')
               assert 'Haruna' in html
@@ -104,3 +113,4 @@ jobs:
           name: haruna-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+

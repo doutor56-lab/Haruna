@@ -62,72 +62,74 @@ class SttAudioRecorder(private val context: Context) {
         var speechSeen = false
         var completedSegment: FloatArray? = null
         var lastLevel = 0L
-        val vad = createVad()
         try {
-            require(audio.state == AudioRecord.STATE_INITIALIZED) { "Não foi possível inicializar o microfone" }
-            require(audio.sampleRate == RATE && audio.channelCount == 1 && audio.audioFormat == AudioFormat.ENCODING_PCM_16BIT) {
-                "Formato do microfone incompatível: esperado PCM16 mono a 16 kHz"
-            }
-            SttDiagnostics.captureRate(audio.sampleRate)
-            recorder = audio
-            if (!alive() || finishRequested.get()) return FloatArray(0)
-            audio.startRecording()
-            require(audio.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "Não foi possível iniciar o microfone" }
-            started()
-            while (alive() && !finishRequested.get() && used < samples.size) {
-                val count = audio.read(frame, 0, minOf(frame.size, samples.size - used), AudioRecord.READ_BLOCKING)
-                if (count <= 0) {
-                    if (!alive() || finishRequested.get()) break
-                    throw IllegalStateException("Falha na captura do microfone ($count)")
+            val vad = createVad()
+            try {
+                require(audio.state == AudioRecord.STATE_INITIALIZED) { "Não foi possível inicializar o microfone" }
+                require(audio.sampleRate == RATE && audio.channelCount == 1 && audio.audioFormat == AudioFormat.ENCODING_PCM_16BIT) {
+                    "Formato do microfone incompatível: esperado PCM16 mono a 16 kHz"
                 }
-                var squares = 0.0
-                val vadFrame = FloatArray(count)
-                for (i in 0 until count) {
-                    val v = frame[i].toDouble()
-                    squares += v * v
-                    val normalized = (v / 32768.0).toFloat()
-                    samples[used + i] = normalized
-                    vadFrame[i] = normalized
-                }
-                used += count
-                vad.acceptWaveform(vadFrame)
-                if (vad.isSpeechDetected()) speechSeen = true
+                SttDiagnostics.captureRate(audio.sampleRate)
+                recorder = audio
+                if (!alive() || finishRequested.get()) return FloatArray(0)
+                audio.startRecording()
+                require(audio.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "Não foi possível iniciar o microfone" }
+                started()
+                while (alive() && !finishRequested.get() && used < samples.size) {
+                    val count = audio.read(frame, 0, minOf(frame.size, samples.size - used), AudioRecord.READ_BLOCKING)
+                    if (count <= 0) {
+                        if (!alive() || finishRequested.get()) break
+                        throw IllegalStateException("Falha na captura do microfone ($count)")
+                    }
+                    var squares = 0.0
+                    val vadFrame = FloatArray(count)
+                    for (i in 0 until count) {
+                        val v = frame[i].toDouble()
+                        squares += v * v
+                        val normalized = (v / 32768.0).toFloat()
+                        samples[used + i] = normalized
+                        vadFrame[i] = normalized
+                    }
+                    used += count
+                    vad.acceptWaveform(vadFrame)
+                    if (vad.isSpeechDetected()) speechSeen = true
 
-                val rms = sqrt(squares / count)
-                val now = android.os.SystemClock.elapsedRealtime()
-                if (now - lastLevel >= 160) {
-                    lastLevel = now
-                    level((rms / 5000.0).coerceIn(0.0, 1.0))
+                    val rms = sqrt(squares / count)
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    if (now - lastLevel >= 160) {
+                        lastLevel = now
+                        level((rms / 5000.0).coerceIn(0.0, 1.0))
+                    }
+
+                    if (!vad.empty()) {
+                        speechSeen = true
+                        if (automaticPause) {
+                            completedSegment = vad.front().samples.copyOf()
+                            vad.pop()
+                            break
+                        }
+                        while (!vad.empty()) vad.pop()
+                    }
+                    if (!speechSeen && used >= RATE * NO_SPEECH_SECONDS) break
                 }
 
+                vad.flush()
                 if (!vad.empty()) {
                     speechSeen = true
-                    if (automaticPause) {
+                    if (automaticPause && completedSegment == null) {
                         completedSegment = vad.front().samples.copyOf()
-                        vad.pop()
-                        break
                     }
-                    while (!vad.empty()) vad.pop()
                 }
-                if (!speechSeen && used >= RATE * NO_SPEECH_SECONDS) break
-            }
+                if (!alive() || !speechSeen) return FloatArray(0)
 
-            vad.flush()
-            if (!vad.empty()) {
-                speechSeen = true
-                if (automaticPause && completedSegment == null) {
-                    completedSegment = vad.front().samples.copyOf()
-                }
-            }
-            if (!alive() || !speechSeen) return FloatArray(0)
-
-            return completedSegment ?: samples.copyOf(used)
+                return completedSegment ?: samples.copyOf(used)
+            } finally { vad.release() }
         } finally {
             recorder = null
             runCatching { audio.stop() }
             audio.release()
-            vad.release()
             samples.fill(0f)
         }
     }
 }
+
