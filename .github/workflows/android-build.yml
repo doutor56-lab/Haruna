@@ -68,6 +68,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y glslc libvulkan-dev spirv-tools spirv-headers
           command -v glslc
+          test -f "$ANDROID_HOME/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/vulkan/vulkan.h"
 
       - name: Set up Gradle 8.14.3
         uses: gradle/actions/setup-gradle@v4
@@ -80,6 +81,7 @@ jobs:
       - name: Build debug APK
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.head_ref }}" == "fix/vulkan-native-backend" ]]; then
+            export HARUNA_VULKAN_INCLUDE_DIR="$ANDROID_HOME/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include"
             gradle :app:assembleDebug -PharunaVulkan=true --stacktrace --no-daemon
           else
             gradle :app:assembleDebug --stacktrace --no-daemon
