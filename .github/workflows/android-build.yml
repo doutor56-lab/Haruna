@@ -66,7 +66,7 @@ jobs:
         if: github.event_name == 'pull_request' && github.head_ref == 'fix/vulkan-native-backend'
         run: |
           sudo apt-get update
-          sudo apt-get install -y glslc libvulkan-dev spirv-tools
+          sudo apt-get install -y glslc libvulkan-dev spirv-tools spirv-headers
           command -v glslc
 
       - name: Set up Gradle 8.14.3
