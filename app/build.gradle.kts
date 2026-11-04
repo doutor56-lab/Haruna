@@ -9,6 +9,8 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.android)
 }
 
+val generatedVadAssets = layout.buildDirectory.dir("generated/vad-assets")
+
 android {
     buildFeatures { buildConfig = true }
     namespace = "com.proxyslabs.haruna"
@@ -29,12 +31,9 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
+    sourceSets.getByName("main").assets.srcDir(generatedVadAssets)
     externalNativeBuild { cmake { path = file("src/main/cpp/stt/CMakeLists.txt"); version = "3.31.6" } }
 
-    // llama.android discovers the GGML CPU variants by scanning
-    // applicationInfo.nativeLibraryDir at runtime. Force JNI libraries to be
-    // extracted on install so ggml_backend_load_all_from_path() can see them
-    // as real files instead of leaving them only inside the APK.
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -59,38 +58,70 @@ dependencies {
     implementation(project(":llamaLib"))
 }
 
+fun sha256(file: File): String {
+    val hash = MessageDigest.getInstance("SHA-256")
+    file.inputStream().use { input ->
+        val buffer = ByteArray(131072)
+        while (true) {
+            val n = input.read(buffer)
+            if (n < 0) break
+            hash.update(buffer, 0, n)
+        }
+    }
+    return hash.digest().joinToString("") { "%02x".format(it) }
+}
+
 // Official Android AAR, pinned to a release and its published SHA-256.
-// The model itself is installed by the user, never bundled or fetched at runtime by this task.
 val sherpaAar = layout.buildDirectory.file("speech-dependencies/sherpa-onnx-2.0.0.aar")
 val fetchSherpaAar by tasks.registering {
     val expected = "f0f8716982d27cb4ce695e3934018b1342d9d3d6fdb6ef1f1658fe8bad50b4fc"
     inputs.property("sha256", expected)
     outputs.file(sherpaAar)
     doLast {
-        fun digest(file: File): String {
-            val hash = MessageDigest.getInstance("SHA-256")
-            file.inputStream().use { input -> val buffer = ByteArray(131072); while (true) { val n = input.read(buffer); if (n < 0) break; hash.update(buffer, 0, n) } }
-            return hash.digest().joinToString("") { "%02x".format(it) }
-        }
         val target = sherpaAar.get().asFile
-        if (!target.isFile || digest(target) != expected) {
+        if (!target.isFile || sha256(target) != expected) {
             target.parentFile.mkdirs()
             val part = File(target.parentFile, target.name + ".part")
             try {
                 val connection = URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.0/sherpa-onnx-2.0.0.aar").toURL().openConnection()
                 connection.connectTimeout = 30000; connection.readTimeout = 60000
                 connection.getInputStream().use { input -> part.outputStream().use { input.copyTo(it) } }
-                check(digest(part) == expected) { "Official sherpa-onnx AAR checksum mismatch" }
+                check(sha256(part) == expected) { "Official sherpa-onnx AAR checksum mismatch" }
                 Files.move(part.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
             } finally { part.delete() }
         }
     }
 }
+
+// Silero is a tiny runtime asset, not a user speech model. Fetch it only at build
+// time from sherpa-onnx's official model release and fail closed on byte mismatch.
+val fetchSileroVad by tasks.registering {
+    val expected = "c36d490aff5ab924ca6c7aeec4d8f6bd3d22db6fa17611b9c5b17eae58ac3a20"
+    val target = generatedVadAssets.map { it.file("silero_vad.int8.onnx") }
+    inputs.property("sha256", expected)
+    outputs.file(target)
+    doLast {
+        val output = target.get().asFile
+        if (!output.isFile || sha256(output) != expected) {
+            output.parentFile.mkdirs()
+            val part = File(output.parentFile, output.name + ".part")
+            try {
+                val connection = URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.int8.onnx").toURL().openConnection()
+                connection.connectTimeout = 30000; connection.readTimeout = 60000
+                connection.getInputStream().use { input -> part.outputStream().use { input.copyTo(it) } }
+                check(sha256(part) == expected) { "Official Silero VAD INT8 checksum mismatch" }
+                Files.move(part.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            } finally { part.delete() }
+        }
+    }
+}
+
+tasks.named("preBuild").configure { dependsOn(fetchSileroVad) }
+
 dependencies {
     implementation(files(sherpaAar).builtBy(fetchSherpaAar))
     implementation("org.apache.commons:commons-compress:1.27.1")
 }
-
 
 // Only explicit diagnostic builds use an isolated sandbox, never the user's installed Haruna data.
 val diagnostic45Mode = providers.gradleProperty("harunaDiagnostic45").orElse("OFF").get()
