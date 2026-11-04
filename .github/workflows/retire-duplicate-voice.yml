@@ -1,0 +1,23 @@
+name: Retire superseded duplicate voice builds
+on:
+  push:
+    branches: [build/silero-vad-retire-duplicate]
+permissions:
+  contents: read
+  actions: write
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only superseded duplicate source builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for id in 41822950953 41822958554; do
+            sha=$(gh api repos/doutor56-lab/Haruna/actions/runs/$id --jq '.head_sha')
+            status=$(gh api repos/doutor56-lab/Haruna/actions/runs/$id --jq '.status')
+            if [ "$sha" = "8907727625257983b291941ee895fa9144ba0d9d" ] && [ "$status" != "completed" ]; then
+              gh api --method POST repos/doutor56-lab/Haruna/actions/runs/$id/cancel
+            fi
+          done
