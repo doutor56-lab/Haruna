@@ -23,7 +23,10 @@ Nenhuma alteração em llama.cpp/GGML, GGUF, voz, memória ou histórico.
 
 ZIP Nezumi SD1.5 com CLIP embedding-input, UNet, VAE decoder e respectivos
 `.weight`, `tokenizer.json`, `token_emb.bin`, `pos_emb.bin`; `model.json`
-opcional, limitado a SD1.5, dimensão 768 e resolução nativa 512. Aliases
+opcional, limitado a SD1.5, dimensão 768 e resolução nativa 512.
+Tokenizer BPE CLIP exige 49408 IDs únicos e BOS/EOS 49406/49407. Embeddings
+de tokens podem ser FP16/FP32; posições são somente FP32 (77×768).
+Tabelas incorretas também são recusadas no C++ antes de acesso por ponteiros. Aliases
 como `clip_v2.mnn`, `unet_asym_block32.mnn` e `vae_decoder_fp16.mnn`
 são aceitos. Sem SDXL, GGUF de imagem, safetensors ou conversão implícita.
 Pacotes Haruna antigos com manifesto/tokenizer.mtok continuam suportados.

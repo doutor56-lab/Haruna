@@ -280,6 +280,14 @@ extern "C"
             return MNN_SD_ERR_MODEL_NOT_FOUND;
         }
 
+        // Haruna: SD1.5 positional tables are FP32 77x768. Never let an
+        // unsupported/truncated embedding table reach unchecked pointer arithmetic.
+        if (!is_sdxl && (engine->pos_emb.size() != (size_t)seq_len * emb_dim ||
+                        engine->token_emb.size() != (size_t)49408 * emb_dim)) {
+            set_error(out_error, MNN_SD_ERR_MODEL_INVALID, "SD1.5 embedding dimensions invalid");
+            return MNN_SD_ERR_MODEL_INVALID;
+        }
+
         // Generic "token id -> input_embedding row" builder, reused for both
         // CLIP-L (token_emb/pos_emb) and, for SDXL, CLIP-G (token_emb2/pos_emb2).
         auto build_side_embedding_generic = [&](const std::vector<int> &ids, int side, int dim,
