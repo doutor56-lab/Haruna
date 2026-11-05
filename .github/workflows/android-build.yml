@@ -80,7 +80,9 @@ jobs:
           python3 scripts/check_silero.py
 
       - name: Test image package installation
-        run: gradle :app:testDebugUnitTest --no-daemon
+        run: |
+          python3 tests/image_controller_check.py
+          gradle :app:testDebugUnitTest --no-daemon
 
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon

@@ -39,7 +39,7 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
     @JavascriptInterface fun status()=snapshot
     @JavascriptInterface fun add(){if(!closed&&!busy)picker()}
     @JavascriptInterface fun cancel(){cancel.set(true)}
-    @Synchronized private fun submit(action:()->Unit){if(closed||busy)return;busy=true;cancel.set(false);worker.execute {error=null;publish();try{action()}catch(e:Exception){error=when(e){is java.util.zip.ZipException->"Pacote ZIP incompleto ou corrompido";is IllegalArgumentException,is IllegalStateException->e.message?:"Modelo incompatível";else->"Não foi possível concluir a operação de imagem"};phase=if(e is IllegalArgumentException && !error.orEmpty().contains("Espaço")) "INCOMPATIBLE" else "ERROR"}finally{busy=false;publish()}}}
+    @Synchronized private fun submit(action:()->Unit){if(closed||busy)return;busy=true;cancel.set(false);worker.execute {error=null;phase=if(loaded!=null)"LOADED" else if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";publish();try{action()}catch(e:Exception){error=when(e){is java.util.zip.ZipException->"Pacote ZIP incompleto ou corrompido";is IllegalArgumentException,is IllegalStateException->e.message?:"Modelo incompatível";else->"Não foi possível concluir a operação de imagem"};phase=if(e is IllegalArgumentException && !error.orEmpty().contains("Espaço")) "INCOMPATIBLE" else "ERROR"}finally{busy=false;publish()}}}
     fun install(uri:Uri)=submit {
         phase="INSTALLING";copied=0;publish();var last=0L
         val dir=app.contentResolver.openInputStream(uri).use{input->requireNotNull(input){"Não foi possível ler o arquivo"};ImagePackage.install(input,root,{cancel.get()||closed},{root.usableSpace}){bytes->copied=bytes;val now=android.os.SystemClock.elapsedRealtime();if(now-last>200){last=now;publish()}}}
@@ -69,5 +69,5 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
             loaded=id;phase="LOADED";models[id]?.put("state","LOADED")
         }catch(e:Exception){ImageNative.unload();ImageLease.active=false;leaseOwned=false;models[id]?.put("state","ERROR");throw e}
     }
-    fun close(){closed=true;cancel.set(true);worker.execute{free()};worker.shutdown()}
+    @Synchronized fun close(){if(closed)return;closed=true;cancel.set(true);worker.execute{free()};worker.shutdown()}
 }
