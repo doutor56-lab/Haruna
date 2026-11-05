@@ -18,6 +18,6 @@ string(REPLACE "auto image = vae_decoder(latent);" "image_checkpoint(4,0,1);auto
 string(REPLACE "bool res = imwrite(imagePath, image);" "image_checkpoint(5,0,1);bool res = imwrite(imagePath, image);if(!res)throw std::runtime_error(\"PNG write failed\");image_checkpoint(5,1,1);" SD_CODE "${SD_CODE}")
 string(REPLACE "auto text_embeddings = text_encoder(ids);" "image_checkpoint(2,0,1);auto text_embeddings = text_encoder(ids);image_checkpoint(2,1,1);" SD_CODE "${SD_CODE}")
 file(WRITE ${SD_OUT}/stable_diffusion.cpp "${SD_CODE}")
-target_sources(haruna_image PRIVATE ${SD_OUT}/stable_diffusion.cpp ${SD_SRC}/src/tokenizer.cpp ${SD_SRC}/src/scheduler.cpp ${mnn_image_SOURCE_DIR}/transformers/llm/engine/src/tokenizer/tokenizer.cpp ${CMAKE_CURRENT_LIST_DIR}/pipeline_base.cpp)
+target_sources(haruna_image PRIVATE ${SD_OUT}/stable_diffusion.cpp ${SD_SRC}/src/tokenizer.cpp ${SD_SRC}/src/scheduler.cpp ${mnn_image_SOURCE_DIR}/transformers/llm/engine/src/tokenizer/tokenizer.cpp ${mnn_image_SOURCE_DIR}/transformers/llm/engine/src/tokenizer/unicode.cpp ${mnn_image_SOURCE_DIR}/transformers/llm/engine/src/tokenizer/unicode_data.cpp ${CMAKE_CURRENT_LIST_DIR}/pipeline_base.cpp)
 target_include_directories(haruna_image PRIVATE ${SD_OUT} ${CMAKE_CURRENT_LIST_DIR} ${SD_SRC}/include ${SD_SRC}/src ${mnn_image_SOURCE_DIR}/source ${mnn_image_SOURCE_DIR}/tools/cv/include ${mnn_image_SOURCE_DIR}/transformers/llm/engine/src/tokenizer)
 target_compile_definitions(haruna_image PRIVATE MNN_DIFFUSION_WITH_LLM_TOKENIZER=1)

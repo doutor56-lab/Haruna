@@ -9,3 +9,4 @@
 .image-card .model-actions{justify-content:flex-start;gap:8px}
 .image-card .model-actions button{min-height:40px;white-space:normal}
 .image-card small{display:block;margin-top:8px}
+.composer .image-generate::before{content:none;display:none}

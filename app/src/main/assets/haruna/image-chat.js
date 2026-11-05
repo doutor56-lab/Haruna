@@ -37,8 +37,10 @@ if(api&&chat){
   window.harunaImagesBusy=true;chat.begin(request,text);
  }catch(e){alert(e.message)}};
  chat.refresh();
+ let modelStatusKey='';
  function update(){try{
-  const s=JSON.parse(api.status());window.harunaImagesBusy=!!s.busy;button.disabled=!!s.busy;
+  const s=JSON.parse(api.status());window.harunaImagesBusy=!!s.imageEngineBusy||!!(s.busy&&pending(s.generation?.state));button.disabled=!!s.busy;
+  const key=[s.state,s.busy,s.loaded].join('/');if(key!==modelStatusKey){modelStatusKey=key;window.dispatchEvent(new CustomEvent('haruna-native-status-changed'))}
   for(const j of chat.entries().filter(j=>pending(j.state))){
    const current=s.generation?.request===j.request?s.generation:null;
    const saved=JSON.parse(api.result(j.request));const next=saved.request?saved:current;

@@ -237,6 +237,7 @@ function submitMessage(fromVoice=false){
 }
 form.addEventListener('submit',e=>{
  e.preventDefault();if(chatBusy||activeGeneration||generating)return;
+ if(window.harunaImagesBusy){alert('Aguarde a geração de imagem ou descarregue o modelo de imagens em Configurações.');return}
  submitMessage().catch(error=>alert(`Não foi possível salvar a conversa: ${error.message||error}`));
 });
 // Image jobs share the existing chat store; a completed PNG is never encoded into localStorage.

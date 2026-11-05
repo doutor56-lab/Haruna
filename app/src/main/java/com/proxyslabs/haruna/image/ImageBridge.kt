@@ -63,11 +63,11 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
     @JavascriptInterface fun remove(id:String,confirmed:Boolean)=submit {require(confirmed){"Confirme a remoção"};val file=dir(id);ImageLease.lock.withLock {check(!ImageLease.active||leaseOwned){"Outro controlador está utilizando os modelos de imagem"};if(loaded==id)free();check(file.deleteRecursively()){ "Não foi possível remover o pacote"}};models.remove(id);if(prefs.getString("selected",null)==id)prefs.edit().remove("selected").commit();phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED"}
     @JavascriptInterface fun load(id:String)=submit {prepare(id,true)}
     private fun prepare(id:String,preload:Boolean) {
-        check(ImageNative.available){"Motor MNN indisponível nesta build"};val file=dir(id);ImagePackage.verify(file){cancel.get()||closed}
+        check(ImageNative.available){"Motor MNN indisponível nesta build"};val file=dir(id);ImagePackage.verify(file){cancel.get()||closed};if(!ImageNative.validate(file.absolutePath)){models[id]?.put("state","INCOMPATIBLE");throw IllegalArgumentException("Pacote incompatível com o motor MNN CPU desta build")}
         check(!cancel.get()&&!closed){"Operação cancelada"};free()
         ImageLease.lock.withLock {check(!ImageLease.active){"Outro modelo de imagens está em uso"};ImageLease.active=true;leaseOwned=true;try{backend.unloadModel().getOrThrow();check(!backend.status().modelLoaded){"O GGUF continua carregado"}}catch(e:Exception){ImageLease.active=false;leaseOwned=false;throw e}}
         try{val info=ActivityManager.MemoryInfo();app.getSystemService(ActivityManager::class.java).getMemoryInfo(info)
-            val bytes=file.listFiles().orEmpty().sumOf{it.length()};check(!info.lowMemory&&info.availMem>bytes+512L*1024*1024){"Memória disponível insuficiente; modelo instalado foi preservado"}
+            val bytes=file.listFiles().orEmpty().sumOf{it.length()};check(!info.lowMemory&&info.availMem>maxOf(bytes+512L*1024*1024,3L*1024*1024*1024)){"Memória disponível insuficiente; modelo instalado foi preservado"}
             phase="LOADING";models[id]?.put("state","LOADING");publish()
             if(preload)check(ImageNative.load(file.absolutePath)){"Não foi possível preparar os componentes SD1.5. Pode haver incompatibilidade ou falta de memória."}
             if(cancel.get()||closed)throw IllegalStateException("Carregamento cancelado")
@@ -94,7 +94,7 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
             check(!cancel.get()&&!closed){"Geração cancelada"};check(part.renameTo(target)){"Não foi possível salvar o PNG"}
             job.put("state","COMPLETED").put("file",target.name).put("nativeResolution",512).put("outputResolution",prefs.getInt("resolution",256))
             if(prefs.getBoolean("autoSave",true))runCatching{ImageFiles.save(app,target)}.onFailure{job.put("saveWarning","PNG privado salvo; não foi possível salvar na galeria")}
-        }catch(e:OutOfMemoryError){part.delete();job.put("state","ERROR").put("error","Memória insuficiente para concluir a imagem. O modelo instalado foi preservado.")}catch(e:Exception){part.delete();job.put("state",if(cancel.get()||closed)"CANCELLED" else "ERROR").put("error",if(cancel.get()||closed)"Geração cancelada" else "Não foi possível concluir a imagem. Confira o modelo e a memória disponível.")}
+        }catch(e:OutOfMemoryError){part.delete();job.put("state","ERROR").put("error","Memória insuficiente para concluir a imagem. O modelo instalado foi preservado.")}catch(e:Exception){part.delete();job.put("state",if(cancel.get()||closed)"CANCELLED" else "ERROR").put("error",if(cancel.get()||closed)"Geração cancelada" else if(e.message=="Memória disponível insuficiente; modelo instalado foi preservado")"Memória livre insuficiente. A geração requer margem preventiva de pelo menos 3 GiB; o modelo instalado foi preservado." else "Não foi possível concluir a imagem. Confira o modelo e a memória disponível.")}
         finally {if(nativeTicket>0){ImageNative.finish(nativeTicket);nativeTicket=0};free();models.values.filter{it.optString("state")=="LOADING"}.forEach{it.put("state","INSTALLED")};activeJob=null;phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";val meta=File(outputs,"$request.json.part");meta.writeText(job.toString());meta.renameTo(File(outputs,"$request.json"));publish()}
     }
     private fun image(id:String):File {require(id.matches(Regex("[0-9a-f-]{36}")));return File(outputs,"$id.png").also{require(it.isFile)}}
