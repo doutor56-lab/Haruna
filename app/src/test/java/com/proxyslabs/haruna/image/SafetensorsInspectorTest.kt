@@ -33,6 +33,24 @@ class SafetensorsInspectorTest {
         f.delete()
     }
 
+    @Test fun rejectsWrongTensorByteCount() {
+        val f = checkpoint("""{"weight":{"dtype":"F16","shape":[1],"data_offsets":[0,4]}}""")
+        assertThrows(IllegalArgumentException::class.java) { SafetensorsInspector.inspect(f) }
+        f.delete()
+    }
+
+    @Test fun rejectsOverlappingTensorData() {
+        val f = checkpoint("""{"a":{"dtype":"F16","shape":[1],"data_offsets":[0,2]},"b":{"dtype":"F16","shape":[1],"data_offsets":[0,2]}}""")
+        assertThrows(IllegalArgumentException::class.java) { SafetensorsInspector.inspect(f) }
+        f.delete()
+    }
+
+    @Test fun rejectsTrailingUnreferencedBytes() {
+        val f = checkpoint("""{"weight":{"dtype":"F16","shape":[1],"data_offsets":[0,2]}}""")
+        assertThrows(IllegalArgumentException::class.java) { SafetensorsInspector.inspect(f) }
+        f.delete()
+    }
+
     @Test fun rejectsOversizedHeader() {
         val f = File.createTempFile("haruna-test-", ".safetensors")
         f.outputStream().use { out ->
