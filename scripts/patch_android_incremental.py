@@ -4,7 +4,7 @@ import shutil
 
 def apply_incremental_patch():
  root=Path('third_party/llama.cpp/examples/llama.android/lib/src/main')
- for name in ['haruna_incremental_state.h','haruna_incremental_native.h','haruna_op_profile.h','haruna_accelerator.h']:
+ for name in ['haruna_preparation.h','haruna_incremental_state.h','haruna_incremental_native.h','haruna_op_profile.h','haruna_accelerator.h']:
   shutil.copyfile(Path('patches/llama-android')/name,root/'cpp'/name)
  for name in ['InferenceEngine.kt','internal/InferenceEngineImpl.kt']:
   p=root/'java/com/arm/aichat'/name;s=p.read_text()
@@ -25,6 +25,20 @@ def apply_incremental_patch():
   s=s.replace('    for (int i = token_offset;', '    const int token_stop=token_end<0?static_cast<int>(tokens.size()):std::min(token_end,static_cast<int>(tokens.size()));\n    for (int i = token_offset;',1)
   s=s.replace('i < (int) tokens.size(); i += llama_n_batch(context)', 'i < token_stop; i += llama_n_batch(context)')
   s=s.replace('std::min((int) tokens.size() - i, (int)llama_n_batch(context))','std::min(token_stop - i, (int)llama_n_batch(context))')
+ # Preserve native return codes and observe only the existing prefill helper.
+ if 'hprep_decode(' not in s:
+  begin=s.index('static int decode_tokens_in_batches(')
+  end=s.index('\n#include ',begin)
+  helper=s[begin:end]
+  anchors={
+   '        batch.clear();':'        hprep_set(HprepStage::batch_build);\n        batch.clear();',
+   'const int decode_result = llama_process(context, LLAMA_PROCESS_TYPE_DECODE, batch.get());':'const int decode_result = hprep_decode(start_pos+i,cur_batch_size,[&] { return llama_process(context, LLAMA_PROCESS_TYPE_DECODE, batch.get()); });',
+   '            hk_confirm_prefill(tokens,':'            hprep_set(HprepStage::prefill_commit);\n            hk_confirm_prefill(tokens,',
+   '            return 1;':'            return decode_result;'}
+  for old,new in anchors.items():
+   if helper.count(old)!=1:raise SystemExit('Unsupported preparation diagnostic anchor: '+old)
+   helper=helper.replace(old,new,1)
+  s=s[:begin]+helper+s[end:]
  p.write_text(s)
  p=root/'cpp/haruna_metrics.h';s=p.read_text()
  if 'hi_snapshot' not in s:
@@ -82,3 +96,4 @@ set(LLAMA_SRC ''')
  p=Path('third_party/llama.cpp/src/llama-context.cpp');s=p.read_text()
  if 'haruna_observed_node_backend' not in s:s+='''\nextern "C" LLAMA_API const char * haruna_observed_node_backend(const llama_context * ctx,ggml_tensor * tensor){auto b=ggml_backend_sched_get_tensor_backend(ctx->get_sched(),tensor);return b?ggml_backend_name(b):"unknown";}\n'''
  p.write_text(s)
+

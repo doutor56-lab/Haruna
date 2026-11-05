@@ -1,0 +1,72 @@
+HARUNA — ERROR_PREPARATION / VULKAN EXPERIMENTAL
+
+Base: fix/vulkan-native-backend @ 1ecc51ce54789a9e8b233a84247e23effca9b64c
+Checkpoint: checkpoint/vulkan-preparation-1ecc51c
+PR: #3. Nenhuma alteração/merge na versão estável.
+llama.cpp preservado: o workflow desta branch fixa 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10. Não houve upgrade/downgrade nesta tarefa.
+
+EVIDÊNCIA
+O tablet detecta Vulkan e atribui 6 camadas para pedido de 8. Isso confirma descoberta/distribuição do modelo, não execução bem-sucedida de todos os operadores.
+O screenshot informa 361 tokens de entrada, 0 avaliados, 0 gerados, cache disabled_cold e ERROR_PREPARATION.
+Não há logcat/stack trace do dispositivo disponível nesta execução.
+
+FLUXO AUDITADO
+processChatMessages -> hl_configure -> template GGUF/Jinja -> tokenização -> hk_reconcile -> reset de estado conversacional/sampler -> prefill.
+Com cache desativado, hi_active=false: decode_tokens_in_batches é chamado diretamente.
+Com estado incremental elegível ativo, hi_prefill divide os cortes e usa o MESMO helper de batches; captura checkpoints somente após retorno bem-sucedido.
+O helper monta common_batch, chama llama_process(context, LLAMA_PROCESS_TYPE_DECODE, batch.get()). Esta é a API estendida da revisão vendorizada; não há uma chamada direta adicional a llama_decode no helper. O processamento converge no decode do contexto, agendamento GGML e backends CPU/Vulkan.
+Cada batch só é contabilizado/confirmado depois de retorno zero. Não alterado.
+
+CAUSA CONFIRMADA DA PERDA DE DIAGNÓSTICO
+1. O helper retornava 1 para TODO código não zero do processador, perdendo o código original.
+2. O catch externo convertia qualquer exceção não previamente classificada em stop 4 (ERROR_PREPARATION), incluindo exceções lançadas durante execução do prefill.
+3. O tempo de prefill só era gravado depois da chamada, perdendo a duração se ela lançasse exceção.
+Isso explica por que o rótulo atual não localiza a falha; NÃO comprova a causa da falha GPU.
+
+CORREÇÕES LIMITADAS
+Preservar retorno original. Registrar etapa atual/primeira etapa com falha, retorno do decode quando disponível, categoria da exceção, código/categoria de system_error, tentativas/batches concluídos, offset/quantidade do batch e falha de cleanup.
+Exceção durante construção/execução/confirmação/finalização do prefill passa a ERROR_PREFILL (6), preservando cancelamento e falhas reais de preparação como estados distintos.
+Timer monotônico por escopo registra prefill inclusive em exceção, com os mesmos limites temporais da medição anterior.
+Uma linha HARUNA_PREPARATION contém APENAS enums/códigos/contagens. Nenhum what(), prompt, token ID, texto, caminho ou mensagem de driver é exportado.
+DBG e JSON existente recebem objeto técnico preparation. Não há novo sistema de logs nem histórico ilimitado.
+Sem retry, fallback silencioso, redução automática de camadas ou desligamento de FA.
+
+LEGENDA DOS NOVOS CAMPOS
+stage: última etapa; failedStage: primeira etapa com falha. idle = nenhuma falha registrada.
+decodeReturn: null = chamada não retornou/não iniciou; 0 = sucesso; valores originais do llama_process (API encaminha decode).
+Na API decode desta revisão: 1 = sem slot KV; 2 = abort; -1 = batch inválido; -2 = falha de alocação; -3 = falha de computação. É necessário correlacionar com cancelamento e logcat: um código sozinho não identifica o driver culpado.
+exceptionKind: 0 = nenhuma exceção capturada; 1 = bad_alloc; 2 = system_error; 3 = std::exception; 4 = exceção desconhecida.
+systemCode: código numérico original, somente quando exceptionKind=2; null nos demais casos.
+systemCategory: 0 = ausente; 1 = vk::Result; 2 = system; 3 = generic; 4 = outra. Não interpretar um código generic como VkResult.
+technicalHint: 0 = nenhuma classificação; 1 = mensagem upstream exata de shared memory insuficiente para matmul; 2 = unsupported FaCodePath; 3 = Unsupported device. Não contém mensagem original.
+No logcat, decode_rc=2147483647 significa indisponível, NÃO é um retorno do llama.cpp. No JSON aparece null.
+
+ALOCação / OPERADORES / DRIVER
+A revisão Vulkan pode lançar vk::SystemError na alocação/pipelines/submissão/sincronização. O código Vulkan também possui exceções explícitas para shared memory insuficiente em matmul e unsupported FaCodePath.
+Algumas falhas retornam status GGML; outras abortam o processo, não podendo ser recuperadas por catch C++.
+Não há evidência suficiente para escolher entre alocação, shader/pipeline/operador, device lost/driver, sincronização ou falha anterior ao decode. FA ativa não comprova que FA causou a falha.
+Não foram modificados kernels, detecção de suporte, alocação, parâmetros, CPU, FA, KV ou proteção recorrente.
+
+TESTES AUTOMÁTICOS
+Teste host compila o helper REAL gerado pelos patches, com processador simulado: sucesso em dois batches; retornos 1,2,-1,-2,-3 preservados; erro no segundo batch preserva apenas os 512 tokens concluídos; bad_alloc/system_error/runtime_error; cancelamento antes do batch; reset do diagnóstico. Não é inferência GPU nem validação física.
+JS: ERROR_PREFILL, novos campos no JSON, nenhuma resposta/prompt/documento no export do fixture, execuções com erro fora dos agregados bem-sucedidos e sintaxe das duas views.
+Workflow executa teste host e build Android experimental, verifica libggml-vulkan.so e imprime SHA-256 do APK.
+Resultado final do Actions/APK deve ser consultado no run associado ao commit desta correção; compilação não comprova inferência Vulkan funcional.
+
+COLETA EXATA NO TABLET
+1. Instalar somente o APK experimental desta branch e verificar modelo/8 camadas solicitadas/6 atribuídas, ctx8192, batch/ubatch512, f16/f16 e FA auto/ativa, mantendo o benchmark existente.
+2. Antes de UMA reprodução, em terminal com ADB autorizado:
+   adb logcat -c
+   adb logcat -v threadtime > haruna-vulkan-preparation-logcat.txt
+   Executar benchmark uma vez; parar coleta com Ctrl+C depois da falha.
+   A coleta completa é local e pode conter dados de outros apps: NÃO compartilhar o arquivo inteiro sem revisar.
+3. Copiar o diagnóstico do DBG e exportar JSON sem respostas. Precisamos de preparation completo, nativeStopCode, input/prefill/output tokens, runtime, accelerator, requested/configured/effective FA e memória antes/depois.
+4. Do logcat compartilhar somente HARUNA_PREPARATION e linhas próximas de ggml_vulkan / Vulkan / vk:: / llama_context / ggml_backend / AndroidRuntime / libc / SIGABRT / SIGSEGV, removendo caminhos privados, nomes de arquivos pessoais e qualquer conteúdo de conversa. Usar somente o benchmark público canônico.
+5. Se o processo reiniciar ou não houver linha HARUNA_PREPARATION, coletar também:
+   adb logcat -b crash -d -v threadtime > haruna-vulkan-crash.txt
+   Preservar sinal, backtrace, módulo, VkResult e mensagens técnicas de alocação/operador/driver. Revisar dados pessoais antes de compartilhar.
+6. Fazer UMA execução CPU (0 camadas) com mesmo modelo/parâmetros para verificar regressão do caminho CPU. Sem matriz de otimizações.
+Não é necessário compartilhar resposta textual para esta investigação.
+
+LIMITAÇÃO
+Sem execução no Teclast e sem logcat, a causa raiz da falha Vulkan permanece NÃO CONFIRMADA. A correção entregue resolve a classificação/perda de diagnóstico e prepara a próxima reprodução. Não declarar que a falha do driver foi resolvida apenas porque o APK compilou.

@@ -12,7 +12,7 @@ export function summary(result){
  return {systemPromptVariant:result.configuration?.systemPromptVariant||"current",systemPromptExperiment:result.configuration?.systemPromptVariant==="factual_precision_experimental",batch:result.batch,arm:result.arm,nativeGenerationFresh:result.nativeGenerationFresh,completedAt:result.completedAt,model:result.model,configuration:Object.fromEntries(Object.keys(baseline).map(k=>[k,result.configuration?.[k]])),fixture:result.fixture,error:result.error,
   inputEvaluation:observed?.opProfile?.enabled===true?'PROFILE_NOT_COMPARABLE':observed?.incremental?.reusedTokens>0?'WARM_CACHED':g.prefillTokens===g.inputTokens?'FULL_PREFILL':'N/D',
   sessionStep:result.sessionStep,accelerator:observed?.accelerator,incremental:observed?.incremental,opProfile:observed?.opProfile,
-  runtime:r,device:result.after?.device,sampler:observed?.decisionProbe?.sampler,thermalBefore:result.thermalBefore,thermalAfter:result.thermalAfter,
+  preparation:observed?.preparation, runtime:r,device:result.after?.device,sampler:observed?.decisionProbe?.sampler,thermalBefore:result.thermalBefore,thermalAfter:result.thermalAfter,
   ttftMs:result.firstDeltaMs,nativeTtftMs:finite(g.firstDeltaUs)?g.firstDeltaUs/1000:null,
   nativeTotalMs:finite(g.endUs)?g.endUs/1000:null,decodeMs:finite(g.decodeUs)?g.decodeUs/1000:null,contextRecreationMs:finite(r.contextExperiment?.recreationUs)?r.contextExperiment.recreationUs/1000:null,
   prefillMs:finite(g.prefillUs)?g.prefillUs/1000:null,promptTokens:g.inputTokens,outputTokens:g.outputTokens,
@@ -30,3 +30,4 @@ export function compareAB(results){
  const group=arm=>{const runs=results.filter(x=>x.arm===arm).map(summary),ok=runs.filter(x=>!x.error);return {runs:runs.length,successful:ok.length,ttftMedianMs:median(ok.map(x=>x.ttftMs)),nativeTtftMedianMs:median(ok.map(x=>x.nativeTtftMs)),promptMedianTokensPerSecond:median(ok.map(x=>x.promptTokensPerSecond)),decodeMedianTokensPerSecond:median(ok.map(x=>x.decodeWorkTokensPerSecond))}};
  const A=group('A'),B=group('B');return {A,B,changePercent:{ttft:difference(A.ttftMedianMs,B.ttftMedianMs),decode:difference(A.decodeMedianTokensPerSecond,B.decodeMedianTokensPerSecond)},note:'Medianas do lote; menor TTFT/maior taxa não substituem avaliação de qualidade. Cache/thermal e parâmetros podem diferir: conferir exportação.'};
 }
+

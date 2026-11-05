@@ -32,6 +32,10 @@ jobs:
       - name: Patch Android loader diagnostics
         run: python3 scripts/patch_android_loader.py
 
+      - name: Test preparation diagnostics (experimental GPU PR only)
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/vulkan-native-backend'
+        run: python3 tests/vulkan_preparation_test.py
+
       - name: Verify llama.cpp Android binding
         run: |
           test "$(git -C third_party/llama.cpp rev-parse HEAD)" = "$LLAMA_CPP_REVISION"
@@ -109,6 +113,8 @@ jobs:
               if not vulkan:
                   raise SystemExit('GPU APK missing libggml-vulkan.so')
               print('Vulkan backend packaged:', vulkan)
+          import hashlib
+          print('APK SHA-256:', hashlib.sha256(open(apk,'rb').read()).hexdigest())
 
       - name: Verify packaged Haruna UI
         shell: python
@@ -141,3 +147,4 @@ jobs:
           name: ${{ github.event_name == 'pull_request' && github.head_ref == 'fix/vulkan-native-backend' && 'haruna-vulkan-experimental-apk' || 'haruna-debug-apk' }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
