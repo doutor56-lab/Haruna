@@ -61,12 +61,14 @@ a revisão upstream reinicia a flag no início da geração. Fronteiras seguras,
 não preempção instantânea de cada operação. Um handle cancelado é fechado;
 a geração seguinte recebe outro serial/contexto.
 
-Geração usa o mesmo chat/card/salvar/compartilhar/histórico. SDL gera PNG real
+Geração usa o mesmo chat/card/salvar/compartilhar/histórico. O motor gera PNG real
 via stbi_write_png, sem generation_info privado embutido. Resolução solicitada
 256/512 é calculada nativamente neste motor; MNN/Nezumi continuam em 512 com
 redução final existente. Etapas/preferências antigas não são redefinidas. Perfis
 MNN não se aplicam ao novo motor (controle desativado, parâmetros do SDK próprios).
-Progresso vem do callback do sampler; preparação/decodificação são indeterminadas.
+O callback upstream mistura sampler, bytes de pesos e tiles VAE. Só contamos
+o sampler de etapas solicitadas após a fronteira zero; eventos de outros
+estágios não viram etapas de denoising. Preparação/decodificação são indeterminadas.
 
 ## Validação
 
@@ -75,6 +77,8 @@ Progresso vem do callback do sampler; preparação/decodificação são indeterm
 - Controller com Android e motores explicitamente fake: três caminhos, persistência
   da escolha anterior, seleção, load/unload, lease/GGUF, geração/cancelamento/falha.
   Fake não é prova de imagem real ou de reconhecimento no Android.
+- Regressão C++ com API SD fake: diferencia sampler/pesos/tiles, cancel/free
+  concorrente, destroy idempotente e serial antigo, usando o adaptador real.
 - C++/JNI compilou no host Linux com os pins exatos; teste real em andamento
   é registrado no relatório final, sem confundir load/build com geração.
 - Sem tablet conectado neste ambiente: geração, memória/LMK, cancelamento durante

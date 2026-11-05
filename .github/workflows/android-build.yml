@@ -82,6 +82,8 @@ jobs:
       - name: Test image package installation
         run: |
           python3 tests/image_controller_check.py
+          c++ -std=c++17 -O1 -pthread -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -Iapp/build/safetensors-native/_deps/sd_cpp-src/include -Iapp/build/safetensors-native/_deps/sd_cpp-src/thirdparty tests/safetensors_native_check.cpp -o /tmp/safetensors-native-check
+          /tmp/safetensors-native-check
           gradle :app:testDebugUnitTest --no-daemon
 
       - name: Build debug APK

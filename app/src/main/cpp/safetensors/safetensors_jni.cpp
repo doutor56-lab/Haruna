@@ -15,7 +15,7 @@ namespace {
 struct Session {
     std::mutex operation, contextAccess;
     sd_ctx_t* ctx=nullptr; // operation owns use; contextAccess protects cancel vs release.
-    std::atomic<bool> cancelled{false},closing{false};
+    std::atomic<bool> cancelled{false},closing{false},samplerStarted{false};
     std::atomic<int> phase{0},step{0},total{0};
 };
 std::mutex registryMutex,engineMutex; // Upstream log/progress callbacks are process-global.
@@ -28,7 +28,15 @@ void cancel(Session& s){s.cancelled=true;std::lock_guard<std::mutex> l(s.context
 // Called by the worker holding operation + engineMutex. Never free through the UI cancel path.
 void release(Session& s){sd_ctx_t* p;{std::lock_guard<std::mutex> l(s.contextAccess);p=s.ctx;s.ctx=nullptr;}if(p)free_sd_ctx(p);}
 void quiet(sd_log_level_t,const char*,void*){} // Upstream logs can contain prompt/paths.
-void progress(int step,int steps,float,void* data){auto& s=*static_cast<Session*>(data);if(step>=0&&steps>0&&step<=steps){s.step=step;s.total=steps;s.phase=step==steps?4:3;}if(s.cancelled)cancel(s);}
+void progress(int step,int steps,float,void* data){auto& s=*static_cast<Session*>(data);
+    // The same upstream callback also reports weight bytes and VAE tiles.
+    // Count only the requested sampler run, from its explicit zero boundary.
+    if(s.phase.load()<4&&steps==s.total.load()&&steps>0){
+        if(step==0){s.samplerStarted=true;s.phase=3;}
+        else if(s.samplerStarted&&step>0&&step<=steps){s.step=step;s.phase=step==steps?4:3;}
+    }
+    if(s.cancelled)cancel(s);
+}
 struct CallbackScope {explicit CallbackScope(Session* s){sd_set_log_callback(quiet,nullptr);sd_set_progress_callback(progress,s);}~CallbackScope(){sd_set_progress_callback(nullptr,nullptr);}};
 }
 #define JNI(name) Java_com_proxyslabs_haruna_image_SafetensorsImageNative_##name
@@ -40,7 +48,7 @@ extern "C" JNIEXPORT jboolean JNICALL JNI(loadSd15)(JNIEnv* env,jobject,jlong id
         if(s->closing||s->cancelled){lastError="Carregamento cancelado";return false;}
         {std::lock_guard<std::mutex> l(s->contextAccess);s->ctx=ctx.release();}s->phase=2;return true;
     }catch(const std::bad_alloc&){lastError="Memória insuficiente para carregar SD1.5";}catch(...){lastError="Falha nativa ao preparar SD1.5";}release(*s);return false;}
-extern "C" JNIEXPORT jboolean JNICALL JNI(generatePng)(JNIEnv* env,jobject,jlong id,jstring prompt,jstring negative,jstring output,jint width,jint height,jint steps,jlong seed){auto s=find(id);if(!s){lastError="Sessão inexistente";return false;}std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);std::string path;try{lastError.clear();if(s->closing||s->cancelled){lastError="Geração cancelada";return false;}if(!s->ctx){lastError="Modelo não carregado";return false;}if(width<256||height<256||width>768||height>768||width%64||height%64||steps<1||steps>50){lastError="Resolução ou etapas inválidas";return false;}const auto p=fromJava(env,prompt),n=fromJava(env,negative);path=fromJava(env,output);if(p.empty()||p.size()>8000||n.size()>8000||path.empty()){lastError="Descrição ou destino inválido";return false;}sd_img_gen_params_t params{};sd_img_gen_params_init(&params);params.prompt=p.c_str();params.negative_prompt=n.c_str();params.width=width;params.height=height;params.sample_params.sample_steps=steps;params.seed=seed;params.batch_count=1;s->phase=2;s->step=0;s->total=steps;CallbackScope callbacks(s.get());
+extern "C" JNIEXPORT jboolean JNICALL JNI(generatePng)(JNIEnv* env,jobject,jlong id,jstring prompt,jstring negative,jstring output,jint width,jint height,jint steps,jlong seed){auto s=find(id);if(!s){lastError="Sessão inexistente";return false;}std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);std::string path;try{lastError.clear();if(s->closing||s->cancelled){lastError="Geração cancelada";return false;}if(!s->ctx){lastError="Modelo não carregado";return false;}if(width<256||height<256||width>768||height>768||width%64||height%64||steps<1||steps>50){lastError="Resolução ou etapas inválidas";return false;}const auto p=fromJava(env,prompt),n=fromJava(env,negative);path=fromJava(env,output);if(p.empty()||p.size()>8000||n.size()>8000||path.empty()){lastError="Descrição ou destino inválido";return false;}sd_img_gen_params_t params{};sd_img_gen_params_init(&params);params.prompt=p.c_str();params.negative_prompt=n.c_str();params.width=width;params.height=height;params.sample_params.sample_steps=steps;params.seed=seed;params.batch_count=1;s->phase=2;s->step=0;s->total=steps;s->samplerStarted=false;CallbackScope callbacks(s.get());
         sd_image_generation_result_t* result=nullptr;struct OutputOwner{sd_image_generation_result_t*& p;~OutputOwner(){if(p)free_sd_image_generation_result(p);}} owner{result};const bool ok=generate_image(s->ctx,&params,&result);
         if(s->closing||s->cancelled){lastError="Geração cancelada";return false;}
         if(!ok||!result||result->count!=1||!result->items){lastError="Falha na geração SD1.5";return false;}const auto& image=result->items[0].image;
