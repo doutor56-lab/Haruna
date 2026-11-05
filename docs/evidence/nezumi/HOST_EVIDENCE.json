@@ -1,0 +1,38 @@
+{
+  "environment": "Linux x86-64 CPU host, NOT Android device",
+  "engineSourceCommit": "ca4eac3d965ba0257423b37c6d51d61ae0cccc29",
+  "mnnRevision": "c95758f4cd4cc4891a89833842dbd681109d3303",
+  "nezumiRevision": "e23719bdf4d74e7ad3cbc5bca467e3f7136eb95b",
+  "prompt": "a red apple on a wooden table, daylight, photograph",
+  "negativePrompt": "",
+  "seed": 424242,
+  "steps": 5,
+  "scheduler": "DPM++ 2M",
+  "cfg": 7.5,
+  "nativeResolution": [
+    512,
+    512
+  ],
+  "tests": [
+    {
+      "model": "anything",
+      "entryPoint": "mnn_sd_generate C API",
+      "exitCode": 0,
+      "wallSeconds": 311.268510599999,
+      "peakRssKiB": 2726372,
+      "png": "anything-host.png",
+      "pngSha256": "b6e0dfb2fc056b0a5c06977c93b3993880a802c55ab88329fe81bc6331d6656e",
+      "androidValidated": false
+    },
+    {
+      "model": "cyber",
+      "entryPoint": "JNI generateRgb",
+      "exitCode": 0,
+      "wallSeconds": 276.6330248949962,
+      "peakRssKiB": 2781604,
+      "png": "cyber-host.png",
+      "pngSha256": "6d650cd5e68e33734debaeee9c27b696f22043e13f96ebfa2a0aae2230f2a58d",
+      "androidValidated": false
+    }
+  ]
+}

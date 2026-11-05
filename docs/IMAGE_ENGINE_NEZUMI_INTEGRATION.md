@@ -86,6 +86,12 @@ unload GGUF; não impede LMK/OOM do Android. Nenhuma chamada artificial a GC.
 - Anything V5 real, CPU Linux x86-64: 512², 5 steps, DPM++ 2M, CFG 7.5,
   seed 424242, prompt público de maçã. Retorno 0, RGB 786432 bytes, PNG válido;
   311,27 s, pico RSS 2726372 KiB. Não são métricas do tablet.
+- CyberRealistic real via JNI, CPU Linux x86-64: mesmos parâmetros de geração,
+  PNG 512² válido, 276,33 s, pico RSS 2781604 KiB (host, não Android).
+- Importador Kotlin real: ambos ZIPs oficiais instalados, restaurados por SHA
+  e carregados/descarregados via JNI; 10,87/10,37 s no host.
+- Interface 360×800 e 800×1280: teste com bridge mock, chat/card/cancelamento,
+  persistência de card, configurações e ações salvar/compartilhar preservados.
 - JUnit: testes legados de pacote/formato e novos de staging atômico,
   corrupção, caminho inseguro, symlink, arquitetura inválida, cancelamento,
   falta de espaço e validação nativa recusada.

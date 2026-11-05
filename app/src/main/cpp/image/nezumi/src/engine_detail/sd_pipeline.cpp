@@ -194,6 +194,7 @@ extern "C"
 
         // --- 0. Load CLIP just-in-time ---
         {
+            if (engine->cancel_requested) return MNN_SD_ERR_CANCELLED;
             MnnSdError err = create_interpreter_and_session(
                 engine->clip_path, effective_backend, SdModelKind::CLIP,
                 false,
@@ -213,6 +214,7 @@ extern "C"
         }
         if (is_sdxl)
         {
+            if (engine->cancel_requested) return MNN_SD_ERR_CANCELLED;
             MnnSdError err = create_interpreter_and_session(
                 engine->clip2_path, effective_backend, SdModelKind::CLIP2,
                 false,
@@ -708,6 +710,7 @@ extern "C"
                 PROBE_LOG("img2img: VAE encoder falls back to CPU (max_side=%d)", max_side);
                 enc_backend = MNN_SD_BACKEND_CPU;
             }
+            if (engine->cancel_requested) return MNN_SD_ERR_CANCELLED;
             MnnSdError err = create_interpreter_and_session(
                 engine->vae_encoder_path, enc_backend, SdModelKind::VAE_ENCODER,
                 false,
@@ -1124,6 +1127,7 @@ extern "C"
 
         // --- 4b. Load UNet just-in-time (after CLIP has been freed) ---
         {
+            if (engine->cancel_requested) return MNN_SD_ERR_CANCELLED;
             MnnSdError err = create_interpreter_and_session(
                 engine->unet_path, effective_backend, SdModelKind::UNET,
                 engine->load_options.precision_low != 0,
@@ -1628,6 +1632,7 @@ extern "C"
                       "(Mali/Adreno TUNING_FAST). Decode is one shot, CPU is fine.");
         }
         {
+            if (engine->cancel_requested) return MNN_SD_ERR_CANCELLED;
             MnnSdError err = create_interpreter_and_session(
                 engine->vae_path, vae_backend, SdModelKind::VAE,
                 false,

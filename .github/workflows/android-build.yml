@@ -163,5 +163,6 @@ jobs:
           path: |
             HARUNA_NEZUMI_CORRESPONDING_SOURCE.tar.gz
             docs/IMAGE_ENGINE_NEZUMI_INTEGRATION.md
+            docs/evidence/nezumi/
             app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: error

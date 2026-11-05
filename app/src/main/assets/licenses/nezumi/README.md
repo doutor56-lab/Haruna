@@ -9,7 +9,7 @@ local-dream code or model weights are bundled.
 Haruna modifications, 2026-11-05:
 - cancellation flag uses std::atomic<bool>, rather than volatile across threads;
 - initial generate boundary permits the owner to reassert queued cancellation;
-- check MNN runSession return codes, cancel before executions;
+- check MNN runSession return codes, cancel before executions and JIT creation;
 - compile PROBE_LOG off with HARUNA_NEZUMI_QUIET (no token/path/tensor dumps).
 
 The algorithm, CLIP BPE, embeddings, schedulers, CFG and JIT CLIP→UNet→VAE remain
