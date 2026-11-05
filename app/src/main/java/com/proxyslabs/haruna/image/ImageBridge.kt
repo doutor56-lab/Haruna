@@ -46,6 +46,19 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
     @Synchronized private fun submit(action:()->Unit):Boolean {if(closed||busy)return false;busy=true;cancel.set(false);worker.execute {error=null;phase=if(loaded!=null)"LOADED" else if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";publish();try{action()}catch(e:Exception){error=when(e){is java.util.zip.ZipException->"Pacote ZIP incompleto ou corrompido";is IllegalArgumentException,is IllegalStateException->e.message?:"Modelo incompatível";else->"Não foi possível concluir a operação de imagem"};phase=if(e is IllegalArgumentException && !error.orEmpty().contains("Espaço")) "INCOMPATIBLE" else "ERROR"}finally{busy=false;publish()}};return true}
     fun install(uri:Uri)=submit {
         phase="INSTALLING";copied=0;publish();var last=0L
+        // Detect external MNN packages before allocating gigabytes to installation.
+        // The current native pipeline requires Haruna's tokenizer.mtok and graph layout.
+        val inspection=app.contentResolver.openInputStream(uri).use { input ->
+            requireNotNull(input){"Não foi possível ler o arquivo"}
+            ImageArchiveFormat.inspect(input)
+        }
+        when(inspection.kind) {
+            ImageArchiveFormat.Kind.NEZUMI_SD15 ->
+                throw IllegalArgumentException("Modelo Nezumi SD1.5 reconhecido (Anything/CyberRealistic), mas o motor atual ainda não suporta tokenizer.json e esses grafos MNN. Nenhum arquivo foi instalado.")
+            ImageArchiveFormat.Kind.UNKNOWN ->
+                throw IllegalArgumentException("ZIP de imagem não reconhecido: ${inspection.reason}")
+            ImageArchiveFormat.Kind.HARUNA_SD15 -> Unit
+        }
         val dir=app.contentResolver.openInputStream(uri).use{input->requireNotNull(input){"Não foi possível ler o arquivo"};ImagePackage.install(input,root,{cancel.get()||closed},{root.usableSpace}){bytes->copied=bytes;val now=android.os.SystemClock.elapsedRealtime();if(now-last>200){last=now;publish()}}}
         if(cancel.get()||closed){dir.deleteRecursively();throw IllegalStateException("Instalação cancelada")}
         val m=ImagePackage.verify(dir)
