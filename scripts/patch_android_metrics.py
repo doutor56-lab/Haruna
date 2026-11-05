@@ -50,7 +50,7 @@ extern "C" LLAMA_API int haruna_observed_gpu_layers(const llama_context * ctx) {
     int count = 0;
     for (uint32_t i = 0; i < model.hparams.n_layer(); ++i) {
         auto dev = model.dev_layer(i);
-        if (dev && ggml_backend_dev_type(dev) == GGML_BACKEND_DEVICE_TYPE_GPU) ++count;
+        if (dev && (ggml_backend_dev_type(dev) == GGML_BACKEND_DEVICE_TYPE_GPU || ggml_backend_dev_type(dev) == GGML_BACKEND_DEVICE_TYPE_IGPU)) ++count;
     }
     return count;
 }

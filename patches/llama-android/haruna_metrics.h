@@ -1,4 +1,6 @@
 // Baseline observers only. No prompt, token text, path or mutable inference policy.
+#include "haruna_preparation.h"
+#include "haruna-vulkan-trace.h"
 #include <atomic>
 #include <cctype>
 #include <chrono>
@@ -36,6 +38,7 @@ static std::string hm_identifier(const char * value) {
     return result;
 }
 static void hm_begin() {
+    hprep_reset();
     hm_start = hm_clock(); ++hm_serial;
     hm_template=0; hm_tokenize=0; hm_prefill=0; hm_first_delta=-1; hm_first_sample=-1;
     hm_decode=0; hm_deltas=0; hm_bytes=0; hm_tokens=0; hm_steps=0; hm_shifts=0;
@@ -124,6 +127,17 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_runtimeMetrics(JNIEnv * env,job
     result["stability"]=hs_snapshot();
     result["prefix"]=hk_snapshot();
     result["decisionProbe"]=hd_snapshot();
+    result["preparation"]={{"stage",hprep_name(hprep_stage.load())},{"failedStage",hprep_name(hprep_failed.load())},
+        {"decodeReturn",hprep_return.load()==INT_MAX?HarunaJson(nullptr):HarunaJson(hprep_return.load())},
+        {"exceptionKind",hprep_kind.load()},{"exceptionSubtype",hprep_subtype.load()},{"systemCode",hprep_kind.load()==2?HarunaJson(hprep_system_code.load()):HarunaJson(nullptr)},
+        {"systemCategory",hprep_category.load()},{"technicalHint",hprep_hint.load()},
+        {"batchAttempts",hprep_attempts.load()},{"batchesCompleted",hprep_completed.load()},
+        {"batchOffset",hprep_offset.load()},{"batchTokens",hprep_count.load()},{"cleanupFailed",hprep_cleanup_failed.load()}};
+#ifdef HARUNA_VULKAN_TRACE
+    int64_t internal[8]{};haruna_vk_trace_snapshot(internal);
+    result["preparation"]["internal"]={{"request",internal[0]},{"active",internal[1]},{"lastEntered",internal[2]},
+        {"lastCompleted",internal[3]},{"firstFailure",internal[4]},{"lastOp",internal[5]},{"events",internal[6]},{"lastEntryMonotonicUs",internal[7]}};
+#endif
     result["generation"]={{"serial",hm_serial.load()},{"nativeStartBootUs",hm_start.load()},{"templateUs",hm_template.load()},
         {"tokenizeUs",hm_tokenize.load()},{"prefillUs",hm_prefill.load()},
         {"firstDeltaUs",hm_first_delta.load()},{"firstSampleUs",hm_first_sample.load()},
@@ -138,4 +152,5 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_runtimeMetrics(JNIEnv * env,job
     return env->NewStringUTF(result.dump().c_str());
     } catch (...) { return env->NewStringUTF("{}"); }
 }
+
 

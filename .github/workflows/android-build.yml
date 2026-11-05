@@ -32,6 +32,12 @@ jobs:
       - name: Patch Android loader diagnostics
         run: python3 scripts/patch_android_loader.py
 
+      - name: Test preparation diagnostics (experimental GPU PR only)
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/vulkan-native-backend'
+        run: |
+          python3 tests/vulkan_preparation_test.py
+          python3 tests/vulkan_internal_trace_test.py
+
       - name: Verify llama.cpp Android binding
         run: |
           test "$(git -C third_party/llama.cpp rev-parse HEAD)" = "$LLAMA_CPP_REVISION"
@@ -62,6 +68,25 @@ jobs:
       - name: Install native Android toolchain
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.13113456" "cmake;3.31.6"
 
+      - name: Install Vulkan shader build tools (experimental GPU PR only)
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/vulkan-native-backend'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y glslc libvulkan-dev spirv-tools spirv-headers
+          command -v glslc
+          NDK_VULKAN="$ANDROID_HOME/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/vulkan"
+          test -f "$NDK_VULKAN/vulkan.h"
+          test -f /usr/include/vulkan/vulkan.hpp
+          # NDK has Vulkan C headers; stage missing Vulkan-Hpp headers in ephemeral CI.
+          sudo cp -n /usr/include/vulkan/*.hpp "$NDK_VULKAN/"
+          test -f "$NDK_VULKAN/vulkan.hpp"
+          # SPIRV-Headers is installed on the host, while Android clang
+          # searches the NDK target sysroot. Stage the target-independent headers.
+          test -f /usr/include/spirv/unified1/spirv.hpp
+          NDK_INCLUDE="$ANDROID_HOME/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include"
+          sudo cp -a /usr/include/spirv "$NDK_INCLUDE/"
+          test -f "$NDK_INCLUDE/spirv/unified1/spirv.hpp"
+
       - name: Set up Gradle 8.14.3
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -71,7 +96,27 @@ jobs:
         run: gradle clean --no-daemon
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace --no-daemon
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.head_ref }}" == "fix/vulkan-native-backend" ]]; then
+            export HARUNA_VULKAN_INCLUDE_DIR="$ANDROID_HOME/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include"
+            gradle :app:assembleDebug -PharunaVulkan=true --stacktrace --no-daemon
+          else
+            gradle :app:assembleDebug --stacktrace --no-daemon
+          fi
+
+      - name: Verify Vulkan native library (experimental GPU PR only)
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/vulkan-native-backend'
+        shell: python
+        run: |
+          import zipfile
+          apk='app/build/outputs/apk/debug/app-debug.apk'
+          with zipfile.ZipFile(apk) as z:
+              vulkan=[n for n in z.namelist() if n.endswith('/libggml-vulkan.so')]
+              if not vulkan:
+                  raise SystemExit('GPU APK missing libggml-vulkan.so')
+              print('Vulkan backend packaged:', vulkan)
+          import hashlib
+          print('APK SHA-256:', hashlib.sha256(open(apk,'rb').read()).hexdigest())
 
       - name: Verify packaged Haruna UI
         shell: python
@@ -101,6 +146,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: haruna-debug-apk
+          name: ${{ github.event_name == 'pull_request' && github.head_ref == 'fix/vulkan-native-backend' && 'haruna-vulkan-experimental-apk' || 'haruna-debug-apk' }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+

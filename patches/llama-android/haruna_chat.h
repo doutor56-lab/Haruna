@@ -59,10 +59,13 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
     haruna_history_messages = -1; haruna_template_from_gguf = -1; haruna_context_capacity = -1;
     try {
         if (hs_check_cancel()) return 5;
+        hprep_set(HprepStage::runtime);
         if (g_model == nullptr || g_context == nullptr || g_sampler == nullptr || !g_chat_templates || roles == nullptr || contents == nullptr)
             throw std::runtime_error("Chat runtime unavailable");
+        hprep_set(HprepStage::configure);
         hl_configure(haruna_jstring(env,lab_config));
         const auto preparation_start=hm_clock();
+        hprep_set(HprepStage::messages);
         const int count = env->GetArrayLength(roles);
         if (count < 2 || count > (hi_eligible()?128:18) || count != env->GetArrayLength(contents))
             throw std::runtime_error("Invalid chat message count");
@@ -92,13 +95,13 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             input.enable_thinking = enable_thinking;
             // No override: common_chat_templates_init(g_model, "") reads this GGUF's metadata.
             const auto template_start = hm_clock();
-            hm_stage = 1;
+            hm_stage = 1;hprep_set(HprepStage::chat_template);
             auto formatted = common_chat_templates_apply(g_chat_templates.get(), input);
             if(hl_inspector) { std::lock_guard<std::mutex> lock(hl_lock); hl_prompt.clear(); for(const auto & part: formatted.prompt.parts) hl_prompt+=part.text; }
             hm_template += hm_clock() - template_start;
             if (hs_check_cancel()) return 5;
             const auto tokenize_start = hm_clock();
-            hm_stage = 2;
+            hm_stage = 2;hprep_set(HprepStage::tokenize);
             tokens = haruna_tokenize(formatted.prompt);
             hm_tokenize += hm_clock() - tokenize_start;
             if (hs_check_cancel()) return 5;
@@ -110,6 +113,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             messages.erase(messages.begin() + 1, messages.begin() + 1 + remove);
             hm_removed += remove;
         }
+        hprep_set(HprepStage::checkpoint);
         if(hi_enabled&&hi_eligible()){
             const auto stable=haruna_jstring(env,stable_system);
             try{hi_turn_boundary=hi_prefix_cut(tokens,messages,enable_thinking);
@@ -126,14 +130,19 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         }
         const auto key=haruna_jstring(env,conversation_key);
         if (key.size()>160) throw std::runtime_error("Invalid conversation identity");
+        hprep_set(HprepStage::reconcile);
         const size_t reuse=hk_reconcile(tokens,key,conversation_revision,enable_thinking);
+        hprep_set(HprepStage::sampler);
         reset_long_term_states(false); reset_short_term_states(); hd_prepare_sampler(); common_sampler_reset(g_sampler);
         hs_sampler_reset_observed();
         hm_input = tokens.size(); hm_stage = 3;
         hi_note("preparationUs",hm_clock()-preparation_start);hi_note("contextRecreated",hc_rebuild_us>0);
-        const auto prefill_start = hm_clock();
-        const auto prefill_result = hi_active?hi_prefill(tokens,reuse):decode_tokens_in_batches(g_context, g_batch, tokens, 0, true, static_cast<int>(reuse));
-        hm_prefill = hm_clock() - prefill_start;
+        hprep_set(HprepStage::batch_build);
+        struct PrefillTimer {int64_t start=hm_clock();~PrefillTimer(){hm_prefill=hm_clock()-start;}};
+        int prefill_result;
+        { PrefillTimer timer;
+        prefill_result = hi_active?hi_prefill(tokens,reuse):decode_tokens_in_batches(g_context, g_batch, tokens, 0, true, static_cast<int>(reuse));
+        }
         hi_note("prefillUs",hm_prefill.load());hi_note("tokenizeUs",hm_tokenize.load());
         if (prefill_result != 0) {
             if (hs_check_cancel()) return 5;
@@ -141,6 +150,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
             throw std::runtime_error("Chat input decoding failed");
         }
         if (hs_check_cancel()) return 5;
+        hprep_set(HprepStage::prefill_finish);
         hk_prefill_finished();
         chat_msgs = std::move(messages);
         current_position = static_cast<llama_pos>(tokens.size());
@@ -150,16 +160,23 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         haruna_history_messages = static_cast<int>(chat_msgs.size()) - 2;
         haruna_template_from_gguf = common_chat_templates_was_explicit(g_chat_templates.get()) ? 1 : 0;
         haruna_context_capacity = llama_n_ctx(g_context);
+        hprep_set(HprepStage::observe);
         hm_context();
         if(hc_config.experimental&&hc_config.fa>=0&&haruna_observed_flash(g_context)!=hc_config.fa)throw std::runtime_error("Effective FA not confirmed");
+        hprep_set(HprepStage::ready);
         hm_stage = 4;
         return 0;
     } catch (...) {
+        if(hprep_return.load()==INT_MAX||hprep_return.load()==0)hprep_exception();else hprep_fail();
+        if(hprep_is_prefill_failure() && !hs_check_cancel()) hm_finish(6);
+        LOGe("HARUNA_PREPARATION stage=%s decode_rc=%d exception=%d system_code=%d category=%d hint=%d attempts=%d completed=%d offset=%d count=%d",
+            hprep_name(hprep_failed.load()),hprep_return.load(),hprep_kind.load(),hprep_system_code.load(),hprep_category.load(),hprep_hint.load(),
+            hprep_attempts.load(),hprep_completed.load(),hprep_offset.load(),hprep_count.load());
         if (hm_reason.load()!=6 && hm_reason.load()!=5 && hm_reason.load()!=7 && hm_reason.load()!=8 && hm_reason.load()!=9) hm_finish(4);
         // Never propagate a template exception containing message text to Java/logcat.
         try {
             if (g_context != nullptr) { hk_invalidate(HkReason::native_error,true); reset_long_term_states(false); reset_short_term_states(); }
-        } catch (...) { hk_ledger.invalidate(HkReason::native_error); hk_publish(); }
+        } catch (...) { hprep_cleanup_failed=true;hk_ledger.invalidate(HkReason::native_error); hk_publish(); }
         return 3;
     }
 }
@@ -182,4 +199,5 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_invalidatePrefix(JNIEnv *,jobje
         return 0;
     } catch (...) { haruna_release_resources(); return 2; }
 }
+
 

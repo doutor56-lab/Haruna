@@ -9,6 +9,7 @@ export function runtimeCards(native,local,f){
  const us=n=>valid(n)?duration(n/1000):'Indisponível';
  const rate=(n,t)=>valid(n)&&valid(t)&&t>0?`${(n*1e6/t).toLocaleString('pt-BR',{maximumFractionDigits:2})} tokens/s`:'Indisponível';
  const yes=x=>typeof x==='boolean'?(x?'Sim':'Não'):'Indisponível';
+ const signedCode=n=>Number.isInteger(n)?String(n):'Indisponível';
  const stages={1:'Template',2:'Tokenização',3:'Prefill',4:'Decode / transporte',5:'Finalizado no native'};
  const stop={0:'Desconhecido / ainda sem parada nativa',1:'EOG do vocabulário',2:'Limite de tokens',3:'Erro no decode nativo',4:'Erro ao preparar entrada',5:'Cancelamento do usuário',6:'Erro de prefill',7:'Cancelamento para unload/troca',8:'Cancelamento para destroy',9:'Tela/bridge encerrada',10:'Erro de transporte UTF-8'};
  const same=has&&valid(p.bridgeStartBootUs)&&g.nativeStartBootUs>=p.bridgeStartBootUs;
@@ -59,6 +60,12 @@ export function runtimeCards(native,local,f){
   row('Native · até parada observada',has?us(g.endUs):'Indisponível / em andamento'),
   row('Ponte · duração / andamento',duration(p.elapsedMs)),
   row('Parada nativa',has?stop[g.nativeStopCode]||'Desconhecido':'Indisponível'),
+  row('Vulkan interno · ativo / entrada / conclusão / falha',`${number(obs.preparation?.internal?.active)} / ${number(obs.preparation?.internal?.lastEntered)} / ${number(obs.preparation?.internal?.lastCompleted)} / ${number(obs.preparation?.internal?.firstFailure)}`),
+  row('Exceção padrão · subtipo',number(obs.preparation?.exceptionSubtype)),
+  row('Preparação · etapa / falha',`${clean(obs.preparation?.stage)} / ${clean(obs.preparation?.failedStage)}`),
+  row('Preparação · decode rc / exceção / sistema',`${signedCode(obs.preparation?.decodeReturn)} / ${number(obs.preparation?.exceptionKind)} / ${signedCode(obs.preparation?.systemCode)}`),
+  row('Preparação · categoria / pista técnica',`${number(obs.preparation?.systemCategory)} / ${number(obs.preparation?.technicalHint)}`),
+  row('Preparação · batches tentados / concluídos',`${number(obs.preparation?.batchAttempts)} / ${number(obs.preparation?.batchesCompleted)}`),
   row('Conclusão Kotlin',p.active?'Em andamento':({completed:'Flow concluído',cancelled:'Cancelamento Kotlin',error:'Erro'}[native.session?.lastOutcome]||'Indisponível'))
  ],'TTFT nativo começa ao entrar no JNI estruturado; ponte começa ao receber o pedido; JS começa antes de chamar a bridge. Preparação JS é anterior e separada. DOM significa textContent atribuído, não pixels confirmados. Decode soma sampling/decode/conversão por chamada, incluindo passo EOG; exclui espera entre chamadas e prefill. Velocidades de trabalho não são throughput ponta a ponta. Erros nativos agora são propagados ao Flow; cancelamento e EOG continuam sendo eventos distintos.'),
  section('streaming','Streaming',[
@@ -176,3 +183,4 @@ function decisionCards(obs,f){
   ])
  ],'Até dez sondas: início, surgimento de padrão técnico por IDs, checkpoints e final/EOG. Só observam: nenhum novo sorteio, nenhuma ordenação dos candidatos, nenhum filtro. Probabilidade vem de candidatos existentes; entropia pós só quando a massa normaliza. UTF-8: 0 completo, 1 fragmento, 2 inválido; EOG não tem piece emitido. IDs/candidatos limitados podem revelar fragmentos a quem possui o tokenizer: confira antes de compartilhar. Sem texto, prompts ou histórico completo. Fingerprints não são prova de identidade exata nem de correção numérica; não são usados pelo cache. Seleção de CPU é aplicada só em outro processo; modo conservador ainda pode usar KleidiAI/repack compatíveis. FA efetiva está no card Configuração. Não há A/B de batch nesta etapa.')];
 }
+
