@@ -35,3 +35,6 @@ target_link_options(haruna_whisper_stt PRIVATE
     -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/exports.map
     -Wl,-z,max-page-size=16384)
 set_target_properties(haruna_whisper_stt PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/exports.map)
+
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../image ${CMAKE_CURRENT_BINARY_DIR}/haruna-image)

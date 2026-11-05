@@ -1,0 +1,36 @@
+package com.proxyslabs.haruna.image
+
+import android.content.Context
+import android.content.ContentValues
+import android.content.Intent
+import android.content.ClipData
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
+import androidx.core.content.FileProvider
+import java.io.File
+
+/** Only finished, private PNG files are exposed through a scoped read grant. */
+internal object ImageFiles {
+    fun resize(file:File,resolution:Int){
+        val bitmap=BitmapFactory.decodeFile(file.absolutePath)?:error("PNG gerado inválido")
+        try{check(bitmap.width==512&&bitmap.height==512){"Resolução nativa inesperada"}
+            if(resolution==256){val small=Bitmap.createScaledBitmap(bitmap,256,256,true)
+                try{file.outputStream().use{check(small.compress(Bitmap.CompressFormat.PNG,100,it))}}finally{if(small!==bitmap)small.recycle()}}
+        }finally{bitmap.recycle()}
+    }
+    fun save(app:Context,file:File){
+        val resolver=app.contentResolver
+        val values=ContentValues().apply{put(MediaStore.Images.Media.DISPLAY_NAME,file.name);put(MediaStore.Images.Media.MIME_TYPE,"image/png");put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/Haruna");put(MediaStore.Images.Media.IS_PENDING,1)}
+        val uri=resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values)?:error("Galeria indisponível")
+        try{resolver.openOutputStream(uri).use{out->requireNotNull(out);file.inputStream().use{it.copyTo(out)}};values.clear();values.put(MediaStore.Images.Media.IS_PENDING,0);resolver.update(uri,values,null,null)}catch(e:Exception){resolver.delete(uri,null,null);throw e}
+    }
+    fun open(app:Context,file:File,share:Boolean){Handler(Looper.getMainLooper()).post {
+        runCatching{val uri=FileProvider.getUriForFile(app,app.packageName+".images",file)
+            val intent=if(share)Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM,uri)else Intent(Intent.ACTION_VIEW).setDataAndType(uri,"image/png")
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);intent.clipData=ClipData.newRawUri("Haruna",uri)
+            app.startActivity(Intent.createChooser(intent,if(share)"Compartilhar imagem" else "Visualizar imagem").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))}
+    }}
+}

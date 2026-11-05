@@ -130,3 +130,9 @@ if (diagnostic45Mode != "OFF") {
     android.buildTypes.getByName("debug").applicationIdSuffix = ".diagnostic45"
     android.sourceSets.getByName("debug").manifest.srcFile("src/diagnostic45/AndroidManifest.xml")
 }
+
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+}

@@ -46,7 +46,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         val started = AtomicBoolean(false)
     }
     private val jobs = ConcurrentHashMap<String, Request>()
-    private val lifecycle = ReentrantLock()
+    private val lifecycle = com.proxyslabs.haruna.image.ImageLease.lock
     private val statusListeners = CopyOnWriteArraySet<() -> Unit>()
     @Volatile private var destroyed = false
     @Volatile private var loading = false
@@ -180,6 +180,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     override fun loadModel(localPath: String): Result<Unit> = runCatching {
         lifecycle.withLock {
             check(!destroyed) { "Runtime encerrado" }
+            check(!com.proxyslabs.haruna.image.ImageLease.active) { "Descarregue o modelo de imagens antes de carregar o GGUF" }
             val file = File(localPath); validateModel(file)
             if (modelPath == file.absolutePath && engine.state.value.isModelLoaded) return@withLock
             maintenance(7) {
@@ -197,9 +198,11 @@ class LlamaCppBackend(context: Context) : LlmBackend {
 
     /** Explicit DEBUG action only. One-shot offload request; subsequent normal loads remain CPU. */
     fun labReloadOffload(layers: Int): Result<Unit> = runCatching {
+        check(!com.proxyslabs.haruna.image.ImageLease.active) { "Descarregue o modelo de imagens" }
         check(BuildConfig.DEBUG && layers in setOf(0,8,99)) { "Offload experimental somente DEBUG" }
         lifecycle.withLock {
             check(!destroyed) { "Runtime encerrado" }
+            check(!com.proxyslabs.haruna.image.ImageLease.active) { "Descarregue o modelo de imagens" }
             val file=File(requireNotNull(modelPath) { "Carregue primeiro o modelo que será testado" });validateModel(file)
             maintenance(7) {
                 runBlocking(Dispatchers.IO) {
@@ -237,7 +240,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     override fun generate(requestId: String, payloadJson: String, onToken: (String) -> Unit, onComplete: () -> Unit, onError: (String, String) -> Unit) {
         if (!engine.state.value.isModelLoaded && !resetRequired) { onError("model_not_loaded", "Nenhum modelo GGUF carregado"); return }
         synchronized(jobs) {
-            if (destroyed || loading || jobs.size >= 4 || jobs.values.any { !it.cancelled.get() && !it.finishing.get() }) {
+            if (com.proxyslabs.haruna.image.ImageLease.active || destroyed || loading || jobs.size >= 4 || jobs.values.any { !it.cancelled.get() && !it.finishing.get() }) {
                 onError("generation_busy", "Há uma operação em andamento"); return
             }
             val predecessors = jobs.values.toList()
@@ -330,6 +333,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         }
     }
 }
+
 
 
 

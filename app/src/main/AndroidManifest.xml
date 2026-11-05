@@ -10,6 +10,9 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- A rede é usada somente para downloads solicitados pelo usuário; a inferência continua local. -->
     <application android:allowBackup="true" android:label="${harunaLabel}" android:icon="@mipmap/haruna_launcher" android:roundIcon="@mipmap/haruna_launcher" android:theme="@style/Theme.Haruna" android:usesCleartextTraffic="false">
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.images" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/image_paths" />
+        </provider>
         <service android:name=".speech.VoiceCallService" android:exported="false" android:foregroundServiceType="microphone|mediaPlayback" android:stopWithTask="true" />
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="unspecified">
             <intent-filter>
@@ -19,4 +22,5 @@
         </activity>
     </application>
 </manifest>
+
 

@@ -79,6 +79,11 @@ jobs:
           gradle :app:compileDebugKotlin --stacktrace --no-daemon
           python3 scripts/check_silero.py
 
+      - name: Test image package installation
+        run: |
+          python3 tests/image_controller_check.py
+          gradle :app:testDebugUnitTest --no-daemon
+
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
 
@@ -89,10 +94,17 @@ jobs:
           apk='app/build/outputs/apk/debug/app-debug.apk'
           with zipfile.ZipFile(apk) as z:
               names=set(z.namelist())
+              assert 'lib/arm64-v8a/libharuna_image.so' in names
+              assert not any(n.endswith('/libggml-vulkan.so') for n in names)
+              import hashlib
+              print('Image APK SHA-256:', hashlib.sha256(open(apk,'rb').read()).hexdigest())
               required={
                   'assets/haruna/index.html',
                   'assets/haruna/style.css',
                   'assets/haruna/app.js',
+                  'assets/haruna/image-chat.js',
+                  'assets/haruna/image-chat.css',
+                  'assets/haruna/image-models.js',
                   'assets/haruna/llm-engine.js',
                   'assets/haruna/android-bridge.js',
                   'assets/haruna/haruna-icon.svg',
@@ -110,11 +122,15 @@ jobs:
               assert "import llm from './llm-engine.js'" in js
           print('Verified: APK contains the current Haruna UI and bridge assets.')
 
+      - name: Name image installation APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-9B-debug.apk
+
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: haruna-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Haruna-9B-APK
+          path: app/build/outputs/apk/debug/Haruna-9B-debug.apk
           if-no-files-found: error
+
 
