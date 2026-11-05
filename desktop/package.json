@@ -1,0 +1,11 @@
+{
+  "name":"haruna-windows", "version":"0.1.0", "private":true,
+  "description":"Haruna local para Windows — GGUF e SDXL offline", "author":"João Victor — Proxys Labs", "license":"UNLICENSED",
+  "main":"src/main.cjs",
+  "scripts":{"prepare:ui":"node scripts/prepare-ui.cjs", "fetch:runtimes":"python scripts/fetch-runtimes.py", "test":"node --test test/*.test.cjs", "start":"npm run prepare:ui && electron .", "dist:win":"npm run prepare:ui && electron-builder --win portable --x64"},
+  "devDependencies":{"electron":"45.2.3", "electron-builder":"26.18.0"},
+  "build":{"appId":"com.proxyslabs.haruna.windows", "productName":"Haruna", "asar":true,
+    "files":["src/**","renderer/**","ui/**","licenses/**","package.json"],
+    "extraResources":[{"from":"runtimes","to":"runtimes"}],
+    "directories":{"output":"dist"}, "win":{"target":[{"target":"portable","arch":["x64"]}],"artifactName":"Haruna-Windows-SDXL-${version}-${arch}.${ext}","signAndEditExecutable":false}, "portable":{"requestExecutionLevel":"user"}}
+}
