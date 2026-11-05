@@ -5,6 +5,7 @@
 #include <cstring>
 #include <new>
 #include <system_error>
+#include <stdexcept>
 
 enum class HprepStage { idle, runtime, configure, messages, chat_template, tokenize,
     checkpoint, reconcile, sampler, batch_build, prefill_decode, prefill_commit,
@@ -16,12 +17,12 @@ static const char * hprep_name(int s) noexcept {
     return s>=0&&s<16?names[s]:"unknown";
 }
 static std::atomic<int> hprep_stage{0},hprep_failed{0},hprep_return{INT_MAX},
-    hprep_kind{0},hprep_system_code{0},hprep_category{0},hprep_hint{0},
+    hprep_subtype{0},hprep_kind{0},hprep_system_code{0},hprep_category{0},hprep_hint{0},
     hprep_attempts{0},hprep_completed{0},hprep_offset{0},hprep_count{0};
 static std::atomic<bool> hprep_cleanup_failed{false};
 static void hprep_set(HprepStage stage) noexcept {hprep_stage=static_cast<int>(stage);}
 static void hprep_reset() noexcept {
-    hprep_stage=0;hprep_failed=0;hprep_return=INT_MAX;hprep_kind=0;hprep_system_code=0;
+    hprep_stage=0;hprep_failed=0;hprep_return=INT_MAX;hprep_kind=0;hprep_subtype=0;hprep_system_code=0;
     hprep_category=0;hprep_hint=0;hprep_attempts=0;hprep_completed=0;hprep_offset=0;hprep_count=0;hprep_cleanup_failed=false;
 }
 static void hprep_fail() noexcept {int empty=0;hprep_failed.compare_exchange_strong(empty,hprep_stage.load());}
@@ -38,6 +39,9 @@ static void hprep_exception() noexcept {
     }
     catch(const std::exception & e) {
         hprep_kind=3;
+        hprep_subtype=dynamic_cast<const std::out_of_range*>(&e)?1:dynamic_cast<const std::length_error*>(&e)?2:
+            dynamic_cast<const std::invalid_argument*>(&e)?3:dynamic_cast<const std::logic_error*>(&e)?4:
+            dynamic_cast<const std::runtime_error*>(&e)?5:6;
         const char * s=e.what();
         if(s){if(std::strstr(s,"Shared memory size too small for matrix multiplication"))hprep_hint=1;
             else if(std::strstr(s,"unsupported FaCodePath"))hprep_hint=2;

@@ -34,7 +34,9 @@ jobs:
 
       - name: Test preparation diagnostics (experimental GPU PR only)
         if: github.event_name == 'pull_request' && github.head_ref == 'fix/vulkan-native-backend'
-        run: python3 tests/vulkan_preparation_test.py
+        run: |
+          python3 tests/vulkan_preparation_test.py
+          python3 tests/vulkan_internal_trace_test.py
 
       - name: Verify llama.cpp Android binding
         run: |

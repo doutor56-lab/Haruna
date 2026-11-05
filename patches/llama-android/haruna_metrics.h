@@ -1,5 +1,6 @@
 // Baseline observers only. No prompt, token text, path or mutable inference policy.
 #include "haruna_preparation.h"
+#include "haruna-vulkan-trace.h"
 #include <atomic>
 #include <cctype>
 #include <chrono>
@@ -128,10 +129,15 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_runtimeMetrics(JNIEnv * env,job
     result["decisionProbe"]=hd_snapshot();
     result["preparation"]={{"stage",hprep_name(hprep_stage.load())},{"failedStage",hprep_name(hprep_failed.load())},
         {"decodeReturn",hprep_return.load()==INT_MAX?HarunaJson(nullptr):HarunaJson(hprep_return.load())},
-        {"exceptionKind",hprep_kind.load()},{"systemCode",hprep_kind.load()==2?HarunaJson(hprep_system_code.load()):HarunaJson(nullptr)},
+        {"exceptionKind",hprep_kind.load()},{"exceptionSubtype",hprep_subtype.load()},{"systemCode",hprep_kind.load()==2?HarunaJson(hprep_system_code.load()):HarunaJson(nullptr)},
         {"systemCategory",hprep_category.load()},{"technicalHint",hprep_hint.load()},
         {"batchAttempts",hprep_attempts.load()},{"batchesCompleted",hprep_completed.load()},
         {"batchOffset",hprep_offset.load()},{"batchTokens",hprep_count.load()},{"cleanupFailed",hprep_cleanup_failed.load()}};
+#ifdef HARUNA_VULKAN_TRACE
+    int64_t internal[8]{};haruna_vk_trace_snapshot(internal);
+    result["preparation"]["internal"]={{"request",internal[0]},{"active",internal[1]},{"lastEntered",internal[2]},
+        {"lastCompleted",internal[3]},{"firstFailure",internal[4]},{"lastOp",internal[5]},{"events",internal[6]},{"lastEntryMonotonicUs",internal[7]}};
+#endif
     result["generation"]={{"serial",hm_serial.load()},{"nativeStartBootUs",hm_start.load()},{"templateUs",hm_template.load()},
         {"tokenizeUs",hm_tokenize.load()},{"prefillUs",hm_prefill.load()},
         {"firstDeltaUs",hm_first_delta.load()},{"firstSampleUs",hm_first_sample.load()},

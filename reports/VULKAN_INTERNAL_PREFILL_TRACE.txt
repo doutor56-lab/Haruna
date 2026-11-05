@@ -1,0 +1,52 @@
+VULKAN — PRIMEIRO PREFILL / MARCADORES INTERNOS
+Base: 371ef36e1044a2b3deda341f38e20be2097084db
+Checkpoint: checkpoint/vulkan-inner-371ef36
+Branch exclusiva: fix/vulkan-native-backend; PR #3, sem merge.
+Runtime preservado: 7894e8b92481a8bb8ffe94f73b656ffe0dd01e10.
+
+Evidência física recebida: uma execução falhou com exceptionKind=3 dentro de prefill_decode, sem retorno nativo. Outra captura mostra ticket ativo, failedStage=idle e exceptionKind=0: NÃO é prova de exceção; a chamada ainda não retornou naquela captura. FA Auto e OFF falharam, sem causa confirmada. Zero batches concluídos não significa zero trabalho interno.
+
+Implementação: patches incrementais sobre a mesma revisão, sem atualização de biblioteca. Somente HARUNA_VULKAN_EXPERIMENT ativa HARUNA_VULKAN_TRACE. Uma implementação compartilhada em ggml-base evita contadores separados entre llama e Vulkan. Registro limitado aos pedidos DECODE com mais de um token (prefill): não cria log por token de geração. CPU-only sem a flag compila macros inertes. O APK experimental pode registrar prefill CPU também como controle.
+Não há timeout forçado, retry, mudança de camada, FA, contexto, batch, KV, prompt ou sampler.
+
+Logs: HARUNA_VULKAN request=N marker=N stage=N event=N op=N code=N mono_us=N.
+request é serial de batch/processamento, NÃO identificador de pessoa/conversa, nem o serial do JNI. Thread/time vêm do logcat. IDs de etapa são fixos nesta revisão. op é enum numérico GGML, nunca nome de tensor/token. mono_us usa CLOCK_MONOTONIC; não misturar com BOOTTIME das métricas antigas.
+event: 1 entrada, 2 saída de escopo, 3 saída durante exceção, 4 código de erro observado.
+Saída de escopo não implica sucesso: retornos de erro GGML e preparação nativa continuam sendo autoridade. Primeiro evento 3 mais interno aponta o escopo que estava desenrolando a pilha; não substitui stack trace nem prova uma instrução exata.
+Detalhe limitado aos primeiros 384 eventos por batch; erros/exceções e encerramento permanecem visíveis. Snapshot escalar continua sendo atualizado depois do limite. Não são mantidos logs em disco pelo app.
+
+ETAPAS
+1 llama_process / janela de diagnóstico
+10 process_ubatch
+20 model.build_graph
+30 alocação do grafo pelo scheduler
+40 set_inputs
+50 agendamento/execução do grafo GGML
+60 sincronização do contexto llama
+100 criação de pipeline/shader Vulkan
+110 alocação de buffer Vulkan (também registra VkResult antes do catch upstream retornar nullptr)
+120 CPU -> Vulkan: set_tensor
+121 Vulkan -> CPU: get_tensor
+130 submissão Vulkan
+140 processamento do grafo Vulkan
+150 seleção do pipeline de operador, op=enum ggml_op
+160 sincronização do backend Vulkan
+As etapas não são uma lista exaustiva das funções Vulkan. Não há profiler nem dump de tensores.
+
+DBG/JSON: preparation.internal contém request, active, lastEntered, lastCompleted, firstFailure, lastOp, events e lastEntryMonotonicUs. lastEntered é o último escopo iniciado; lastCompleted pode ser de um filho. Em concorrência, usar threadtime e marcadores completos para reconstruir os pares; não inferir automaticamente deadlock ou função bloqueada somente pelo snapshot.
+exceptionSubtype (exceptionKind=3): 1 out_of_range, 2 length_error, 3 invalid_argument, 4 outro logic_error, 5 runtime_error, 6 outra std::exception. Nenhum what(), nome RTTI, prompt, resposta, caminho privado ou conteúdo de tensor é registrado. Campos anteriores mantidos.
+
+PRÓXIMO TESTE — UMA REPRODUÇÃO
+1. Instalar APK experimental. Manter Qwen3.5 2B, 8 camadas solicitadas, ctx8192, batch/ubatch512, f16/f16, threads2/6, seed424242, mesmo benchmark. Manter a opção FA escolhida e registrá-la; não alternar parâmetros nesta reprodução.
+2. Em computador com ADB autorizado:
+   adb logcat -c
+   adb logcat -v threadtime > haruna-vulkan-interno.txt
+3. Iniciar UMA execução. Se falhar, copiar DBG e exportar JSON sem respostas. Se continuar ativo sem tokens após 60 segundos, copiar DBG novamente e anotar o tempo observado. 60 segundos é apenas janela manual de observação: não é timeout implementado nem prova de deadlock. Usar Parar existente; não matar/destruir thread nativa artificialmente.
+4. Encerrar captura com Ctrl+C. Compartilhar somente linhas HARUNA_VULKAN/HARUNA_PREPARATION e mensagens técnicas próximas de Vulkan/ggml/driver, após remover caminhos e conteúdo privado. Logcat completo pode conter dados de outros apps: revisar antes de compartilhar.
+5. Se o processo encerrar, coletar adb logcat -b crash -d -v threadtime; preservar backtrace/sinal/módulo, revisando dados privados.
+Não testar matriz 1/2/4 camadas ou batch menor até que a etapa/código indique hipótese concreta.
+
+VALIDAÇÃO
+Teste host do helper real gerado: retornos preservados, confirmação de batches, cancelamento e exceções. Teste host do trace: caminho desativado, exceção aninhada, limite de detalhe, snapshot após limite e ausência de texto de exceção no logger. Não é inferência real.
+Build Android e artefato: consultar run associado ao commit desta entrega. Compilação não comprova prefill Vulkan funcional.
+Causa raiz permanece NÃO CONFIRMADA. Nenhuma correção especulativa de kernel/driver foi aplicada.

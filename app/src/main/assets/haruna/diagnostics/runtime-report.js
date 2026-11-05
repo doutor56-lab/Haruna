@@ -60,6 +60,8 @@ export function runtimeCards(native,local,f){
   row('Native · até parada observada',has?us(g.endUs):'Indisponível / em andamento'),
   row('Ponte · duração / andamento',duration(p.elapsedMs)),
   row('Parada nativa',has?stop[g.nativeStopCode]||'Desconhecido':'Indisponível'),
+  row('Vulkan interno · ativo / entrada / conclusão / falha',`${number(obs.preparation?.internal?.active)} / ${number(obs.preparation?.internal?.lastEntered)} / ${number(obs.preparation?.internal?.lastCompleted)} / ${number(obs.preparation?.internal?.firstFailure)}`),
+  row('Exceção padrão · subtipo',number(obs.preparation?.exceptionSubtype)),
   row('Preparação · etapa / falha',`${clean(obs.preparation?.stage)} / ${clean(obs.preparation?.failedStage)}`),
   row('Preparação · decode rc / exceção / sistema',`${signedCode(obs.preparation?.decodeReturn)} / ${number(obs.preparation?.exceptionKind)} / ${signedCode(obs.preparation?.systemCode)}`),
   row('Preparação · categoria / pista técnica',`${number(obs.preparation?.systemCategory)} / ${number(obs.preparation?.technicalHint)}`),

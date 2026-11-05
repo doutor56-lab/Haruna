@@ -124,3 +124,7 @@ apply_context_lab_patch()
 
 from patch_android_incremental import apply_incremental_patch
 apply_incremental_patch()
+
+
+from patch_android_vulkan_trace import apply_vulkan_trace_patch
+apply_vulkan_trace_patch()
