@@ -33,8 +33,9 @@ if(api&&chat){
   const status=JSON.parse(api.status());if(!status.selected)throw Error('Adicione e selecione um modelo SD1.5 em Configurações → Geração de imagens.');
   const text=(chat.state().draft.trim()||prompt('Descreva a imagem que deseja gerar:')||'').trim();if(!text)return;
   if(text.length>2000)throw Error('Use uma descrição de até 2.000 caracteres.');
-  const request=crypto.randomUUID();if(!api.generate(request,text))throw Error('O motor de imagens está ocupado.');
-  window.harunaImagesBusy=true;chat.begin(request,text);
+  const request=crypto.randomUUID();chat.begin(request,text);
+  if(!api.generate(request,text)){chat.update({request,state:'ERROR',error:'O motor de imagens está ocupado.'});throw Error('O motor de imagens está ocupado.')}
+  window.harunaImagesBusy=true;
  }catch(e){alert(e.message)}};
  chat.refresh();
  let modelStatusKey='';

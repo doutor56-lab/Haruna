@@ -77,10 +77,11 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
     private val outputs=File(app.filesDir,"generated-images").apply{mkdirs()}
     @JavascriptInterface fun cancelGeneration(id:String){if(activeJob==id)cancel()}
     @JavascriptInterface fun result(id:String):String {if(!id.matches(Regex("[0-9a-f-]{36}")))return "{}";return runCatching{File(outputs,"$id.json").readText()}.getOrDefault("{}")}
-    @JavascriptInterface fun generate(request:String,prompt:String)=submit {
-        require(request.matches(Regex("[0-9a-f-]{36}"))&&prompt.isNotBlank()&&prompt.length<=2000){"Descrição de imagem inválida"}
-        require(!File(outputs,"$request.png").exists()&&!File(outputs,"$request.json").exists()){ "Identificador de imagem já utilizado" }
-        activeJob=request;job=JSONObject().put("request",request).put("state","LOADING");publish()
+    @JavascriptInterface @Synchronized fun generate(request:String,prompt:String):Boolean {
+        if(closed||busy||!request.matches(Regex("[0-9a-f-]{36}"))||prompt.isBlank()||prompt.length>2000||File(outputs,"$request.png").exists()||File(outputs,"$request.json").exists())return false
+        activeJob=request // Reserve identity before the worker can be cancelled.
+        return submit {
+        job=JSONObject().put("request",request).put("state","LOADING");publish()
         val part=File(outputs,"$request.part.png");val target=File(outputs,"$request.png")
         try {val selected=prefs.getString("selected",null)?:throw IllegalStateException("Selecione um modelo SD1.5 em Configurações")
             check(outputs.usableSpace>64L*1024*1024){"Espaço insuficiente para salvar a imagem"}
@@ -96,6 +97,7 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
             if(prefs.getBoolean("autoSave",true))runCatching{ImageFiles.save(app,target)}.onFailure{job.put("saveWarning","PNG privado salvo; não foi possível salvar na galeria")}
         }catch(e:OutOfMemoryError){part.delete();job.put("state","ERROR").put("error","Memória insuficiente para concluir a imagem. O modelo instalado foi preservado.")}catch(e:Exception){part.delete();job.put("state",if(cancel.get()||closed)"CANCELLED" else "ERROR").put("error",if(cancel.get()||closed)"Geração cancelada" else if(e.message=="Memória disponível insuficiente; modelo instalado foi preservado")"Memória livre insuficiente. A geração requer margem preventiva de pelo menos 3 GiB; o modelo instalado foi preservado." else "Não foi possível concluir a imagem. Confira o modelo e a memória disponível.")}
         finally {if(nativeTicket>0){ImageNative.finish(nativeTicket);nativeTicket=0};free();models.values.filter{it.optString("state")=="LOADING"}.forEach{it.put("state","INSTALLED")};activeJob=null;phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";val meta=File(outputs,"$request.json.part");meta.writeText(job.toString());meta.renameTo(File(outputs,"$request.json"));publish()}
+        }
     }
     private fun image(id:String):File {require(id.matches(Regex("[0-9a-f-]{36}")));return File(outputs,"$id.png").also{require(it.isFile)}}
     @JavascriptInterface fun save(id:String)=submit {ImageFiles.save(app,image(id))}

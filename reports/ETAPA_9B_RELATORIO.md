@@ -31,7 +31,7 @@ Resultado terminal também é gravado em JSON privado por UUID para recuperar o 
 
 Worker serial, aceitação síncrona que recusa operações concorrentes, lease já existente para descarregar GGUF e impedir sua recarga enquanto MNN ocupa o motor. Não muda o comportamento de inferência textual. Verificação de integridade cancelável, espaço e RAM antes de carregar (política preventiva: maior entre arquivos + 512 MiB e 3 GiB livres; não é medição nem garantia de consumo), limpeza em finally inclusive erro/cancelamento. A verificação de RAM é preventiva, não garantia contra LMK/OOM do Android.
 
-Tickets de geração monotônicos no processo impedem que um cancelamento antigo cancele o próximo. Cancelamento reconhecido entre fases/chamadas de módulo e etapas de denoising, sem matar threads. **Não interrompe um kernel MNN ou operação de carregamento já em execução**: pode aguardar a chamada atual. Após terminar/cancelar, pipeline e lease são liberados, incluindo coleta dos blocos ociosos do allocator Express do próprio MNN, sem GC Java artificial; GGUF não é recarregado automaticamente. O usuário pode carregá-lo novamente pelo gerenciamento já existente.
+Tickets de geração monotônicos no processo impedem que um cancelamento antigo cancele o próximo. A identidade do pedido é reservada antes de enfileirar, permitindo cancelamento mesmo antes do worker iniciar. O cartão é persistido antes de iniciar trabalho nativo. Cancelamento reconhecido entre fases/chamadas de módulo e etapas de denoising, sem matar threads. **Não interrompe um kernel MNN ou operação de carregamento já em execução**: pode aguardar a chamada atual. Após terminar/cancelar, pipeline e lease são liberados, incluindo coleta dos blocos ociosos do allocator Express do próprio MNN, sem GC Java artificial; GGUF não é recarregado automaticamente. O usuário pode carregá-lo novamente pelo gerenciamento já existente.
 
 ## Validação executada / limites
 
@@ -75,3 +75,7 @@ Requer validação física com modelo SD1.5 real. Não considerar geração func
 - `reports/ETAPA_9B_RELATORIO.md`
 
 Primeiro CI `41975345359`: Kotlin/Silero e testes de pacote passaram; configuração CMake falhou no POST_BUILD do object target MNNOpenCV. Corrigido com a opção oficial de embedding estático descrita acima. A entrega deve usar o APK do run posterior do commit corrigido, nunca esse run falho.
+
+## JNI real no host
+
+JVM real, ImageNative.kt real e libharuna_image.so dos mesmos fontes: validação do pacote CPU e rejeição do grafo GPU passaram; Native.load()/unload() reais e unload idempotente passaram; reserva concorrente recusada e cancelamento antes de executar retornou false, sem PNG. RSS Linux: antes 36.252 KiB; após load 314.344 KiB; após unload 78.320 KiB. Esse carregamento em memoryMode 0 prepara os módulos e executa CLIP; não comprova UNet/VAE nem primeira imagem. Não é medição Android.
