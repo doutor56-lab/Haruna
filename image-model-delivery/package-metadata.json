@@ -1,0 +1,184 @@
+{
+  "package": "SD15-MNN-CPU-referencia.zip",
+  "size": 1154547969,
+  "sha256": "5c3e85a5b8bb146634c91cffd31c9639a01ebfcb58411bc9850d6baf79a26c66",
+  "source": {
+    "repo": "taobao-mnn/stable-diffusion-v1-5-mnn-general",
+    "revision": "56c93a62ac9d6b5d18605632b85e25f87281f317"
+  },
+  "tokenizerSha256": "21cc1d6f9dca099fb184a899b08e898121b6e18e9f38757ee9feede49d8c038a",
+  "validation": "CRC and SHA-256 checked; real JNI CPU load/unload passed; complete generation NOT proven; host UNet memory limit reached",
+  "weightsModified": false,
+  "inAPK": false,
+  "licenseCopies": "Embedded in haruna-image-model.json; source licenses also supplied separately.",
+  "files": {
+    "tokenizer.mtok": {
+      "size": 1322512,
+      "sha256": "21cc1d6f9dca099fb184a899b08e898121b6e18e9f38757ee9feede49d8c038a"
+    },
+    "vae_decoder.mnn.weight": {
+      "size": 49639636,
+      "sha256": "251c9025a6ae2164746ca549ebfc3ce63df418e23abab5abe41c2bc0b1f9b7ff"
+    },
+    "vae_decoder.mnn": {
+      "size": 183960,
+      "sha256": "8599ec07791cf635058f5d38981f318c7939e8d5274bb8bfe49d57d2962e3220"
+    },
+    "unet.mnn.weight": {
+      "size": 863650252,
+      "sha256": "904302004049d81dfa88035dc945e18ea9823a1bfa75bdfefb8f792ade9ea8bb"
+    },
+    "unet.mnn": {
+      "size": 1353144,
+      "sha256": "3895d9101b16f99660010c87cf1413407103a237636d6a112de11a674a960d4c"
+    },
+    "text_encoder.mnn.weight": {
+      "size": 238120368,
+      "sha256": "c245ac80dd8a72279976414435801d579a8dcf83aba84e121c4e4a0b74bbed3d"
+    },
+    "text_encoder.mnn": {
+      "size": 249944,
+      "sha256": "9fb787d566512379dcdf9e25b43d9169b7b85eda423408706cf3a56c63dff6dd"
+    }
+  },
+  "entries": [
+    {
+      "filename": "tokenizer.mtok",
+      "date_time": [
+        2026,
+        11,
+        5,
+        5,
+        40,
+        50
+      ],
+      "compress_type": 0,
+      "create_system": 3,
+      "create_version": 20,
+      "extract_version": 20,
+      "internal_attr": 0,
+      "external_attr": 2172649472
+    },
+    {
+      "filename": "vae_decoder.mnn.weight",
+      "date_time": [
+        2026,
+        11,
+        5,
+        5,
+        39,
+        36
+      ],
+      "compress_type": 0,
+      "create_system": 3,
+      "create_version": 20,
+      "extract_version": 20,
+      "internal_attr": 0,
+      "external_attr": 2172649472
+    },
+    {
+      "filename": "vae_decoder.mnn",
+      "date_time": [
+        2026,
+        11,
+        5,
+        5,
+        39,
+        32
+      ],
+      "compress_type": 0,
+      "create_system": 3,
+      "create_version": 20,
+      "extract_version": 20,
+      "internal_attr": 0,
+      "external_attr": 2172649472
+    },
+    {
+      "filename": "unet.mnn.weight",
+      "date_time": [
+        2026,
+        11,
+        5,
+        5,
+        40,
+        14
+      ],
+      "compress_type": 0,
+      "create_system": 3,
+      "create_version": 20,
+      "extract_version": 20,
+      "internal_attr": 0,
+      "external_attr": 2172649472
+    },
+    {
+      "filename": "unet.mnn",
+      "date_time": [
+        2026,
+        11,
+        5,
+        5,
+        39,
+        32
+      ],
+      "compress_type": 0,
+      "create_system": 3,
+      "create_version": 20,
+      "extract_version": 20,
+      "internal_attr": 0,
+      "external_attr": 2172649472
+    },
+    {
+      "filename": "text_encoder.mnn.weight",
+      "date_time": [
+        2026,
+        11,
+        5,
+        5,
+        39,
+        44
+      ],
+      "compress_type": 0,
+      "create_system": 3,
+      "create_version": 20,
+      "extract_version": 20,
+      "internal_attr": 0,
+      "external_attr": 2172649472
+    },
+    {
+      "filename": "text_encoder.mnn",
+      "date_time": [
+        2026,
+        11,
+        5,
+        5,
+        39,
+        32
+      ],
+      "compress_type": 0,
+      "create_system": 3,
+      "create_version": 20,
+      "extract_version": 20,
+      "internal_attr": 0,
+      "external_attr": 2172649472
+    },
+    {
+      "filename": "haruna-image-model.json",
+      "date_time": [
+        2026,
+        11,
+        5,
+        6,
+        43,
+        54
+      ],
+      "compress_type": 0,
+      "create_system": 3,
+      "create_version": 20,
+      "extract_version": 20,
+      "internal_attr": 0,
+      "external_attr": 25165824
+    }
+  ],
+  "baseUrl": "https://huggingface.co/taobao-mnn/stable-diffusion-v1-5-mnn-general/resolve/56c93a62ac9d6b5d18605632b85e25f87281f317",
+  "manifestSha256": "0c2a5b57caa83a107a0230cc6431353c1ec1e51bb62f51f12bbc77c784b6aaaf"
+}

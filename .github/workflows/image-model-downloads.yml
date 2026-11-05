@@ -1,0 +1,31 @@
+name: Haruna 9B downloadable files
+on:
+  push:
+    branches: [delivery/image-9b-downloads]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: false
+      - name: Prepare checked reference package without inference
+        run: python3 image-model-delivery/package.py --output out
+      - name: Retrieve the existing verified APK without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41978257995 --repo "$GITHUB_REPOSITORY" --name Haruna-9B-APK --dir out
+          echo '027f0c0478cf60d23ace5c9a36fcdbdaa293e59a3be26fc7994f145ccdaaae5b  out/Haruna-9B-debug.apk' | sha256sum --check
+          cd out
+          sha256sum Haruna-9B-debug.apk SD15-MNN-CPU-referencia.zip > SHA256SUMS.txt
+      - name: Publish separate installation and model downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="haruna-9b-downloads-${GITHUB_RUN_ID}"
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target 197b9a97d0aa0d9ee06f9cd0a8ea5c7831a0f764 --prerelease --latest=false --title 'Haruna 9B — downloads experimentais' --notes-file image-model-delivery/README.md out/Haruna-9B-debug.apk out/SD15-MNN-CPU-referencia.zip out/SHA256SUMS.txt
