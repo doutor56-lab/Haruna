@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets
  */
 object SafetensorsInspector {
     private const val MAX_HEADER_BYTES = 16L * 1024 * 1024
-    data class Result(val tensorCount: Int, val tensorBytes: Long, val fileBytes: Long)
+    data class Result(val tensorCount: Int, val tensorBytes: Long, val fileBytes: Long, val architectureHint: SafetensorsArchitecture.Hint)
     private data class Span(val start: Long, val end: Long)
 
     private val bitsPerElement = mapOf(
@@ -42,11 +42,13 @@ object SafetensorsInspector {
             val json = JSONObject(String(header, StandardCharsets.UTF_8))
             val dataBytes = fileBytes - 8 - headerBytes
             val spans = mutableListOf<Span>()
+            val tensorNames = mutableListOf<String>()
             for (name in json.keys()) {
                 if (name == "__metadata__") {
                     json.getJSONObject(name)
                     continue
                 }
+                tensorNames.add(name)
                 val tensor = json.getJSONObject(name)
                 val bits = bitsPerElement[tensor.getString("dtype")]
                     ?: throw IllegalArgumentException("Tipo de tensor não reconhecido")
@@ -77,7 +79,7 @@ object SafetensorsInspector {
                 cursor = span.end
             }
             require(cursor == dataBytes) { "Dados extras ou truncados no arquivo" }
-            return Result(spans.size, dataBytes, fileBytes)
+            return Result(spans.size, dataBytes, fileBytes, SafetensorsArchitecture.detect(tensorNames.asSequence()))
         }
     }
 }
