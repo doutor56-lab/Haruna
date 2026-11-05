@@ -27,4 +27,19 @@ object SafetensorsArchitecture {
             else -> Hint.UNKNOWN
         }
     }
+    data class Tensor(val dtype:String,val shape:List<Long>)
+    // CompVis monolithic SD1.5 txt2img. SD2 (1024), SDXL, inpaint (9 channels),
+    // LoRA and split Diffusers components are not complete SD1.5 checkpoints.
+    private val required=mapOf(
+        "model.diffusion_model.input_blocks.0.0.weight" to listOf(320L,4L,3L,3L),
+        "model.diffusion_model.input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight" to listOf(320L,768L),
+        "cond_stage_model.transformer.text_model.embeddings.token_embedding.weight" to listOf(49408L,768L),
+        "cond_stage_model.transformer.text_model.embeddings.position_embedding.weight" to listOf(77L,768L),
+        "first_stage_model.decoder.conv_out.weight" to listOf(3L,128L,3L,3L),
+        "first_stage_model.post_quant_conv.weight" to listOf(4L,4L,1L,1L)
+    )
+    fun supportsCheckpoint(tensors:Map<String,Tensor>):Boolean =
+        detect(tensors.keys.asSequence())==Hint.SD15_LIKE && required.all{(name,shape)->
+            tensors[name]?.let{it.shape==shape&&it.dtype in setOf("F16","F32")}==true
+        }
 }

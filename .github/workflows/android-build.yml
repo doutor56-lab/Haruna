@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [main, recovery/haruna-82d3c47, luna/silero-vad, feature/nezumi-model-compat]
+    branches: [main, recovery/haruna-82d3c47, luna/silero-vad, feature/nezumi-model-compat, feature/safetensors-sd15]
   pull_request:
   workflow_dispatch:
 
@@ -97,6 +97,13 @@ jobs:
               assert 'lib/arm64-v8a/libharuna_image.so' in names
               assert 'lib/arm64-v8a/libharuna_nezumi_engine.so' in names
               assert 'lib/arm64-v8a/libharuna_nezumi_image.so' in names
+              assert 'lib/arm64-v8a/libharuna_sd_safetensors.so' in names
+              assert 'assets/licenses/safetensors/stable-diffusion.cpp-MIT.txt' in names
+              import subprocess, pathlib
+              lib=pathlib.Path(z.extract('lib/arm64-v8a/libharuna_sd_safetensors.so','apk-audit'))
+              deps=subprocess.check_output(['readelf','-d',str(lib)],text=True)
+              assert 'libggml' not in deps and 'vulkan' not in deps.lower() and 'OpenCL' not in deps
+              print('Safetensors private CPU library dependencies verified')
               assert 'assets/licenses/nezumi/GPL-3.0.txt' in names
               assert not any(n.endswith('/libMNN.so') for n in names)
               assert not any(n.endswith('/libggml-vulkan.so') for n in names)
@@ -127,14 +134,14 @@ jobs:
           print('Verified: APK contains the current Haruna UI and bridge assets.')
 
       - name: Name image installation APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-Nezumi-ARM64-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-SD15-Safetensors-ARM64-debug.apk
 
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Haruna-Nezumi-ARM64-APK
-          path: app/build/outputs/apk/debug/Haruna-Nezumi-ARM64-debug.apk
+          name: Haruna-SD15-Safetensors-ARM64-APK
+          path: app/build/outputs/apk/debug/Haruna-SD15-Safetensors-ARM64-debug.apk
           if-no-files-found: error
 
 
@@ -146,23 +153,26 @@ jobs:
         run: |
           mkdir -p image-source
           cp -a app/src/main/cpp/image image-source/
+          cp -a app/src/main/cpp/safetensors image-source/
+          cp docs/SAFETENSORS_SD15_ANDROID_INTEGRATION.md image-source/
           cp -a docs/IMAGE_ENGINE_NEZUMI_INTEGRATION.md image-source/
           cp app/build.gradle.kts image-source/
           MNN_SOURCE=$(find app/.cxx -type d -path '*/_deps/mnn_image-src' -print -quit)
           test -f "$MNN_SOURCE/CMakeLists.txt"
           cp -a "$MNN_SOURCE" image-source/MNN
           git rev-parse HEAD > image-source/HARUNA_COMMIT.txt
-          sha256sum app/build/outputs/apk/debug/Haruna-Nezumi-ARM64-debug.apk > image-source/APK_SHA256.txt
+          sha256sum app/build/outputs/apk/debug/Haruna-SD15-Safetensors-ARM64-debug.apk > image-source/APK_SHA256.txt
           tar -czf HARUNA_NEZUMI_CORRESPONDING_SOURCE.tar.gz image-source
 
       - name: Upload source and technical report
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Haruna-Nezumi-Source-and-Report
+          name: Haruna-SD15-Safetensors-Source-and-Report
           path: |
             HARUNA_NEZUMI_CORRESPONDING_SOURCE.tar.gz
             docs/IMAGE_ENGINE_NEZUMI_INTEGRATION.md
+            docs/SAFETENSORS_SD15_ANDROID_INTEGRATION.md
             docs/evidence/nezumi/
             app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: error

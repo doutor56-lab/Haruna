@@ -20,6 +20,7 @@ internal object ImageFiles {
         val bitmap=Bitmap.createBitmap(pixels,512,512,Bitmap.Config.ARGB_8888)
         try{file.outputStream().use{check(bitmap.compress(Bitmap.CompressFormat.PNG,100,it)){"Não foi possível gravar PNG"}}}finally{bitmap.recycle()}
     }
+    fun validateDimensions(file:File,resolution:Int){val options=BitmapFactory.Options().apply{inJustDecodeBounds=true};BitmapFactory.decodeFile(file.absolutePath,options);check(options.outWidth==resolution&&options.outHeight==resolution){"PNG nativo inválido"}}
     fun resize(file:File,resolution:Int){
         val bitmap=BitmapFactory.decodeFile(file.absolutePath)?:error("PNG gerado inválido")
         try{check(bitmap.width==512&&bitmap.height==512){"Resolução nativa inesperada"}

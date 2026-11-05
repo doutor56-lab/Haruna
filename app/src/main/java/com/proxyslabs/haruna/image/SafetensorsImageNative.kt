@@ -1,12 +1,6 @@
 package com.proxyslabs.haruna.image
 
-/**
- * Optional CPU backend for SD 1.5 safetensors checkpoints.
- *
- * The native library is deliberately NOT bundled until the Android ARM64
- * stable-diffusion.cpp build and its dependencies have been verified.
- * Existing MNN / Nezumi engines must remain independent.
- */
+/** Independent CPU-only stable-diffusion.cpp JNI; no shared GGML with GGUF/STT. */
 internal object SafetensorsImageNative {
     val available: Boolean by lazy {
         runCatching {
@@ -31,4 +25,5 @@ internal object SafetensorsImageNative {
     external fun cancel(handle: Long)
     external fun destroy(handle: Long)
     external fun lastError(): String
+    external fun progress(handle: Long): IntArray
 }

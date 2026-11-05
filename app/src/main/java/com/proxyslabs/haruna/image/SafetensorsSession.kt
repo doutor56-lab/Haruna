@@ -9,9 +9,9 @@ import java.io.File
  * Call from a dedicated background thread. The caller must coordinate with
  * the app's GGUF/image memory lease before opening this engine.
  */
-internal class SafetensorsSession private constructor(private var handle: Long) : Closeable {
+internal class SafetensorsSession private constructor(@Volatile private var handle: Long) : Closeable {
     companion object {
-        fun open(checkpoint: File): SafetensorsSession {
+        fun open(checkpoint: File, cancelled:()->Boolean={false}, onCreated:(SafetensorsSession)->Unit={}): SafetensorsSession {
             require(SafetensorsImageNative.available) {
                 "Motor safetensors não incluído neste APK"
             }
@@ -19,18 +19,22 @@ internal class SafetensorsSession private constructor(private var handle: Long) 
                 "Selecione um arquivo .safetensors válido"
             }
             val inspection = SafetensorsInspector.inspect(checkpoint)
-            require(inspection.architectureHint == SafetensorsArchitecture.Hint.SD15_LIKE) {
+            require(inspection.sd15Compatible) {
                 "Checkpoint não identificado como SD 1.5; importação experimental bloqueada"
             }
             val id = SafetensorsImageNative.create()
             check(id != 0L) { SafetensorsImageNative.lastError() }
+            val session=SafetensorsSession(id)
             try {
+                onCreated(session)
+                check(!cancelled()){ "Carregamento cancelado" }
                 check(SafetensorsImageNative.loadSd15(id, checkpoint.absolutePath)) {
                     SafetensorsImageNative.lastError()
                 }
-                return SafetensorsSession(id)
+                check(!cancelled()){ "Carregamento cancelado" }
+                return session
             } catch (failure: Throwable) {
-                SafetensorsImageNative.destroy(id)
+                session.close()
                 throw failure
             }
         }
@@ -57,6 +61,8 @@ internal class SafetensorsSession private constructor(private var handle: Long) 
             width, height, steps, seed
         )) { SafetensorsImageNative.lastError() }
     }
+
+    fun progress():IntArray {val id=handle;return if(id==0L)intArrayOf(0,0,0) else SafetensorsImageNative.progress(id)}
 
     // Native cancel must remain callable while generate() holds the session monitor.
     fun cancel() {

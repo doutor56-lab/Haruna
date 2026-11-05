@@ -150,7 +150,7 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = request.url.host != "appassets.androidplatform.net"
         }
         webView.addJavascriptInterface(bridge, "HarunaAndroid")
-        imageModels=com.proxyslabs.haruna.image.ImageBridge(applicationContext,backend){runOnUiThread{if(!activityClosed) imagePicker.launch(arrayOf("application/zip","application/octet-stream"))}}
+        imageModels=com.proxyslabs.haruna.image.ImageBridge(applicationContext,backend){runOnUiThread{if(!activityClosed) imagePicker.launch(arrayOf("*/*"))}}
         webView.addJavascriptInterface(imageModels,"HarunaImages")
         speech = com.proxyslabs.haruna.speech.SpeechBridge(this, webView)
         webView.addJavascriptInterface(speech, "HarunaSpeech")

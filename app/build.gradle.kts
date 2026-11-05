@@ -136,3 +136,22 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }
+
+// Independent configure/build: stable-diffusion.cpp must not reuse Whisper's ggml target.
+val safetensorsJni = layout.buildDirectory.dir("generated/safetensors-jni")
+android.sourceSets.getByName("main").jniLibs.srcDir(safetensorsJni)
+val buildSafetensorsNative by tasks.registering {
+    inputs.dir("src/main/cpp/safetensors")
+    outputs.file(safetensorsJni.map { it.file("arm64-v8a/libharuna_sd_safetensors.so") })
+    doLast {
+        val sdk = android.sdkDirectory
+        val cmake = File(sdk, "cmake/3.31.6/bin/" + if(System.getProperty("os.name").startsWith("Windows")) "cmake.exe" else "cmake")
+        val nativeBuild = layout.buildDirectory.dir("safetensors-native").get().asFile
+        val output = safetensorsJni.get().dir("arm64-v8a").asFile
+        project.exec { commandLine(cmake.absolutePath, "-S", file("src/main/cpp/safetensors").absolutePath, "-B", nativeBuild.absolutePath,
+            "-DCMAKE_TOOLCHAIN_FILE=" + File(sdk,"ndk/${android.ndkVersion}/build/cmake/android.toolchain.cmake").absolutePath,
+            "-DANDROID_ABI=arm64-v8a", "-DANDROID_PLATFORM=android-33", "-DANDROID_STL=c++_static", "-DCMAKE_BUILD_TYPE=Release", "-DHARUNA_JNI_OUTPUT_DIR=" + output.absolutePath) }
+        project.exec { commandLine(cmake.absolutePath, "--build", nativeBuild.absolutePath, "--target", "haruna_sd_safetensors", "--parallel", "2") }
+    }
+}
+tasks.named("preBuild").configure { dependsOn(buildSafetensorsNative) }

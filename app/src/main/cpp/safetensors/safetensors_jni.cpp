@@ -3,142 +3,52 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 #include <atomic>
+#include <codecvt>
+#include <locale>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unistd.h>
 
 namespace {
 struct Session {
-    std::mutex operation;
-    std::atomic<sd_ctx_t*> ctx{nullptr};
-    ~Session() { if (auto* p = ctx.exchange(nullptr)) free_sd_ctx(p); }
+    std::mutex operation, contextAccess;
+    sd_ctx_t* ctx=nullptr; // operation owns use; contextAccess protects cancel vs release.
+    std::atomic<bool> cancelled{false},closing{false};
+    std::atomic<int> phase{0},step{0},total{0};
 };
-std::mutex registryMutex;
-std::unordered_map<jlong, std::shared_ptr<Session>> sessions;
-std::atomic<jlong> nextId{1};
+std::mutex registryMutex,engineMutex; // Upstream log/progress callbacks are process-global.
+std::unordered_map<jlong,std::shared_ptr<Session>> sessions;
+std::atomic<jlong> nextId{0};
 thread_local std::string lastError;
-
-std::shared_ptr<Session> find(jlong id) {
-    std::lock_guard<std::mutex> guard(registryMutex);
-    auto it = sessions.find(id);
-    return it == sessions.end() ? nullptr : it->second;
+std::shared_ptr<Session> find(jlong id){std::lock_guard<std::mutex> l(registryMutex);auto i=sessions.find(id);return i==sessions.end()?nullptr:i->second;}
+std::string fromJava(JNIEnv* env,jstring value){if(!value)return {};const auto n=env->GetStringLength(value);const auto* p=env->GetStringChars(value,nullptr);if(!p)throw std::bad_alloc();std::u16string s(reinterpret_cast<const char16_t*>(p),n);env->ReleaseStringChars(value,p);return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>,char16_t>{}.to_bytes(s);}
+void cancel(Session& s){s.cancelled=true;std::lock_guard<std::mutex> l(s.contextAccess);if(s.ctx)sd_cancel_generation(s.ctx,SD_CANCEL_ALL);}
+// Called by the worker holding operation + engineMutex. Never free through the UI cancel path.
+void release(Session& s){sd_ctx_t* p;{std::lock_guard<std::mutex> l(s.contextAccess);p=s.ctx;s.ctx=nullptr;}if(p)free_sd_ctx(p);}
+void quiet(sd_log_level_t,const char*,void*){} // Upstream logs can contain prompt/paths.
+void progress(int step,int steps,float,void* data){auto& s=*static_cast<Session*>(data);if(step>=0&&steps>0&&step<=steps){s.step=step;s.total=steps;s.phase=step==steps?4:3;}if(s.cancelled)cancel(s);}
+struct CallbackScope {explicit CallbackScope(Session* s){sd_set_log_callback(quiet,nullptr);sd_set_progress_callback(progress,s);}~CallbackScope(){sd_set_progress_callback(nullptr,nullptr);}};
 }
-std::string fromJava(JNIEnv* env, jstring value) {
-    if (!value) return {};
-    const char* chars = env->GetStringUTFChars(value, nullptr);
-    if (!chars) return {};
-    std::string out(chars);
-    env->ReleaseStringUTFChars(value, chars);
-    return out;
-}
-}
-
-extern "C" JNIEXPORT jlong JNICALL
-Java_com_proxyslabs_haruna_image_SafetensorsImageNative_create(JNIEnv*, jobject) {
-    const jlong id = nextId.fetch_add(1);
-    std::lock_guard<std::mutex> guard(registryMutex);
-    sessions.emplace(id, std::make_shared<Session>());
-    return id;
-}
-
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_proxyslabs_haruna_image_SafetensorsImageNative_loadSd15(
-    JNIEnv* env, jobject, jlong id, jstring checkpoint) {
-    auto session = find(id);
-    if (!session) { lastError = "Sessão inexistente"; return JNI_FALSE; }
-    const std::string path = fromJava(env, checkpoint);
-    if (path.empty()) { lastError = "Caminho do modelo vazio"; return JNI_FALSE; }
-    std::lock_guard<std::mutex> guard(session->operation);
-    if (session->ctx.load()) { lastError = "Modelo já carregado"; return JNI_FALSE; }
-    sd_ctx_params_t params{};
-    sd_ctx_params_init(&params);
-    params.model_path = path.c_str();
-    params.n_threads = 4;
-    params.enable_mmap = true;
-    sd_ctx_t* ctx = new_sd_ctx(&params);
-    if (!ctx) { lastError = "Falha ao carregar checkpoint"; return JNI_FALSE; }
-    const char* modelVersion = sd_get_model_version_name(ctx);
-    const std::string version = modelVersion ? modelVersion : "";
-    if (version.find("1.") == std::string::npos && version.find("SD1") == std::string::npos) {
-        free_sd_ctx(ctx);
-        lastError = "Checkpoint não identificado como SD 1.x";
-        return JNI_FALSE;
-    }
-    session->ctx.store(ctx);
-    return JNI_TRUE;
-}
-
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_proxyslabs_haruna_image_SafetensorsImageNative_generatePng(
-    JNIEnv* env, jobject, jlong id, jstring prompt, jstring negative, jstring output,
-    jint width, jint height, jint steps, jlong seed) {
-    auto session = find(id);
-    if (!session) { lastError = "Sessão inexistente"; return JNI_FALSE; }
-    if (width < 256 || height < 256 || width > 768 || height > 768 ||
-        width % 64 || height % 64 || steps < 1 || steps > 50) {
-        lastError = "Dimensões ou passos inválidos";
-        return JNI_FALSE;
-    }
-    const std::string p = fromJava(env, prompt);
-    const std::string n = fromJava(env, negative);
-    const std::string path = fromJava(env, output);
-    if (p.empty() || path.empty()) { lastError = "Prompt ou destino vazio"; return JNI_FALSE; }
-    std::lock_guard<std::mutex> guard(session->operation);
-    sd_ctx_t* ctx = session->ctx.load();
-    if (!ctx) { lastError = "Modelo não carregado"; return JNI_FALSE; }
-    sd_img_gen_params_t params{};
-    sd_img_gen_params_init(&params);
-    params.prompt = p.c_str();
-    params.negative_prompt = n.c_str();
-    params.width = width;
-    params.height = height;
-    params.sample_params.sample_steps = steps;
-    params.seed = seed;
-    params.batch_count = 1;
-    sd_image_generation_result_t* result = nullptr;
-    const bool ok = generate_image(ctx, &params, &result);
-    bool saved = false;
-    if (ok && result && result->count > 0) {
-        const auto& img = result->items[0].image;
-        if (img.data && img.width == static_cast<uint32_t>(width) &&
-            img.height == static_cast<uint32_t>(height) &&
-            (img.channel == 3 || img.channel == 4)) {
-            saved = stbi_write_png(path.c_str(), width, height,
-                static_cast<int>(img.channel), img.data, width * img.channel) != 0;
-        }
-    }
-    if (result) free_sd_image_generation_result(result);
-    if (!saved) lastError = "Falha ao gerar ou salvar PNG";
-    return saved ? JNI_TRUE : JNI_FALSE;
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_proxyslabs_haruna_image_SafetensorsImageNative_cancel(
-    JNIEnv*, jobject, jlong id) {
-    auto session = find(id);
-    if (session) {
-        if (auto* ctx = session->ctx.load()) sd_cancel_generation(ctx, SD_CANCEL_ALL);
-    }
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_proxyslabs_haruna_image_SafetensorsImageNative_destroy(
-    JNIEnv*, jobject, jlong id) {
-    std::shared_ptr<Session> session;
-    {
-        std::lock_guard<std::mutex> guard(registryMutex);
-        auto it = sessions.find(id);
-        if (it == sessions.end()) return;
-        session = it->second;
-        sessions.erase(it);
-    }
-    std::lock_guard<std::mutex> guard(session->operation);
-    if (auto* ctx = session->ctx.exchange(nullptr)) free_sd_ctx(ctx);
-}
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_proxyslabs_haruna_image_SafetensorsImageNative_lastError(
-    JNIEnv* env, jobject) {
-    return env->NewStringUTF(lastError.c_str());
-}
+#define JNI(name) Java_com_proxyslabs_haruna_image_SafetensorsImageNative_##name
+extern "C" JNIEXPORT jlong JNICALL JNI(create)(JNIEnv*,jobject){try{auto s=std::make_shared<Session>();const auto id=++nextId;std::lock_guard<std::mutex> l(registryMutex);sessions.emplace(id,s);return id;}catch(...){lastError="Memória insuficiente para criar sessão SD1.5";return 0;}}
+extern "C" JNIEXPORT jboolean JNICALL JNI(loadSd15)(JNIEnv* env,jobject,jlong id,jstring checkpoint){auto s=find(id);if(!s){lastError="Sessão inexistente";return false;}std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);try{lastError.clear();if(s->closing||s->cancelled){lastError="Carregamento cancelado";return false;}if(s->ctx){lastError="Modelo já carregado";return false;}sd_set_log_callback(quiet,nullptr);s->phase=1;const auto path=fromJava(env,checkpoint);if(path.empty()){lastError="Checkpoint vazio";return false;}sd_ctx_params_t params{};sd_ctx_params_init(&params);params.model_path=path.c_str();params.n_threads=4;params.enable_mmap=true;params.batched_cfg=false;params.backend="cpu";params.params_backend="cpu";
+        std::unique_ptr<sd_ctx_t,decltype(&free_sd_ctx)> ctx(new_sd_ctx(&params),free_sd_ctx);
+        if(!ctx){lastError="Falha ao carregar SD1.5; confira integridade e memória disponível";return false;}
+        const auto* version=sd_get_model_version_name(ctx.get());if(!version||std::string(version)!="SD 1.x"){lastError="Checkpoint não é SD1.5 txt2img compatível";return false;}
+        if(s->closing||s->cancelled){lastError="Carregamento cancelado";return false;}
+        {std::lock_guard<std::mutex> l(s->contextAccess);s->ctx=ctx.release();}s->phase=2;return true;
+    }catch(const std::bad_alloc&){lastError="Memória insuficiente para carregar SD1.5";}catch(...){lastError="Falha nativa ao preparar SD1.5";}release(*s);return false;}
+extern "C" JNIEXPORT jboolean JNICALL JNI(generatePng)(JNIEnv* env,jobject,jlong id,jstring prompt,jstring negative,jstring output,jint width,jint height,jint steps,jlong seed){auto s=find(id);if(!s){lastError="Sessão inexistente";return false;}std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);std::string path;try{lastError.clear();if(s->closing||s->cancelled){lastError="Geração cancelada";return false;}if(!s->ctx){lastError="Modelo não carregado";return false;}if(width<256||height<256||width>768||height>768||width%64||height%64||steps<1||steps>50){lastError="Resolução ou etapas inválidas";return false;}const auto p=fromJava(env,prompt),n=fromJava(env,negative);path=fromJava(env,output);if(p.empty()||p.size()>8000||n.size()>8000||path.empty()){lastError="Descrição ou destino inválido";return false;}sd_img_gen_params_t params{};sd_img_gen_params_init(&params);params.prompt=p.c_str();params.negative_prompt=n.c_str();params.width=width;params.height=height;params.sample_params.sample_steps=steps;params.seed=seed;params.batch_count=1;s->phase=2;s->step=0;s->total=steps;CallbackScope callbacks(s.get());
+        sd_image_generation_result_t* result=nullptr;struct OutputOwner{sd_image_generation_result_t*& p;~OutputOwner(){if(p)free_sd_image_generation_result(p);}} owner{result};const bool ok=generate_image(s->ctx,&params,&result);
+        if(s->closing||s->cancelled){lastError="Geração cancelada";return false;}
+        if(!ok||!result||result->count!=1||!result->items){lastError="Falha na geração SD1.5";return false;}const auto& image=result->items[0].image;
+        if(!image.data||image.width!=static_cast<uint32_t>(width)||image.height!=static_cast<uint32_t>(height)||(image.channel!=3&&image.channel!=4)){lastError="Imagem nativa inválida";return false;}
+        s->phase=5;const bool saved=stbi_write_png(path.c_str(),width,height,image.channel,image.data,width*image.channel)!=0;
+        if(!saved||s->cancelled||s->closing){unlink(path.c_str());lastError=s->cancelled?"Geração cancelada":"Falha ao salvar PNG";return false;}return true;
+    }catch(const std::bad_alloc&){lastError="Memória insuficiente para gerar SD1.5";}catch(...){lastError="Falha nativa ao gerar SD1.5";}if(!path.empty())unlink(path.c_str());release(*s);return false;}
+extern "C" JNIEXPORT void JNICALL JNI(cancel)(JNIEnv*,jobject,jlong id){auto s=find(id);if(s)cancel(*s);}
+extern "C" JNIEXPORT void JNICALL JNI(destroy)(JNIEnv*,jobject,jlong id){std::shared_ptr<Session> s;{std::lock_guard<std::mutex> l(registryMutex);auto i=sessions.find(id);if(i==sessions.end())return;s=i->second;s->closing=true;sessions.erase(i);}cancel(*s);std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);release(*s);}
+extern "C" JNIEXPORT jstring JNICALL JNI(lastError)(JNIEnv* env,jobject){return env->NewStringUTF(("SD1.5 CPU: "+lastError).c_str());}
+extern "C" JNIEXPORT jintArray JNICALL JNI(progress)(JNIEnv* env,jobject,jlong id){auto s=find(id);jint values[3]={s?s->phase.load():0,s?s->step.load():0,s?s->total.load():0};auto a=env->NewIntArray(3);if(a)env->SetIntArrayRegion(a,0,3,values);return a;}
