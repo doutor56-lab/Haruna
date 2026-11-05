@@ -37,3 +37,6 @@ target_link_options(haruna_image PRIVATE -Wl,--exclude-libs,ALL -Wl,-Bsymbolic -
 set_target_properties(haruna_image PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/exports.map)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/pipeline.cmake)
+
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/nezumi.cmake)

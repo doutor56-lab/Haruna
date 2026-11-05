@@ -15,7 +15,7 @@ object ImagePackage {
     fun hash(file:File,cancelled:()->Boolean={false}):String {val md=MessageDigest.getInstance("SHA-256");file.inputStream().use{input->val b=ByteArray(65536);while(true){check(!cancelled()){ "Operação cancelada" };val n=input.read(b);if(n<0)break;md.update(b,0,n)}};return md.digest().joinToString(""){"%02x".format(it)}}
     fun verify(dir:File,cancelled:()->Boolean={false}):JSONObject {
         val mf=File(dir,"haruna-image-model.json");require(mf.isFile&&mf.length()<=65536){"Manifesto de modelo ausente ou inválido"}
-        val m=JSONObject(mf.readText());require(m.getInt("version")==1&&m.getString("architecture")=="sd15"&&m.getString("engine")=="mnn"){"Pacote incompatível: requer SD1.5 MNN"}
+        val m=JSONObject(mf.readText());if(m.optString("format")==NezumiPackage.format)return NezumiPackage.verify(dir,cancelled);require(m.getInt("version")==1&&m.getString("architecture")=="sd15"&&m.getString("engine")=="mnn"){"Pacote incompatível: requer SD1.5 MNN"}
         val files=m.getJSONObject("files");require(required.all{files.has(it)}){"Componentes SD1.5 ausentes"}
         require(files.length()<=7&&files.keys().asSequence().all{it in allowed&&it!="haruna-image-model.json"}){"Componente não permitido"}
         for(name in files.keys()) {val file=File(dir,name);val h=files.getString(name);require(h.matches(Regex("[0-9a-f]{64}"))&&file.isFile&&file.length()>0&&hash(file,cancelled)==h){"Modelo incompleto ou corrompido"}}
@@ -23,7 +23,7 @@ object ImagePackage {
         return m
     }
     fun install(input:InputStream, root:File, cancelled:()->Boolean, available:()->Long, progress:(Long)->Unit):File {
-        root.mkdirs();val temp=File(root,".install-"+UUID.randomUUID()).apply{mkdirs()};var total=0L;val seen=mutableSetOf<String>()
+        root.mkdirs();val temp=File(root,NezumiPackage.stagingPrefix+UUID.randomUUID()).apply{mkdirs()};var total=0L;val seen=mutableSetOf<String>()
         try {
             ZipInputStream(input.buffered()).use{zip->while(true){check(!cancelled()){"Instalação cancelada"};val entry=zip.nextEntry?:break
                 val name=entry.name;require(!entry.isDirectory&&name in allowed&&seen.add(name)){"Pacote inválido: arquivos devem estar na raiz, sem caminhos ou duplicatas"}
@@ -33,3 +33,4 @@ object ImagePackage {
         }catch(e:Throwable){temp.deleteRecursively();throw e}
     }
 }
+

@@ -1,0 +1,5 @@
+package com.proxyslabs.haruna.image
+import java.io.File
+import javax.imageio.ImageIO
+import java.awt.image.BufferedImage
+fun main(args:Array<String>){check(NezumiImageNative.available);val dir=File(args[0]);check(NezumiImageNative.validateFiles(NezumiPackage.graphFiles(dir)));val h=NezumiImageNative.create();try{check(NezumiImageNative.loadCpu(h,dir.path)){NezumiImageNative.lastError()};val start=System.nanoTime();val rgb=NezumiImageNative.generateRgb(h,"a red apple on a wooden table, daylight, photograph","",5,424242)?:error(NezumiImageNative.lastError());check(rgb.size==512*512*3);val image=BufferedImage(512,512,BufferedImage.TYPE_INT_RGB);for(i in 0 until 512*512){val j=i*3;image.setRGB(i%512,i/512,((rgb[j].toInt() and 255) shl 16) or ((rgb[j+1].toInt() and 255) shl 8) or (rgb[j+2].toInt() and 255))};check(ImageIO.write(image,"png",File(args[1])));println("REAL HOST JNI PNG 512x512; steps=5 seed=424242 seconds="+(System.nanoTime()-start)/1e9)}finally{NezumiImageNative.destroy(h);check(!NezumiImageNative.isLoaded(h))}}

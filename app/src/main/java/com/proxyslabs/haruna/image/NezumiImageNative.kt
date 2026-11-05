@@ -1,12 +1,6 @@
 package com.proxyslabs.haruna.image
 
-/**
- * JNI contract for the separate Nezumi-compatible SD1.5 engine.
- *
- * This is deliberately NOT wired to ImageBridge yet: the native engine and
- * its LGPL-3.0 compliance review must be built before enabling this backend.
- * Keep the legacy Haruna ImageNative implementation unchanged.
- */
+/** CPU-only JNI adapter to the separately linked, LGPL Nezumi engine. */
 internal object NezumiImageNative {
     val available: Boolean = runCatching {
         System.loadLibrary("haruna_nezumi_image")
@@ -36,4 +30,7 @@ internal object NezumiImageNative {
 
     external fun cancel(handle: Long)
     external fun lastError(): String
+    external fun progress(handle: Long): IntArray
+    external fun validateFiles(paths: Array<String>): Boolean
 }
+

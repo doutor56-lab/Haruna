@@ -6,8 +6,7 @@ import java.util.zip.ZipInputStream
 /**
  * Non-destructive identification of image-model archives.
  *
- * Detection is intentionally separate from installation: Nezumi graphs and
- * tokenizer.json cannot be passed to the existing MNN SD1.5 pipeline.
+ * Detection is separate from installation: Nezumi packages use their own engine.
  */
 object ImageArchiveFormat {
     enum class Kind { HARUNA_SD15, NEZUMI_SD15, UNKNOWN }
@@ -49,13 +48,13 @@ object ImageArchiveFormat {
         val clip = normalized.any { it in setOf("clip.mnn", "clip_v2.mnn", "clip_fp16.mnn", "clip1.mnn") }
         val unet = normalized.any { it in setOf("unet.mnn", "unet_asym_block32.mnn", "unet_min.bin") }
         val vae = normalized.any { it in setOf("vae_decoder.mnn", "vae_decoder_fp16.mnn", "vae_decoder_min.bin") }
-        val tokenizer = "tokenizer.json" in normalized ||
-            ("token_emb.bin" in normalized && "pos_emb.bin" in normalized)
+        val tokenizer = "tokenizer.json" in normalized
         if (clip && unet && vae && tokenizer) {
             return Inspection(Kind.NEZUMI_SD15,
-                "Pacote Nezumi SD1.5 identificado; requer pipeline e tokenizer compatíveis antes da instalação",
+                "Pacote Nezumi SD1.5 identificado; instalação exige validação completa",
                 normalized)
         }
         return Inspection(Kind.UNKNOWN, "Componentes de modelo não reconhecidos", normalized)
     }
 }
+

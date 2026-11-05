@@ -1,0 +1,13 @@
+# LGPL engine is a replaceable shared library. MNN stays private in each DSO.
+file(GLOB NEZUMI_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/nezumi/src/*.cpp ${CMAKE_CURRENT_LIST_DIR}/nezumi/src/engine_detail/*.cpp)
+add_library(haruna_nezumi_engine SHARED ${NEZUMI_SOURCES})
+target_compile_features(haruna_nezumi_engine PRIVATE cxx_std_17)
+target_compile_definitions(haruna_nezumi_engine PRIVATE MNN_SD_HAS_MNN=1 MNN_SD_BUILD_SHARED=1 MNN_SD_EXPORTS=1 HARUNA_NEZUMI_QUIET=1)
+target_include_directories(haruna_nezumi_engine PUBLIC ${CMAKE_CURRENT_LIST_DIR}/nezumi/include PRIVATE ${CMAKE_CURRENT_LIST_DIR}/nezumi/src ${mnn_image_SOURCE_DIR}/include)
+target_link_libraries(haruna_nezumi_engine PRIVATE MNN log)
+target_link_options(haruna_nezumi_engine PRIVATE -Wl,--exclude-libs,ALL -Wl,-Bsymbolic -Wl,--version-script=${CMAKE_CURRENT_LIST_DIR}/nezumi_engine.map -Wl,-z,max-page-size=16384)
+add_library(haruna_nezumi_image SHARED nezumi_jni.cpp)
+target_compile_features(haruna_nezumi_image PRIVATE cxx_std_17)
+target_include_directories(haruna_nezumi_image PRIVATE ${mnn_image_SOURCE_DIR}/schema/current ${mnn_image_SOURCE_DIR}/3rd_party/flatbuffers/include)
+target_link_libraries(haruna_nezumi_image PRIVATE haruna_nezumi_engine)
+target_link_options(haruna_nezumi_image PRIVATE -Wl,--version-script=${CMAKE_CURRENT_LIST_DIR}/nezumi_jni.map -Wl,-z,max-page-size=16384)

@@ -1,0 +1,5 @@
+#include "mnn_sd/engine.h"
+#include <cstdio>
+#include <chrono>
+static void progress(const MnnSdProgress* p,void*){std::printf("STEP %d/%d %.2fs\n",p->step,p->total_steps,p->elapsed_sec);std::fflush(stdout);}
+int main(int argc,char**argv){if(argc!=3)return 2;auto e=mnn_sd_create();MnnSdLoadOptions opts{};opts.backend=MNN_SD_BACKEND_CPU;MnnSdErrorInfo err{};int rc=mnn_sd_load(e,argv[1],&opts,&err);printf("LOAD %d\n",rc);fflush(stdout);if(rc)return rc;MnnSdGenerateParams p{};p.prompt="a red apple on a wooden table, daylight, photograph";p.negative_prompt="";p.width=p.height=512;p.steps=5;p.cfg_scale=7.5;p.seed=424242;p.scheduler=MNN_SD_SCHEDULER_DPM_PP_2M;MnnSdImage img{};rc=mnn_sd_generate(e,&p,progress,nullptr,&img,&err);printf("GENERATE %d size=%zu\n",rc,img.data_size);if(rc)printf("TEST ERROR ONLY: %s %s\n",err.message,err.cause);if(!rc){auto f=fopen(argv[2],"wb");fprintf(f,"P6\n%d %d\n255\n",img.width,img.height);fwrite(img.data,1,img.data_size,f);fclose(f);}mnn_sd_free_image(&img);mnn_sd_unload(e);mnn_sd_destroy(e);return rc;}

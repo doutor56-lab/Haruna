@@ -14,6 +14,12 @@ import java.io.File
 
 /** Only finished, private PNG files are exposed through a scoped read grant. */
 internal object ImageFiles {
+    fun writeRgb(file:File,rgb:ByteArray){
+        require(rgb.size==512*512*3){"RGB inválido"}
+        val pixels=IntArray(512*512){i->val n=i*3;0xff000000.toInt() or ((rgb[n].toInt() and 255) shl 16) or ((rgb[n+1].toInt() and 255) shl 8) or (rgb[n+2].toInt() and 255)}
+        val bitmap=Bitmap.createBitmap(pixels,512,512,Bitmap.Config.ARGB_8888)
+        try{file.outputStream().use{check(bitmap.compress(Bitmap.CompressFormat.PNG,100,it)){"Não foi possível gravar PNG"}}}finally{bitmap.recycle()}
+    }
     fun resize(file:File,resolution:Int){
         val bitmap=BitmapFactory.decodeFile(file.absolutePath)?:error("PNG gerado inválido")
         try{check(bitmap.width==512&&bitmap.height==512){"Resolução nativa inesperada"}
@@ -34,3 +40,4 @@ internal object ImageFiles {
             app.startActivity(Intent.createChooser(intent,if(share)"Compartilhar imagem" else "Visualizar imagem").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))}
     }}
 }
+

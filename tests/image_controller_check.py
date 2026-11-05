@@ -29,9 +29,12 @@ annotation class JavascriptInterface
 'Native.kt':'''package com.proxyslabs.haruna.image
 object ImageNative{val available=true;var loads=0;var frees=0;var fail=false;fun validate(p:String)=true;fun load(p:String):Boolean{loads++;return !fail};fun unload(){frees++};var active=0L;var cancelId=0L;var runs=0;fun reserve(id:Long):Boolean{if(active!=0L)return false;active=id;return true};fun finish(id:Long){if(active==id)active=0};fun cancelNative(id:Long){if(active==id)cancelId=id};fun progress()=intArrayOf(3,1,5);fun generate(id:Long,p:String,prompt:String,out:String,steps:Int,m:Int):Boolean{runs++;Thread.sleep(100);if(cancelId==id||fail)return false;java.io.File(out).writeText("FAKE PIPELINE OUTPUT ONLY");return true}}
 ''',
+'Nezumi.kt':'''package com.proxyslabs.haruna.image
+object NezumiImageNative{val available=true;var next=0L;var active=0L;var fail=false;var cancelled=0L;fun validateFiles(p:Array<String>)=true;fun create():Long{next++;active=next;return next};fun loadCpu(h:Long,p:String)=!fail;fun isLoaded(h:Long)=h==active&&!fail;fun destroy(h:Long){if(active==h)active=0};fun cancel(h:Long){cancelled=h};fun progress(h:Long)=intArrayOf(3,1,5);fun lastError()="Motor Nezumi CPU: erro técnico 8";fun generateRgb(h:Long,p:String,n:String,s:Int,seed:Long):ByteArray?{Thread.sleep(100);return if(cancelled==h||fail)null else ByteArray(512*512*3)}}
+''',
 'Files.kt':'''package com.proxyslabs.haruna.image
 import java.io.File
-object ImageFiles{fun resize(f:File,r:Int){};fun save(c:android.content.Context,f:File){};fun open(c:android.content.Context,f:File,s:Boolean){}}
+object ImageFiles{fun writeRgb(f:File,b:ByteArray){check(b.size==512*512*3);f.writeText("FAKE RGB ONLY")};fun resize(f:File,r:Int){};fun save(c:android.content.Context,f:File){};fun open(c:android.content.Context,f:File,s:Boolean){}}
 ''',
 'Test.kt':'''import com.proxyslabs.haruna.image.*
 import com.proxyslabs.haruna.LlmBackend
@@ -48,13 +51,19 @@ val again=ImageBridge(ctx,Backend()){};waitFor(again){it.optJSONArray("models")?
 val queued=java.util.UUID.randomUUID().toString();check(again.generate(queued,"cancel before worker start"));again.cancelGeneration(queued);waitFor(again){it.optJSONObject("generation")?.optString("state")=="CANCELLED"};check(!File(root,"generated-images/$queued.png").exists()&&!ImageLease.active);
 val cancelled=java.util.UUID.randomUUID().toString();check(again.generate(cancelled,"a tree"));Thread.sleep(30);check(!again.generate(java.util.UUID.randomUUID().toString(),"concurrent"));again.cancelGeneration("stale-ticket");again.cancelGeneration(cancelled);waitFor(again){it.optJSONObject("generation")?.optString("state")=="CANCELLED"};check(!ImageLease.active&&ImageNative.active==0L&&!File(root,"generated-images/$cancelled.png").exists());
 val recovery=java.util.UUID.randomUUID().toString();check(again.generate(recovery,"a lake"));waitFor(again){it.optJSONObject("generation")?.optString("state")=="COMPLETED"};check(!ImageLease.active);
-ImageNative.fail=true;again.load(id);waitFor(again){it.optString("state")=="ERROR"};check(!ImageLease.active);again.remove(id,true);waitFor(again){it.optJSONArray("models")?.length()==0};again.close();println("PASS: controller install without load, CPU lease, competing owner rejection, unload, persisted selection, restart without autoload, failed load cleanup removal, serialized generation, result metadata, cancellation, stale-ticket isolation and generation after cancel (FAKE Android/native — no image inference).")
+ImageNative.fail=true;again.load(id);waitFor(again){it.optString("state")=="ERROR"};check(!ImageLease.active);again.remove(id,true);waitFor(again){it.optJSONArray("models")?.length()==0};again.close();
+val nz=File(root,"nezumi.zip");val vocab=JSONObject();repeat(1001){vocab.put("t$it",it)};val tok=JSONObject().put("model",JSONObject().put("vocab",vocab).put("merges",org.json.JSONArray(List(101){"a b"}))).toString().toByteArray()
+ZipOutputStream(nz.outputStream()).use{z->val zero=ByteArray(65536);for((n,size)in listOf("clip_v2.mnn" to 8,"unet.mnn" to 8,"vae_decoder_fp16.mnn" to 8,"clip_v2.mnn.weight" to 8,"unet.mnn.weight" to 8,"vae_decoder_fp16.mnn.weight" to 8,"token_emb.bin" to 49408*768*2,"pos_emb.bin" to 77*768*4)){z.putNextEntry(ZipEntry(n));var left=size;while(left>0){val count=minOf(left,zero.size);z.write(zero,0,count);left-=count};z.closeEntry()};z.putNextEntry(ZipEntry("tokenizer.json"));z.write(tok);z.closeEntry()}
+val nb=ImageBridge(ctx,Backend()){};waitFor(nb){it.optJSONArray("models")?.length()==0};nb.install(android.net.Uri(nz.path));waitFor(nb){it.optJSONArray("models")?.length()==1&&!it.getBoolean("busy")};val nid=state(nb).getString("selected");check(state(nb).getJSONArray("models").getJSONObject(0).getString("format")==NezumiPackage.format);check(NezumiImageNative.active==0L);nb.load(nid);waitFor(nb){it.optString("state")=="LOADED"};check(ImageLease.active&&NezumiImageNative.active>0);nb.unload();waitFor(nb){!it.getBoolean("busy")};check(!ImageLease.active&&NezumiImageNative.active==0L)
+val nj=java.util.UUID.randomUUID().toString();check(nb.generate(nj,"native fake test only"));waitFor(nb){it.optJSONObject("generation")?.optString("state")=="COMPLETED"};check(File(root,"generated-images/$nj.png").exists()&&!ImageLease.active&&NezumiImageNative.active==0L)
+val nc=java.util.UUID.randomUUID().toString();check(nb.generate(nc,"cancel Nezumi"));Thread.sleep(30);nb.cancelGeneration(nc);waitFor(nb){it.optJSONObject("generation")?.optString("state")=="CANCELLED"};check(!ImageLease.active&&NezumiImageNative.active==0L&&!File(root,"generated-images/$nc.png").exists());NezumiImageNative.fail=true;nb.load(nid);waitFor(nb){it.optString("state")=="ERROR"};check(!ImageLease.active&&NezumiImageNative.active==0L);nb.close();println("PASS: Nezumi dispatch/install/load/unload/RGB/cancel/failure cleanup using explicitly fake native (not inference).");println("PASS: controller install without load, CPU lease, competing owner rejection, unload, persisted selection, restart without autoload, failed load cleanup removal, serialized generation, result metadata, cancellation, stale-ticket isolation and generation after cancel (FAKE Android/native — no image inference).")
 }finally{root.deleteRecursively()}}
 '''}
 with tempfile.TemporaryDirectory() as tmp:
  files=[]
  for name,content in stubs.items():p=Path(tmp)/name;p.write_text(content);files.append(str(p))
- app=Path('app/src/main/java/com/proxyslabs/haruna');files +=[str(app/'LlmBackend.kt')]+[str(app/'image'/n) for n in ['ImageBridge.kt','ImagePackage.kt','ImageLease.kt']]
+ app=Path('app/src/main/java/com/proxyslabs/haruna');files +=[str(app/'LlmBackend.kt')]+[str(app/'image'/n) for n in ['ImageBridge.kt','ImagePackage.kt','ImageLease.kt','NezumiPackage.kt']]
  out=Path(tmp)/'tests.jar';cp=os.pathsep.join(str(cache/n) for n in ['stdlib.jar','json.jar'])
  subprocess.run(['java','-cp',str(cache/'*'),'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler','-nowarn','-no-stdlib','-no-reflect','-classpath',cp,'-d',str(out)]+files,check=True)
  subprocess.run(['java','-cp',str(out)+os.pathsep+str(cache/'*'),'TestKt'],check=True)
+
