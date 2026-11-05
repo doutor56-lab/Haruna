@@ -16,6 +16,8 @@ import java.net.URL
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
+    private lateinit var imageModels: com.proxyslabs.haruna.image.ImageBridge
+    private val imagePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if(uri!=null) imageModels.install(uri) }
     private lateinit var recognition: com.proxyslabs.haruna.speech.RecognitionBridge
     private lateinit var speech: com.proxyslabs.haruna.speech.SpeechBridge
     private lateinit var diagnostics: com.proxyslabs.haruna.diagnostics.DiagnosticBridge
@@ -142,6 +144,8 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = request.url.host != "appassets.androidplatform.net"
         }
         webView.addJavascriptInterface(bridge, "HarunaAndroid")
+        imageModels=com.proxyslabs.haruna.image.ImageBridge(applicationContext,backend){runOnUiThread{if(!activityClosed) imagePicker.launch(arrayOf("application/zip","application/octet-stream"))}}
+        webView.addJavascriptInterface(imageModels,"HarunaImages")
         speech = com.proxyslabs.haruna.speech.SpeechBridge(this, webView)
         webView.addJavascriptInterface(speech, "HarunaSpeech")
         recognition = com.proxyslabs.haruna.speech.RecognitionBridge(this, webView)
@@ -247,6 +251,8 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onDestroy() {
         activityClosed = true
+        if(::imageModels.isInitialized) imageModels.close()
+        webView.removeJavascriptInterface("HarunaImages")
         endBackgroundVoiceCall()
         runCatching { unregisterReceiver(callStopReceiver) }
         webView.removeJavascriptInterface("HarunaVoiceCall")
@@ -262,4 +268,5 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
+
 
