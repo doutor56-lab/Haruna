@@ -64,7 +64,7 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
         try{val info=ActivityManager.MemoryInfo();app.getSystemService(ActivityManager::class.java).getMemoryInfo(info)
             val bytes=file.listFiles().orEmpty().sumOf{it.length()};check(!info.lowMemory&&info.availMem>bytes+512L*1024*1024){"Memória disponível insuficiente; modelo instalado foi preservado"}
             phase="LOADING";models[id]?.put("state","LOADING");publish()
-            check(ImageNative.load(file.absolutePath)){"Modelo incompatível com os componentes SD1.5 MNN desta build"}
+            check(ImageNative.load(file.absolutePath)){"Não foi possível preparar os componentes SD1.5. Pode haver incompatibilidade ou falta de memória."}
             if(cancel.get()||closed)throw IllegalStateException("Carregamento cancelado")
             loaded=id;phase="LOADED";models[id]?.put("state","LOADED")
         }catch(e:Exception){ImageNative.unload();ImageLease.active=false;leaseOwned=false;models[id]?.put("state","ERROR");throw e}
