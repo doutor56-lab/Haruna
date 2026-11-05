@@ -14,6 +14,7 @@
 #include <string>
 static std::mutex lock;
 static std::array<std::unique_ptr<MNN::Interpreter>,3> models;
+static size_t elements(MNN::Tensor * tensor){size_t n=1;for(int d:tensor->shape()){if(d<=0||d>1000000||n>1000000000ULL/static_cast<size_t>(d))return 0;n*=d;}return n;}
 static const char * names[]={"text_encoder.mnn","unet.mnn","vae_decoder.mnn"};
 struct Utf {JNIEnv * e;jstring s;const char * p;Utf(JNIEnv*e,jstring s):e(e),s(s),p(s?e->GetStringUTFChars(s,nullptr):nullptr){}~Utf(){if(p)e->ReleaseStringUTFChars(s,p);}};
 static bool verify(const std::string & path){int fd=open(path.c_str(),O_RDONLY|O_CLOEXEC);if(fd<0)return false;struct stat st{};if(fstat(fd,&st)||st.st_size<8||st.st_size>=2147483647LL){close(fd);return false;}void * data=mmap(nullptr,st.st_size,PROT_READ,MAP_PRIVATE,fd,0);close(fd);if(data==MAP_FAILED)return false;flatbuffers::Verifier verifier(static_cast<const uint8_t*>(data),st.st_size);bool ok=MNN::VerifyNetBuffer(verifier);munmap(data,st.st_size);return ok;}
@@ -28,9 +29,9 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_proxyslabs_haruna_image_ImageNati
  MNN::ScheduleConfig cfg;cfg.type=MNN_FORWARD_CPU;cfg.numThread=2;auto session=next[i]->createSession(cfg);if(!session)return false;
  for(const auto& name:inputs[i])if(!next[i]->getSessionInput(session,name.c_str()))return false;
  if(!next[i]->getSessionOutput(session,outputs[i]))return false;
- if(i==0&&next[i]->getSessionInput(session,"input_ids")->elementSize()!=154)return false;
- if(i==1&&(next[i]->getSessionInput(session,"sample")->elementSize()!=32768||next[i]->getSessionInput(session,"encoder_hidden_states")->elementSize()!=118272))return false;
- if(i==2&&next[i]->getSessionInput(session,"latent_sample")->elementSize()!=16384)return false;
+ if(i==0&&elements(next[i]->getSessionInput(session,"input_ids"))!=154)return false;
+ if(i==1&&(elements(next[i]->getSessionInput(session,"sample"))!=32768||elements(next[i]->getSessionInput(session,"encoder_hidden_states"))!=118272))return false;
+ if(i==2&&elements(next[i]->getSessionInput(session,"latent_sample"))!=16384)return false;
  }
  models=std::move(next);return true;
  }catch(...){for(auto&m:models)m.reset();return false;}
