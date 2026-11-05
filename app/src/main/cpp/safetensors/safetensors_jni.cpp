@@ -58,7 +58,8 @@ Java_com_proxyslabs_haruna_image_SafetensorsImageNative_loadSd15(
     params.enable_mmap = true;
     sd_ctx_t* ctx = new_sd_ctx(&params);
     if (!ctx) { lastError = "Falha ao carregar checkpoint"; return JNI_FALSE; }
-    const std::string version = sd_get_model_version_name(ctx);
+    const char* modelVersion = sd_get_model_version_name(ctx);
+    const std::string version = modelVersion ? modelVersion : "";
     if (version.find("1.") == std::string::npos && version.find("SD1") == std::string::npos) {
         free_sd_ctx(ctx);
         lastError = "Checkpoint não identificado como SD 1.x";
