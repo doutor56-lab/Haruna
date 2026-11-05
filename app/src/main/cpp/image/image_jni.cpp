@@ -26,7 +26,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_proxyslabs_haruna_image_ImageNati
  const std::array<std::vector<std::string>,3> inputs={std::vector<std::string>{"input_ids"},{"sample","timestep","encoder_hidden_states"},{"latent_sample"}};
  const char *outputs[]={"last_hidden_state","out_sample","sample"};
  for(int i=0;i<3;i++){auto file=std::string(p.p)+"/"+names[i];if(!verify(file))return false;next[i].reset(MNN::Interpreter::createFromFile(file.c_str()));if(!next[i])return false;auto weights=file+".weight";if(access(weights.c_str(),R_OK)==0)next[i]->setExternalFile(weights.c_str());
- MNN::ScheduleConfig cfg;cfg.type=MNN_FORWARD_CPU;cfg.numThread=2;auto session=next[i]->createSession(cfg);if(!session)return false;
+ MNN::ScheduleConfig cfg;cfg.type=MNN_FORWARD_CPU;cfg.numThread=2;auto session=next[i]->createSession(cfg);if(!session)return false;int ready=-1;if(!next[i]->getSessionInfo(session,MNN::Interpreter::RESIZE_STATUS,&ready)||ready!=0)return false;
  for(const auto& name:inputs[i])if(!next[i]->getSessionInput(session,name.c_str()))return false;
  if(!next[i]->getSessionOutput(session,outputs[i]))return false;
  if(i==0&&elements(next[i]->getSessionInput(session,"input_ids"))!=154)return false;

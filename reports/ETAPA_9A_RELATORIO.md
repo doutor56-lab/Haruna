@@ -31,3 +31,5 @@ A confirmação de seleção SharedPreferences após reiniciar Activity, importa
 CI verifica libharuna_image.so e ausência de libggml-vulkan.so no APK CPU desta branch. A versão do llama.cpp da base é mantida, sem atualização preventiva.
 
 Teste adicional do controlador real com Android/MNN simulados: importação sem load, reserva de memória exclusiva, rejeição de owner concorrente, unload, preferências/seleção restauradas em nova instância, ausência de autoload, cleanup de falha nativa simulada e remoção. PASS local. Esse teste NÃO executa o MNN real nem mede RAM; o build nativo usa os headers/implementação MNN fixados. Sintaxe JNI C++ verificada localmente contra esses headers reais: PASS.
+
+Confirmação de carregamento: além do ponteiro de sessão, o JNI exige RESIZE_STATUS=0 (pronta para execução). Sessões pendentes de malloc/resize são rejeitadas. Pacotes que dependem de conteúdo de entrada para calcular formas não são suportados por este loader de componentes estáticos; não são apresentados como carregados.
