@@ -22,7 +22,7 @@ for(const finish of ['success','cancel','error'])test('exclusive LLM â†’ SDXL â†
  c.load=async(id,{imageOwner}={})=>{assert.equal(imageResident,false,'GGUF reload must wait for native close');assert.equal(imageOwner,c.job);trace.push('llm:restore');llmResident=true;c.loaded=id;};
  const id=crypto.randomUUID();assert.equal(c.startImage(id,'Public fake test prompt'),true);assert.equal(c.startImage(crypto.randomUUID(),'concurrent'),false);assert.throws(()=>c.configure(config.DEFAULTS));await until(()=>imageResident);c.cancelImage('old-id');assert.equal(killCount,0);if(finish==='cancel')c.cancelImage(id);await until(()=>!c.image.busy);
  assert.deepEqual(trace,['llm:unload','image:start','image:close','llm:restore']);assert.equal(c.loaded,llmId);assert.equal(llmResident,true);assert.equal(c.result(id).state,finish==='success'?'COMPLETED':finish==='cancel'?'CANCELLED':'ERROR');assert.equal(fs.readdirSync(c.outputs).some(f=>f.startsWith('.work-')),false);
- c.save();const next=new Controller({root,runtimes:root,systemPrompt,publish:()=>{},finalizePng:()=>{}});assert.equal(next.selected,c.selected);assert.equal(next.llm.modelLoaded,false);assert.equal(next.settings.width,1024);
+ c.configure({...c.settings,width:840,height:1400});c.save();const next=new Controller({root,runtimes:root,systemPrompt,publish:()=>{},finalizePng:()=>{}});assert.equal(next.selected,c.selected);assert.equal(next.llm.modelLoaded,false);assert.equal(next.settings.width,840);
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 test('LLM READY follows health; SSE keeps identity and UTF-8 (fake HTTP/native, no GGUF inference)',async()=>{
