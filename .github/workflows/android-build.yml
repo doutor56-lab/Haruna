@@ -102,6 +102,9 @@ jobs:
                   'assets/haruna/index.html',
                   'assets/haruna/style.css',
                   'assets/haruna/app.js',
+                  'assets/haruna/image-chat.js',
+                  'assets/haruna/image-chat.css',
+                  'assets/haruna/image-models.js',
                   'assets/haruna/llm-engine.js',
                   'assets/haruna/android-bridge.js',
                   'assets/haruna/haruna-icon.svg',
@@ -119,12 +122,15 @@ jobs:
               assert "import llm from './llm-engine.js'" in js
           print('Verified: APK contains the current Haruna UI and bridge assets.')
 
+      - name: Name image installation APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-9B-debug.apk
+
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: haruna-image-models-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Haruna-9B-APK
+          path: app/build/outputs/apk/debug/Haruna-9B-debug.apk
           if-no-files-found: error
 
 

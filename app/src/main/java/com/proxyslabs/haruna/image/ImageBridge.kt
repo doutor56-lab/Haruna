@@ -23,7 +23,11 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
     @Volatile private var snapshot="{}"
     private val models=linkedMapOf<String,JSONObject>()
     private var loaded:String?=null
-    private var leaseOwned=false
+    @Volatile private var leaseOwned=false
+    @Volatile private var activeJob:String?=null
+    @Volatile private var nativeTicket=0L
+    private var job=JSONObject()
+    companion object {private val tickets=java.util.concurrent.atomic.AtomicLong()}
     private var phase="NOT_INSTALLED"
     private var error:String?=null
     private var copied=0L
@@ -35,11 +39,11 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
             catch(e:Exception){models[dir.name]=JSONObject().put("id",dir.name).put("name","Pacote inválido").put("state","INCOMPATIBLE")}
         };phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";publish()
     }}
-    private fun publish(){snapshot=JSONObject().put("state",phase).put("busy",busy).put("error",error).put("copiedBytes",copied).put("engineAvailable",ImageNative.available).put("engine","MNN CPU · componentes SD1.5").put("generationAvailable",false).put("loaded",loaded).put("selected",prefs.getString("selected",null)).put("models",JSONArray(models.values.toList())).put("resolution",prefs.getInt("resolution",256)).put("steps",prefs.getInt("steps",5)).put("performance",prefs.getString("performance","balanced")).put("autoSave",prefs.getBoolean("autoSave",true)).put("backend","CPU").toString()}
-    @JavascriptInterface fun status()=snapshot
+    private fun publish(){snapshot=JSONObject().put("state",phase).put("busy",busy).put("imageEngineBusy",ImageLease.active).put("error",error).put("copiedBytes",copied).put("engineAvailable",ImageNative.available).put("engine","MNN CPU · componentes SD1.5").put("generationAvailable",ImageNative.available).put("generation",job).put("loaded",loaded).put("selected",prefs.getString("selected",null)).put("models",JSONArray(models.values.toList())).put("resolution",prefs.getInt("resolution",256)).put("steps",prefs.getInt("steps",5)).put("performance",prefs.getString("performance","balanced")).put("autoSave",prefs.getBoolean("autoSave",true)).put("backend","CPU").toString()}
+    @JavascriptInterface fun status():String {val s=JSONObject(snapshot).put("busy",busy).put("imageEngineBusy",ImageLease.active);if(nativeTicket>0&&ImageNative.available){val p=ImageNative.progress();s.put("nativeProgress",JSONArray(p.toList()))};return s.toString()}
     @JavascriptInterface fun add(){if(!closed&&!busy)picker()}
-    @JavascriptInterface fun cancel(){cancel.set(true)}
-    @Synchronized private fun submit(action:()->Unit){if(closed||busy)return;busy=true;cancel.set(false);worker.execute {error=null;phase=if(loaded!=null)"LOADED" else if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";publish();try{action()}catch(e:Exception){error=when(e){is java.util.zip.ZipException->"Pacote ZIP incompleto ou corrompido";is IllegalArgumentException,is IllegalStateException->e.message?:"Modelo incompatível";else->"Não foi possível concluir a operação de imagem"};phase=if(e is IllegalArgumentException && !error.orEmpty().contains("Espaço")) "INCOMPATIBLE" else "ERROR"}finally{busy=false;publish()}}}
+    @JavascriptInterface fun cancel(){cancel.set(true);val t=nativeTicket;if(t>0&&ImageNative.available)ImageNative.cancelNative(t)}
+    @Synchronized private fun submit(action:()->Unit):Boolean {if(closed||busy)return false;busy=true;cancel.set(false);worker.execute {error=null;phase=if(loaded!=null)"LOADED" else if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";publish();try{action()}catch(e:Exception){error=when(e){is java.util.zip.ZipException->"Pacote ZIP incompleto ou corrompido";is IllegalArgumentException,is IllegalStateException->e.message?:"Modelo incompatível";else->"Não foi possível concluir a operação de imagem"};phase=if(e is IllegalArgumentException && !error.orEmpty().contains("Espaço")) "INCOMPATIBLE" else "ERROR"}finally{busy=false;publish()}};return true}
     fun install(uri:Uri)=submit {
         phase="INSTALLING";copied=0;publish();var last=0L
         val dir=app.contentResolver.openInputStream(uri).use{input->requireNotNull(input){"Não foi possível ler o arquivo"};ImagePackage.install(input,root,{cancel.get()||closed},{root.usableSpace}){bytes->copied=bytes;val now=android.os.SystemClock.elapsedRealtime();if(now-last>200){last=now;publish()}}}
@@ -57,17 +61,44 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
     private fun free(){ImageLease.lock.withLock {if(leaseOwned){check(ImageNative.available);ImageNative.unload();loaded?.let{models[it]?.put("state","INSTALLED")};loaded=null;leaseOwned=false;ImageLease.active=false}}}
     @JavascriptInterface fun unload()=submit {free();phase="INSTALLED"}
     @JavascriptInterface fun remove(id:String,confirmed:Boolean)=submit {require(confirmed){"Confirme a remoção"};val file=dir(id);ImageLease.lock.withLock {check(!ImageLease.active||leaseOwned){"Outro controlador está utilizando os modelos de imagem"};if(loaded==id)free();check(file.deleteRecursively()){ "Não foi possível remover o pacote"}};models.remove(id);if(prefs.getString("selected",null)==id)prefs.edit().remove("selected").commit();phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED"}
-    @JavascriptInterface fun load(id:String)=submit {
-        check(ImageNative.available){"Motor MNN indisponível nesta build"};val file=dir(id);ImagePackage.verify(file)
+    @JavascriptInterface fun load(id:String)=submit {prepare(id,true)}
+    private fun prepare(id:String,preload:Boolean) {
+        check(ImageNative.available){"Motor MNN indisponível nesta build"};val file=dir(id);ImagePackage.verify(file){cancel.get()||closed}
         check(!cancel.get()&&!closed){"Operação cancelada"};free()
         ImageLease.lock.withLock {check(!ImageLease.active){"Outro modelo de imagens está em uso"};ImageLease.active=true;leaseOwned=true;try{backend.unloadModel().getOrThrow();check(!backend.status().modelLoaded){"O GGUF continua carregado"}}catch(e:Exception){ImageLease.active=false;leaseOwned=false;throw e}}
         try{val info=ActivityManager.MemoryInfo();app.getSystemService(ActivityManager::class.java).getMemoryInfo(info)
             val bytes=file.listFiles().orEmpty().sumOf{it.length()};check(!info.lowMemory&&info.availMem>bytes+512L*1024*1024){"Memória disponível insuficiente; modelo instalado foi preservado"}
             phase="LOADING";models[id]?.put("state","LOADING");publish()
-            check(ImageNative.load(file.absolutePath)){"Não foi possível preparar os componentes SD1.5. Pode haver incompatibilidade ou falta de memória."}
+            if(preload)check(ImageNative.load(file.absolutePath)){"Não foi possível preparar os componentes SD1.5. Pode haver incompatibilidade ou falta de memória."}
             if(cancel.get()||closed)throw IllegalStateException("Carregamento cancelado")
-            loaded=id;phase="LOADED";models[id]?.put("state","LOADED")
+            if(preload){loaded=id;phase="LOADED";models[id]?.put("state","LOADED")}
         }catch(e:Exception){ImageNative.unload();ImageLease.active=false;leaseOwned=false;models[id]?.put("state","ERROR");throw e}
     }
-    @Synchronized fun close(){if(closed)return;closed=true;cancel.set(true);worker.execute{free()};worker.shutdown()}
+    private val outputs=File(app.filesDir,"generated-images").apply{mkdirs()}
+    @JavascriptInterface fun cancelGeneration(id:String){if(activeJob==id)cancel()}
+    @JavascriptInterface fun result(id:String):String {if(!id.matches(Regex("[0-9a-f-]{36}")))return "{}";return runCatching{File(outputs,"$id.json").readText()}.getOrDefault("{}")}
+    @JavascriptInterface fun generate(request:String,prompt:String)=submit {
+        require(request.matches(Regex("[0-9a-f-]{36}"))&&prompt.isNotBlank()&&prompt.length<=2000){"Descrição de imagem inválida"}
+        require(!File(outputs,"$request.png").exists()&&!File(outputs,"$request.json").exists()){ "Identificador de imagem já utilizado" }
+        activeJob=request;job=JSONObject().put("request",request).put("state","LOADING");publish()
+        val part=File(outputs,"$request.part.png");val target=File(outputs,"$request.png")
+        try {val selected=prefs.getString("selected",null)?:throw IllegalStateException("Selecione um modelo SD1.5 em Configurações")
+            check(outputs.usableSpace>64L*1024*1024){"Espaço insuficiente para salvar a imagem"}
+            prepare(selected,false);check(!cancel.get()&&!closed){"Geração cancelada"}
+            val t=tickets.incrementAndGet();check(ImageNative.reserve(t)){"Motor de imagem ocupado"};nativeTicket=t
+            check(!cancel.get()&&!closed){"Geração cancelada"};phase="GENERATING";job.put("state","GENERATING");publish()
+            val mode=when(prefs.getString("performance","balanced")){"economy"->0;"performance"->1;else->2}
+            val ok=ImageNative.generate(t,dir(selected).absolutePath,prompt,part.absolutePath,prefs.getInt("steps",5),mode)
+            check(!cancel.get()&&!closed){"Geração cancelada"};check(ok&&part.isFile){"O MNN não concluiu a geração"}
+            ImageFiles.resize(part,prefs.getInt("resolution",256))
+            check(!cancel.get()&&!closed){"Geração cancelada"};check(part.renameTo(target)){"Não foi possível salvar o PNG"}
+            job.put("state","COMPLETED").put("file",target.name).put("nativeResolution",512).put("outputResolution",prefs.getInt("resolution",256))
+            if(prefs.getBoolean("autoSave",true))runCatching{ImageFiles.save(app,target)}.onFailure{job.put("saveWarning","PNG privado salvo; não foi possível salvar na galeria")}
+        }catch(e:OutOfMemoryError){part.delete();job.put("state","ERROR").put("error","Memória insuficiente para concluir a imagem. O modelo instalado foi preservado.")}catch(e:Exception){part.delete();job.put("state",if(cancel.get()||closed)"CANCELLED" else "ERROR").put("error",if(cancel.get()||closed)"Geração cancelada" else "Não foi possível concluir a imagem. Confira o modelo e a memória disponível.")}
+        finally {if(nativeTicket>0){ImageNative.finish(nativeTicket);nativeTicket=0};free();models.values.filter{it.optString("state")=="LOADING"}.forEach{it.put("state","INSTALLED")};activeJob=null;phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";val meta=File(outputs,"$request.json.part");meta.writeText(job.toString());meta.renameTo(File(outputs,"$request.json"));publish()}
+    }
+    private fun image(id:String):File {require(id.matches(Regex("[0-9a-f-]{36}")));return File(outputs,"$id.png").also{require(it.isFile)}}
+    @JavascriptInterface fun save(id:String)=submit {ImageFiles.save(app,image(id))}
+    @JavascriptInterface fun open(id:String,share:Boolean){val f=runCatching{image(id)}.getOrNull()?:return;ImageFiles.open(app,f,share)}
+    @Synchronized fun close(){if(closed)return;closed=true;cancel();worker.execute{free()};worker.shutdown()}
 }

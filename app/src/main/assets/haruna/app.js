@@ -67,7 +67,7 @@ function bindMessageMenu(bubble,chat,message){
  bubble.addEventListener('keydown',e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')||e.key==='Enter'){e.preventDefault();openMessageMenu(chat,message,bubble)}});
 }
 
-function add(role,text,message=null,chat=null,autoScroll=true){const el=document.createElement('div');el.className=`msg ${role}`;if(role==='assistant'){const a=document.createElement('div');a.className='avatar';a.textContent='H';el.appendChild(a)}const b=document.createElement('div');b.className='bubble';b.textContent=text;if(message&&chat){for(const file of message.attachments||[]){const label=document.createElement('span');label.className='sent-file';label.textContent=file.name;b.prepend(label)}bindMessageMenu(b,chat,message)}el.appendChild(b);messagesEl.appendChild(el);if(autoScroll)messagesEl.scrollTop=messagesEl.scrollHeight;return b}function render({followEnd=true}={}){const oldTop=messagesEl.scrollTop;messagesEl.innerHTML='';const c=active();maybeEssentialOpening(c);if(!c.messages.length){messagesEl.innerHTML='<div class="empty"><div class="orb">H✦</div><strong>Olá, eu sou a Haruna.</strong><span>Converse comigo. Suas conversas e memórias ficam salvas localmente neste dispositivo.</span></div>';renderAttachments();return}c.messages.forEach(m=>add(m.role,m.display||m.content,m,c,false));messagesEl.scrollTop=followEnd?messagesEl.scrollHeight:oldTop;renderAttachments()}
+function add(role,text,message=null,chat=null,autoScroll=true){const el=document.createElement('div');el.className=`msg ${role}`;if(role==='assistant'){const a=document.createElement('div');a.className='avatar';a.textContent='H';el.appendChild(a)}const b=document.createElement('div');b.className='bubble';b.textContent=text;if(message?.image&&window.harunaRenderImageCard)window.harunaRenderImageCard(b,message);if(message&&chat){for(const file of message.attachments||[]){const label=document.createElement('span');label.className='sent-file';label.textContent=file.name;b.prepend(label)}bindMessageMenu(b,chat,message)}el.appendChild(b);messagesEl.appendChild(el);if(autoScroll)messagesEl.scrollTop=messagesEl.scrollHeight;return b}function render({followEnd=true}={}){const oldTop=messagesEl.scrollTop;messagesEl.innerHTML='';const c=active();maybeEssentialOpening(c);if(!c.messages.length){messagesEl.innerHTML='<div class="empty"><div class="orb">H✦</div><strong>Olá, eu sou a Haruna.</strong><span>Converse comigo. Suas conversas e memórias ficam salvas localmente neste dispositivo.</span></div>';renderAttachments();return}c.messages.forEach(m=>add(m.role,m.display||m.content,m,c,false));messagesEl.scrollTop=followEnd?messagesEl.scrollHeight:oldTop;renderAttachments()}
 function maybeEssentialOpening(chat){
  if(!essentialReady||generating||activeGeneration||onboarding&&!onboarding.hidden)return;
  const opening=firstContact.openingFor(chat,{ready:true,chatIds:chats.map(c=>c.id),hasDraft:!!(input.value.trim()||attachments.pending(chat.id).length)});
@@ -231,7 +231,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
  }
 }
 function submitMessage(fromVoice=false){
- if(chatBusy||activeGeneration||generating)throw new Error('Aguarde a operação atual da Haruna.');
+ if(chatBusy||activeGeneration||generating||window.harunaImagesBusy)throw new Error('Aguarde a operação atual da Haruna.');
  window.dispatchEvent(new CustomEvent('haruna-chat-submit',{detail:{fromVoice}}));
  activeGeneration=sendMessage(fromVoice).finally(()=>{activeGeneration=null;try{window.dispatchEvent(new CustomEvent('haruna-dbg-chat-finished'))}catch{}});return activeGeneration;
 }
@@ -239,13 +239,21 @@ form.addEventListener('submit',e=>{
  e.preventDefault();if(chatBusy||activeGeneration||generating)return;
  submitMessage().catch(error=>alert(`Não foi possível salvar a conversa: ${error.message||error}`));
 });
+// Image jobs share the existing chat store; a completed PNG is never encoded into localStorage.
+window.harunaChatImages={
+ state:()=>({busy:!!(chatBusy||activeGeneration||generating),draft:input.value,attachments:attachments.pending(activeId).length}),
+ begin:(request,prompt)=>{const c=active();push('assistant','Imagem: '+prompt,c,{image:{request,prompt,state:'LOADING'}});render();input.value='';resize()},
+ update:job=>{for(const c of chats){const m=c.messages.find(m=>m.image?.request===job.request);if(!m)continue;m.image={...m.image,...job};persist();if(c.id===activeId)render({followEnd:false});return}},
+ entries:()=>chats.flatMap(c=>c.messages.filter(m=>m.image).map(m=>m.image)),
+ refresh:()=>render({followEnd:false})
+};
 // Narrow interface: voice turns reuse the exact same persistence, attachments and RAG path.
 window.harunaChatVoice={
- state:()=>({chatId:activeId,busy:!!(chatBusy||activeGeneration||generating),draft:input.value,attachments:attachments.pending(activeId).length,modelLoaded:!!android.getStatus()?.modelLoaded}),
+ state:()=>({chatId:activeId,busy:!!(chatBusy||activeGeneration||generating||window.harunaImagesBusy),draft:input.value,attachments:attachments.pending(activeId).length,modelLoaded:!!android.getStatus()?.modelLoaded}),
  send:async(text,chatId,requestId,observer=null)=>{
   if(chatId!==activeId)throw new Error('A conversa ativa mudou.');
   if(input.value.trim()||attachments.pending(activeId).length)throw new Error('Envie ou limpe o rascunho antes de usar a chamada.');
-  if(chatBusy||activeGeneration||generating)throw new Error('Aguarde a operação atual da Haruna.');
+  if(chatBusy||activeGeneration||generating||window.harunaImagesBusy)throw new Error('Aguarde a operação atual da Haruna.');
   input.value=text;resize();voiceRequestId=requestId;voiceStreamObserver=observer;
   try{return await submitMessage(true)}finally{if(voiceRequestId===requestId){voiceRequestId=null;voiceStreamObserver=null}}
  },
@@ -257,6 +265,7 @@ window.__HARUNA_CHAT_READY__=true;
 essentialReady=true;render();
 // Observe only the existing overlay's visibility; do not alter its flow or appearance.
 if(onboarding){const introObserver=new MutationObserver(()=>{if(onboarding.hidden)render()});introObserver.observe(onboarding,{attributes:true,attributeFilter:['hidden']})}
+
 
 
 

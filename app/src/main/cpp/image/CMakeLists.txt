@@ -20,6 +20,8 @@ FetchContent_Declare(mnn_image
  URL https://codeload.github.com/alibaba/MNN/tar.gz/c95758f4cd4cc4891a89833842dbd681109d3303
  URL_HASH SHA256=f6f6117e0ed89ec7896d29407469dd33075145d8748af9a8f89d3aa62a4928a6
  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+set(MNN_BUILD_OPENCV ON CACHE BOOL "" FORCE)
+set(MNN_IMGCODECS ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(mnn_image)
 add_library(haruna_image SHARED image_jni.cpp)
 target_compile_features(haruna_image PRIVATE cxx_std_17)
@@ -27,3 +29,5 @@ target_include_directories(haruna_image PRIVATE ${mnn_image_SOURCE_DIR}/include 
 target_link_libraries(haruna_image PRIVATE MNN log)
 target_link_options(haruna_image PRIVATE -Wl,--exclude-libs,ALL -Wl,-Bsymbolic -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/exports.map -Wl,-z,max-page-size=16384)
 set_target_properties(haruna_image PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/exports.map)
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/pipeline.cmake)

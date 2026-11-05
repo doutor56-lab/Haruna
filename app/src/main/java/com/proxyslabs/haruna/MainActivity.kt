@@ -125,7 +125,13 @@ class MainActivity : AppCompatActivity() {
         backend = HarunaRuntime.backend(applicationContext)
         activeModelPath = backend.installedModelPath()
         bridge = HarunaAndroidBridge(this, webView, backend)
-        val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this)).build()
+        val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .addPathHandler("/generated/", WebViewAssetLoader.PathHandler { path ->
+                if(!path.matches(Regex("[0-9a-f-]{36}\\.png"))) null else {
+                    val file=java.io.File(filesDir,"generated-images/$path")
+                    if(file.isFile) android.webkit.WebResourceResponse("image/png",null,file.inputStream()) else null
+                }
+            }).build()
         // Enables the existing JS confirm/alert/prompt dialogs, including deletion confirmations.
         chromeClient = HarunaWebChromeClient(this)
         webView.webChromeClient = chromeClient
