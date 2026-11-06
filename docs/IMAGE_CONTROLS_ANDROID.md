@@ -83,3 +83,53 @@ Para atualizar sem perder dados, a assinatura deve ser compatível com o APK
 instalado. Não desinstalar para contornar conflito de assinatura: isso pode
 apagar dados locais. A implementação não limpa armazenamento nem muda o
 pacote Android; o CI usa a assinatura de desenvolvimento já existente.
+
+
+## Resultado do build autorizado
+
+- Workflow: https://github.com/doutor56-lab/Haruna/actions/runs/42226923268 — SUCCESS.
+- Commit compilado: `174975fef45bd20f7b9c23eee0784d94dd3b2866`.
+- Código da aplicação: `fa2f8692cbe65adaeca3f833d367d1bd4956a03b`; o commit de build altera apenas CI/documentação.
+- Um job de compilação executado; nenhum merge.
+- Instalador: [artefato contendo somente o APK](https://github.com/doutor56-lab/Haruna/actions/runs/42226923268/artifacts/13510405233).
+- [Fontes e relatório do build](https://github.com/doutor56-lab/Haruna/actions/runs/42226923268/artifacts/13509930414).
+- Arquivo: `Haruna-Multimotor-Controles-ARM64-debug.apk`, 58.396.010 bytes.
+- SHA-256: `af9e2491a0cfeebeb437cb4706c9527e8f9e1718cd7bcefe454a8e2a04b8c9ec`.
+
+Kotlin, testes unitários/controlador/JNI, assembleDebug, verificação do pacote
+e publicação das fontes passaram no CI. O arquivo foi baixado; seu hash confere
+com o log do CI. ZIP de instalação contém somente o APK. Sem geração real no
+Android durante este build.
+
+### Preservação conferida no APK
+
+Comparado ao APK anterior entregue (run42144339412): nenhum asset anterior
+removido; 64 arquivos Haruna fora dos três módulos de imagem alterados são
+idênticos byte a byte, incluindo chat, voz, memória e interface geral.
+Todos os23 caminhos de bibliotecas nativas anteriores permanecem presentes.
+Silero é idêntico. Novo módulo image-controls.js presente. Sem biblioteca Vulkan.
+Biblioteca SD é ELF64/AArch64 e depende apenas das bibliotecas de sistema;
+o SDK GGML de imagem segue isolado do GGUF/Whisper.
+
+### Impedimento para atualizar sobre o APK anterior
+
+A comparação dos certificados APKv2 confirmou assinaturas diferentes:
+
+- APK anterior: `a3eef5d1e124201189420769f5cb514fd7d50cc75c6d6a08c6058c6a65f36520`.
+- APK novo: `4533db1f26377ea913cd835dee862c776df95c45d35a4709b77f4b3ed16025b2`.
+
+São hashes SHA-256 dos certificados, não hashes dos APKs. O pipeline usa
+assinatura debug padrão; a chave privada do APK anterior não foi fornecida
+nem encontrada no repositório consultado. Não houve mudança de pacote
+(`com.proxyslabs.haruna.incremental`) nem rotina para limpar dados.
+
+O Android bloqueará atualização direta sobre aquele APK anterior por
+incompatibilidade de assinatura. **Não desinstale nem limpe os dados para
+contornar o bloqueio.** Para atualizar mantendo os dados é necessária a chave
+anterior ou uma migração com backup integral verificado. Essa migração não foi
+executada: não há acesso ao tablet neste ambiente. Nenhuma garantia de
+preservação numa desinstalação foi feita.
+
+Esta limitação de instalação não deve ser confundida com aprovação de inferência
+RIN ou com regressão funcional demonstrada. Os recursos estão implementados e
+compilados; RIN/SDXL e o uso real no Teclast continuam sem validação física.
