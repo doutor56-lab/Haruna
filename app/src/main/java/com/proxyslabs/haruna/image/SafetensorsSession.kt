@@ -4,12 +4,12 @@ import java.io.Closeable
 import java.io.File
 
 /**
- * Owns a single experimental native SD 1.x session.
+ * Owns a single native SD1.5 or SDXL session.
  *
  * Call from a dedicated background thread. The caller must coordinate with
  * the app's GGUF/image memory lease before opening this engine.
  */
-internal class SafetensorsSession private constructor(@Volatile private var handle: Long) : Closeable {
+internal class SafetensorsSession private constructor(@Volatile private var handle: Long, val sdxl:Boolean) : Closeable {
     companion object {
         fun open(checkpoint: File, cancelled:()->Boolean={false}, onCreated:(SafetensorsSession)->Unit={}): SafetensorsSession {
             require(SafetensorsImageNative.available) {
@@ -19,16 +19,16 @@ internal class SafetensorsSession private constructor(@Volatile private var hand
                 "Selecione um arquivo .safetensors válido"
             }
             val inspection = SafetensorsInspector.inspect(checkpoint)
-            require(inspection.sd15Compatible) {
-                "Checkpoint não identificado como SD 1.5; importação experimental bloqueada"
+            require(inspection.sd15Compatible||inspection.sdxlCompatible) {
+                "Checkpoint SD1.5/SDXL completo não identificado; carregamento bloqueado"
             }
             val id = SafetensorsImageNative.create()
             check(id != 0L) { SafetensorsImageNative.lastError() }
-            val session=SafetensorsSession(id)
+            val session=SafetensorsSession(id,inspection.sdxlCompatible)
             try {
                 onCreated(session)
                 check(!cancelled()){ "Carregamento cancelado" }
-                check(SafetensorsImageNative.loadSd15(id, checkpoint.absolutePath)) {
+                check(SafetensorsImageNative.loadSd15(id, checkpoint.absolutePath,inspection.sdxlCompatible)) {
                     SafetensorsImageNative.lastError()
                 }
                 check(!cancelled()){ "Carregamento cancelado" }
@@ -52,8 +52,8 @@ internal class SafetensorsSession private constructor(@Volatile private var hand
     ) {
         check(handle != 0L) { "Sessão já encerrada" }
         require(prompt.isNotBlank()) { "Prompt vazio" }
-        require(width in 256..768 && width % 64 == 0 &&
-            height in 256..768 && height % 64 == 0) { "Resolução inválida" }
+        require(width in 256..1024 && width % 64 == 0 &&
+            height in 256..1024 && height % 64 == 0) { "Resolução inválida" }
         require(steps in 1..50) { "Passos fora dos limites" }
         require(destination.parentFile?.isDirectory == true) { "Pasta de destino inexistente" }
         check(SafetensorsImageNative.generatePng(

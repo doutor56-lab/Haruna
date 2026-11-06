@@ -1,3 +1,5 @@
+> Escopo ampliado: SDXL/Illustrious e perfis de pouca memória estão descritos em ANDROID_MULTIMOTOR.md. As notas abaixo registram a integração SD1.5 e seus testes.
+
 # SD1.5 safetensors — implementação experimental Android ARM64
 
 Branch exclusiva `feature/safetensors-sd15`, base/checkpoint recuperável
@@ -62,9 +64,13 @@ não preempção instantânea de cada operação. Um handle cancelado é fechado
 a geração seguinte recebe outro serial/contexto.
 
 Geração usa o mesmo chat/card/salvar/compartilhar/histórico. O motor gera PNG real
-via stbi_write_png, sem generation_info privado embutido. Resolução solicitada
-256/512 é calculada nativamente neste motor; MNN/Nezumi continuam em 512 com
-redução final existente. Etapas/preferências antigas não são redefinidas. Perfis
+via stbi_write_png, sem generation_info privado embutido. O fluxo padrão calcula em 512², inclusive quando a preferência do PNG é 256²,
+e usa a redução final existente, como MNN/Nezumi. O teste em 256 nativos produziu
+artefatos mesmo com 20 etapas; controles pela API C reproduziram o mesmo PNG
+ao trocar mmap/CFG. Fonte upstream sobre SD1.x abaixo da resolução de treino:
+https://github.com/leejet/stable-diffusion.cpp/issues/24. O resultado do teste
+512 nativo é registrado no relatório final; não se presume que corrigiu antes
+de inspecionar a imagem. Etapas/preferências antigas não são redefinidas. Perfis
 MNN não se aplicam ao novo motor (controle desativado, parâmetros do SDK próprios).
 O callback upstream mistura sampler, bytes de pesos e tiles VAE. Só contamos
 o sampler de etapas solicitadas após a fronteira zero; eventos de outros

@@ -42,4 +42,10 @@ object SafetensorsArchitecture {
         detect(tensors.keys.asSequence())==Hint.SD15_LIKE && required.all{(name,shape)->
             tensors[name]?.let{it.shape==shape&&it.dtype in setOf("F16","F32")}==true
         }
+    fun supportsSdxl(tensors:Map<String,Tensor>):Boolean {
+        fun shape(name:String,expected:List<Long>)=tensors[name]?.let{it.shape==expected&&it.dtype in setOf("F16","BF16","F32")}==true
+        val l=tensors.entries.any{it.key.startsWith("conditioner.embedders.0.")&&it.key.endsWith("token_embedding.weight")&&it.value.shape==listOf(49408L,768L)&&it.value.dtype in setOf("F16","BF16","F32")}
+        val g=tensors.entries.any{it.key.startsWith("conditioner.embedders.1.")&&it.key.endsWith("token_embedding.weight")&&it.value.shape==listOf(49408L,1280L)&&it.value.dtype in setOf("F16","BF16","F32")}
+        return l&&g&&tensors.any{(n,t)->n.endsWith("attn2.to_k.weight")&&t.shape.size==2&&t.shape[1]==2048L}&&shape("model.diffusion_model.input_blocks.0.0.weight",listOf(320L,4L,3L,3L))&&shape("first_stage_model.decoder.conv_out.weight",listOf(3L,128L,3L,3L))&&tensors.keys.none{it.contains("lora_up")||it.contains("lora_down")}
+    }
 }

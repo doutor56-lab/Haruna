@@ -136,14 +136,14 @@ jobs:
           print('Verified: APK contains the current Haruna UI and bridge assets.')
 
       - name: Name image installation APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-SD15-Safetensors-ARM64-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-Multimotor-ARM64-debug.apk
 
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Haruna-SD15-Safetensors-ARM64-APK
-          path: app/build/outputs/apk/debug/Haruna-SD15-Safetensors-ARM64-debug.apk
+          name: Haruna-Multimotor-ARM64-APK
+          path: app/build/outputs/apk/debug/Haruna-Multimotor-ARM64-debug.apk
           if-no-files-found: error
 
 
@@ -156,14 +156,14 @@ jobs:
           mkdir -p image-source
           cp -a app/src/main/cpp/image image-source/
           cp -a app/src/main/cpp/safetensors image-source/
-          cp docs/SAFETENSORS_SD15_ANDROID_INTEGRATION.md image-source/
+          cp docs/SAFETENSORS_SD15_ANDROID_INTEGRATION.md docs/ANDROID_MULTIMOTOR.md image-source/
           cp -a docs/IMAGE_ENGINE_NEZUMI_INTEGRATION.md image-source/
           cp app/build.gradle.kts image-source/
-          MNN_SOURCE=$(find app/.cxx -type d -path '*/_deps/mnn_image-src' -print -quit)
+          MNN_SOURCE=$(python3 -c 'from pathlib import Path; paths=[line.split("=",1)[1] for p in Path("app").rglob("CMakeCache.txt") for line in p.read_text().splitlines() if line.startswith("MNN_SOURCE_DIR:STATIC=")]; print(next((str(Path(p).resolve()) for p in paths if (Path(p)/"CMakeLists.txt").is_file()),""))')
           test -f "$MNN_SOURCE/CMakeLists.txt"
           cp -a "$MNN_SOURCE" image-source/MNN
           git rev-parse HEAD > image-source/HARUNA_COMMIT.txt
-          sha256sum app/build/outputs/apk/debug/Haruna-SD15-Safetensors-ARM64-debug.apk > image-source/APK_SHA256.txt
+          sha256sum app/build/outputs/apk/debug/Haruna-Multimotor-ARM64-debug.apk > image-source/APK_SHA256.txt
           tar -czf HARUNA_NEZUMI_CORRESPONDING_SOURCE.tar.gz image-source
 
       - name: Upload source and technical report
@@ -175,6 +175,7 @@ jobs:
             HARUNA_NEZUMI_CORRESPONDING_SOURCE.tar.gz
             docs/IMAGE_ENGINE_NEZUMI_INTEGRATION.md
             docs/SAFETENSORS_SD15_ANDROID_INTEGRATION.md
+            docs/ANDROID_MULTIMOTOR.md
             docs/evidence/nezumi/
             app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: error

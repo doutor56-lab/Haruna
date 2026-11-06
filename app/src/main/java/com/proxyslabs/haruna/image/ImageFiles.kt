@@ -21,10 +21,10 @@ internal object ImageFiles {
         try{file.outputStream().use{check(bitmap.compress(Bitmap.CompressFormat.PNG,100,it)){"Não foi possível gravar PNG"}}}finally{bitmap.recycle()}
     }
     fun validateDimensions(file:File,resolution:Int){val options=BitmapFactory.Options().apply{inJustDecodeBounds=true};BitmapFactory.decodeFile(file.absolutePath,options);check(options.outWidth==resolution&&options.outHeight==resolution){"PNG nativo inválido"}}
-    fun resize(file:File,resolution:Int){
+    fun resize(file:File,resolution:Int,nativeResolution:Int=512){
         val bitmap=BitmapFactory.decodeFile(file.absolutePath)?:error("PNG gerado inválido")
-        try{check(bitmap.width==512&&bitmap.height==512){"Resolução nativa inesperada"}
-            if(resolution==256){val small=Bitmap.createScaledBitmap(bitmap,256,256,true)
+        try{check(bitmap.width==nativeResolution&&bitmap.height==nativeResolution){"Resolução nativa inesperada"}
+            if(resolution!=nativeResolution){val small=Bitmap.createScaledBitmap(bitmap,resolution,resolution,true)
                 try{file.outputStream().use{check(small.compress(Bitmap.CompressFormat.PNG,100,it))}}finally{if(small!==bitmap)small.recycle()}}
         }finally{bitmap.recycle()}
     }
