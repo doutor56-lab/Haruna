@@ -73,8 +73,11 @@ perda intencional de funcionalidades nem mudanças em voz/GGUF/conversas.
 ## Build
 
 A autorização anterior era para um único GitHub Actions, já utilizado no APK
-anterior. Esta alteração será publicada com [skip ci]; novo build somente após
-nova autorização do usuário. Sem SDK/NDK Android neste ambiente local.
+anterior. O usuário autorizou um novo build para esta atualização. O push executa um
+único job de compilação; o evento duplicado do PR desta branch fica sem runner
+de build e em grupo separado, sem cancelar a compilação autorizada. Sem
+SDK/NDK Android neste ambiente local. O código de aplicação é fa2f8692;
+o commit seguinte muda somente CI/documentação para gerar o APK.
 
 Para atualizar sem perder dados, a assinatura deve ser compatível com o APK
 instalado. Não desinstalar para contornar conflito de assinatura: isso pode
