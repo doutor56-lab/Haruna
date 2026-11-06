@@ -33,7 +33,7 @@ Runtime preservado: llama.cpp `4d71b42fd87db24b8b7c808c151b713aa4459cfd`.
 
 ## Limitações e entrega
 
-Build Android completo/APK novo: pendente de autorização de um novo GitHub Actions. O build anteriormente autorizado já foi consumido. Nenhum resultado Android físico é presumido.
+Build Android completo/APK novo: autorizado pelo usuário em 2026-11-06; workflow desta branch será executado e seu resultado registrado. Nenhum resultado Android físico é presumido.
 
 A assinatura privada anterior não foi localizada. APKs anteriores já mostraram certificados debug diferentes; não gerar uma chave substituta e afirmar atualização compatível. A instalação preservando dados depende da chave correspondente ao APK instalado. Nenhuma desinstalação, limpeza de dados ou migração destrutiva foi executada.
 
