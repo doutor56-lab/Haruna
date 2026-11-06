@@ -1,0 +1,24 @@
+{
+  "schema": "haruna.stage8.build.v1",
+  "branch": "feature/stage8-documents-vision",
+  "baseCommit": "3b47966c1bb2760c789c9e1985dc7836ca93f929",
+  "implementationCommit": "07942ad4f0b6ffe4fd0325bdef3296d8e5b95452",
+  "sourceCommit": "55c35d9fd0e78b1155f531bd8b5681140df2076a",
+  "runtimeCommit": "4d71b42fd87db24b8b7c808c151b713aa4459cfd",
+  "runId": 42301711003,
+  "conclusion": "success",
+  "apk": {
+    "name": "Haruna-Etapa8-ARM64-debug.apk",
+    "bytes": 79555412,
+    "sha256": "76e340fd066b02b364226cae0102245c2732b3386cd53e6b13349580fda1f823",
+    "artifactId": 13545759798,
+    "signatureVerified": true,
+    "signatureScheme": "v2",
+    "certificateSha256": "7e65682b5b38c6c4e3c39b47f39320cea87ba3cad9747e47e637ed983892b030",
+    "previousDeliveryCertificateSha256": "4533db1f26377ea913cd835dee862c776df95c45d35a4709b77f4b3ed16025b2",
+    "canUpdatePreviousDelivery": false
+  },
+  "androidDeviceValidation": false,
+  "originalSigningKeyAvailable": false,
+  "userDataModified": false
+}

@@ -33,9 +33,21 @@ Runtime preservado: llama.cpp `4d71b42fd87db24b8b7c808c151b713aa4459cfd`.
 
 ## Limitações e entrega
 
-Build Android completo/APK novo: autorizado pelo usuário em 2026-11-06; workflow desta branch será executado e seu resultado registrado. Nenhum resultado Android físico é presumido.
+Build Android completo concluído com sucesso em 2026-11-06, após autorização do usuário.
 
-A assinatura privada anterior não foi localizada. APKs anteriores já mostraram certificados debug diferentes; não gerar uma chave substituta e afirmar atualização compatível. A instalação preservando dados depende da chave correspondente ao APK instalado. Nenhuma desinstalação, limpeza de dados ou migração destrutiva foi executada.
+- Workflow: https://github.com/doutor56-lab/Haruna/actions/runs/42301711003
+- Commit compilado: `55c35d9fd0e78b1155f531bd8b5681140df2076a`.
+- APK: `Haruna-Etapa8-ARM64-debug.apk`, 79.555.412 bytes.
+- SHA-256 do APK: `76e340fd066b02b364226cae0102245c2732b3386cd53e6b13349580fda1f823`.
+- Instalação: https://github.com/doutor56-lab/Haruna/actions/runs/42301711003/artifacts/13545759798 (ZIP com um único APK).
+- Compilação Kotlin/C++ ARM64, testes Gradle e de controle dos motores de imagem, parser DOCX e SQL/isolamento: sucesso no CI.
+- Pacote auditado pelo workflow: libs MNN/Nezumi/stable-diffusion.cpp, GGUF, mtmd, Tesseract, voz e idiomas OCR presentes; JNI visual exportado e ligado a libmtmd.
+- Download local conferido contra o digest do artifact e o SHA do APK registrado no CI.
+- Assinatura criptográfica validada com ApkVerifier 8.13.2: v2 válida; v3 não utilizada.
+
+Nenhum resultado Android físico é presumido.
+
+A chave privada anterior não foi localizada. O build usa a assinatura debug padrão do CI existente, que não é persistente. Certificado desta build: `7e65682b5b38c6c4e3c39b47f39320cea87ba3cad9747e47e637ed983892b030`. Certificado da última entrega: `4533db1f26377ea913cd835dee862c776df95c45d35a4709b77f4b3ed16025b2`. São diferentes. Portanto, este APK não pode atualizar diretamente aquela entrega. É necessária a chave original para gerar uma atualização compatível; não é possível recuperá-la a partir do certificado público. Não desinstalar nem limpar dados para contornar a assinatura. Nenhuma instalação, desinstalação, limpeza ou migração destrutiva foi executada.
 
 Requer validação no Teclast: extração/renderer de PDF, OCR ARM64, carregamento/cancelamento/restore visual e consumo real de memória. O SmolVLM é pequeno e pode errar em gráficos, detalhes e texto; OCR e interpretação visual são identificados separadamente. DOCX não tem paginação física garantida; imagens incorporadas não são interpretadas automaticamente. A referência preferencial testada no host é Q8_0 + projetor f16; os demais pares oficiais aceitos ainda exigem validação.
 
