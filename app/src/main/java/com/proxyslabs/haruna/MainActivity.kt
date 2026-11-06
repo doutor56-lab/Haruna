@@ -16,6 +16,15 @@ import java.net.URL
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
+    private lateinit var documents:com.proxyslabs.haruna.documents.DocumentBridge
+    private var visionRole="model"
+    private val documentPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)documentStart(documents.importUri(uri))}
+    private val visionPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)documentStart(documents.importVision(uri,visionRole))}
+    private fun documentStart(raw:String){runCatching{org.json.JSONObject(raw).optString("error").takeIf{it.isNotBlank()}?.let{message->webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-documents-error',{detail:"+org.json.JSONObject.quote(message)+"}))",null)}}}
+    private inner class DocumentPickerBridge {
+        @android.webkit.JavascriptInterface fun pickDocument(){runOnUiThread{if(!activityClosed)documentPicker.launch(arrayOf("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/*","image/*"))}}
+        @android.webkit.JavascriptInterface fun pickVision(role:String){if(role !in listOf("model","projector"))return;runOnUiThread{if(!activityClosed){visionRole=role;visionPicker.launch(arrayOf("*/*"))}}}
+    }
     private lateinit var imageModels: com.proxyslabs.haruna.image.ImageBridge
     private val imagePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if(uri!=null) imageModels.install(uri) }
     private lateinit var recognition: com.proxyslabs.haruna.speech.RecognitionBridge
@@ -123,9 +132,11 @@ class MainActivity : AppCompatActivity() {
         webView = WebView(this)
         setContentView(webView)
         backend = HarunaRuntime.backend(applicationContext)
+        documents=com.proxyslabs.haruna.documents.DocumentRuntime.get(applicationContext,backend)
         activeModelPath = backend.installedModelPath()
         bridge = HarunaAndroidBridge(this, webView, backend)
         val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .addPathHandler("/documents/",WebViewAssetLoader.PathHandler{path->documents.serve(path)})
             .addPathHandler("/generated/", WebViewAssetLoader.PathHandler { path ->
                 if(!path.matches(Regex("[0-9a-f-]{36}\\.png"))) null else {
                     val file=java.io.File(filesDir,"generated-images/$path")
@@ -150,6 +161,8 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = request.url.host != "appassets.androidplatform.net"
         }
         webView.addJavascriptInterface(bridge, "HarunaAndroid")
+        webView.addJavascriptInterface(documents,"HarunaDocuments")
+        webView.addJavascriptInterface(DocumentPickerBridge(),"HarunaDocumentPicker")
         imageModels=com.proxyslabs.haruna.image.ImageBridge(applicationContext,backend){runOnUiThread{if(!activityClosed) imagePicker.launch(arrayOf("*/*"))}}
         webView.addJavascriptInterface(imageModels,"HarunaImages")
         speech = com.proxyslabs.haruna.speech.SpeechBridge(this, webView)

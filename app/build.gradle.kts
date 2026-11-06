@@ -22,8 +22,8 @@ android {
         minSdk = 33
         targetSdk = 36
         testInstrumentationRunner = "com.proxyslabs.haruna.diagnostic45.CanonicalRunner"
-        versionCode = 8
-        versionName = "0.7-incremental"
+        versionCode = 9
+        versionName = "0.8-documents-vision"
         val useVulkan = providers.gradleProperty("harunaVulkan").orElse("false").get().toBoolean()
         if(useVulkan) { applicationId = "com.proxyslabs.haruna.incremental.vulkan";versionName = "0.7-incremental-vulkan" }
         manifestPlaceholders["harunaLabel"] = if(useVulkan) "Haruna incremental GPU" else "Haruna incremental"
@@ -155,3 +155,32 @@ val buildSafetensorsNative by tasks.registering {
     }
 }
 tasks.named("preBuild").configure { dependsOn(buildSafetensorsNative) }
+
+// Stage 8: consolidated offline parsers/OCR, pinned artifacts; user vision weights stay outside APK.
+val generatedDocumentAssets=layout.buildDirectory.dir("generated/document-assets")
+android.sourceSets.getByName("main").assets.srcDir(generatedDocumentAssets)
+val tesseractAar=layout.buildDirectory.file("document-dependencies/tesseract4android-4.9.0.aar")
+val fetchDocumentRuntime by tasks.registering {
+    val artifacts=listOf(
+        Triple("https://jitpack.io/cz/adaptech/tesseract4android/tesseract4android/4.9.0/tesseract4android-4.9.0.aar",tesseractAar.get().asFile,"bce5d6413a1a5ae3d7240033fbbc851ba3217d0a08d9769400e17a077f42cb2a"),
+        Triple("https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",generatedDocumentAssets.get().file("tessdata/eng.traineddata").asFile,"7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"),
+        Triple("https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/por.traineddata",generatedDocumentAssets.get().file("tessdata/por.traineddata").asFile,"c4932b937207a9514b7514d518b931a99938c02a28a5a5a553f8599ed58b7deb"))
+    inputs.property("artifacts",artifacts.map{it.first+it.third})
+    outputs.files(artifacts.map{it.second})
+    doLast { for((url,target,hash) in artifacts){
+        if(target.isFile&&sha256(target)==hash)continue
+        target.parentFile.mkdirs();val part=File(target.parentFile,target.name+".part")
+        try{val connection=URI(url).toURL().openConnection();connection.connectTimeout=30000;connection.readTimeout=60000
+            connection.getInputStream().use{input->part.outputStream().use{input.copyTo(it)}}
+            check(sha256(part)==hash){"Stage8 dependency checksum mismatch"}
+            Files.move(part.toPath(),target.toPath(),StandardCopyOption.REPLACE_EXISTING)
+        }finally{part.delete()}
+    }}
+}
+tasks.named("preBuild").configure{dependsOn(fetchDocumentRuntime)}
+dependencies {
+    implementation(files(tesseractAar).builtBy(fetchDocumentRuntime))
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("com.github.albfernandez:juniversalchardet:2.5.0")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+}

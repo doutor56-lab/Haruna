@@ -52,7 +52,7 @@ export function createEnricher(store){
     if(!chunk||typeof chunk.content!=='string'||!chunk.content.trim()||selected.length>=MAX_CHUNKS)continue;
     const key=chunk.id||chunk.content;if(seen.has(key))continue;seen.add(key);
     // Keep complete existing chunks. Do not cut source code mid-segment to fill a remaining budget.
-    const item={referencia:selected.length+1,tipo:chunk.type==='behavior'?'exemplo de conversação':'conhecimento',trecho:chunk.content};
+    const item={nome:chunk.name,pagina:chunk.page,docId:chunk.docId,section:chunk.section,digest:chunk.digest,kind:chunk.kind,referencia:selected.length+1,tipo:chunk.type==='behavior'?'exemplo de conversação':'conhecimento',trecho:chunk.content};
     const next=[...selected,item],size=heading.length+JSON.stringify(next).length+ending.length;
     if(size<=budget)selected=next;
    }

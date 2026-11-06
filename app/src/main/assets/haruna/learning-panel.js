@@ -49,7 +49,7 @@ reconcileOnboarding();
   try{const result=await knowledge.remove(d.id);if(result?.status!=='ok')throw new Error('A exclusão não foi concluída.');render()}catch(e){alert(`Não foi possível excluir: ${e?.message||e}`)}
  }
  function render(){
-  const docs=knowledge.list().filter(d=>d.active).sort((a,b)=>Number(b.approvedForTraining)-Number(a.approvedForTraining)||(b.importance+b.confidence)-(a.importance+a.confidence));
+  const docs=knowledge.list().filter(d=>d.active&&!d.nativeDocId).sort((a,b)=>Number(b.approvedForTraining)-Number(a.approvedForTraining)||(b.importance+b.confidence)-(a.importance+a.confidence));
   if(!docs.length){list.innerHTML='<div class="model-empty">Adicione conhecimento para a Haruna começar a avaliar candidatos.</div>';return}
   list.innerHTML='';const suggested=new Set(knowledge.suggestedCandidates().map(x=>x.id));
   for(const d of docs){

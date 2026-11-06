@@ -9,6 +9,7 @@ interface LlmBackend {
         val error: String? = null
     )
 
+    fun awaitAuxiliaryReady():Result<Unit> = Result.failure(IllegalStateException("Runtime auxiliar indisponível"))
     fun status(): Status
     fun contextMetrics(): Map<String, Int> = emptyMap()
     fun runtimeMetrics(): String = "{}"

@@ -2,12 +2,12 @@ name: Android build
 
 on:
   push:
-    branches: [main, recovery/haruna-82d3c47, luna/silero-vad, feature/nezumi-model-compat, feature/safetensors-sd15]
+    branches: [main, recovery/haruna-82d3c47, luna/silero-vad, feature/nezumi-model-compat, feature/safetensors-sd15, feature/stage8-documents-vision]
   pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: android-build-${{ github.head_ref || github.ref_name }}-${{ github.event_name == 'pull_request' && github.head_ref == 'feature/safetensors-sd15' && 'skip' || 'build' }}
+  group: android-build-${{ github.head_ref || github.ref_name }}-${{ github.event_name == 'pull_request' && (github.head_ref == 'feature/safetensors-sd15' || github.head_ref == 'feature/stage8-documents-vision') && 'skip' || 'build' }}
   cancel-in-progress: true
 
 permissions:
@@ -19,7 +19,7 @@ env:
 jobs:
   build:
     # This experimental branch builds on push only; avoid charging a duplicate PR build.
-    if: github.event_name != 'pull_request' || github.head_ref != 'feature/safetensors-sd15'
+    if: github.event_name != 'pull_request' || (github.head_ref != 'feature/safetensors-sd15' && github.head_ref != 'feature/stage8-documents-vision')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -88,6 +88,12 @@ jobs:
           /tmp/safetensors-native-check
           gradle :app:testDebugUnitTest --no-daemon
 
+      - name: Verify document parsing and SQL isolation
+        run: |
+          python3 tests/stage8/make_fixture.py /tmp/haruna-stage8.docx
+          node tests/stage8/docx_check.cjs /tmp/haruna-stage8.docx
+          python3 tests/stage8/sqlite_check.py
+
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
 
@@ -108,12 +114,25 @@ jobs:
               deps=subprocess.check_output(['readelf','-d',str(lib)],text=True)
               assert 'libggml' not in deps and 'vulkan' not in deps.lower() and 'OpenCL' not in deps
               print('Safetensors private CPU library dependencies verified')
+              vision_lib=pathlib.Path(z.extract('lib/arm64-v8a/libai-chat.so','apk-audit'))
+              symbols=subprocess.check_output(['readelf','--wide','--dyn-syms',str(vision_lib)],text=True)
+              assert 'Java_com_proxyslabs_haruna_documents_VisionNative_analyze' in symbols
+              assert 'libmtmd' in subprocess.check_output(['readelf','-d',str(vision_lib)],text=True)
               assert 'assets/licenses/nezumi/GPL-3.0.txt' in names
               assert not any(n.endswith('/libMNN.so') for n in names)
               assert not any(n.endswith('/libggml-vulkan.so') for n in names)
               import hashlib
               print('Image APK SHA-256:', hashlib.sha256(open(apk,'rb').read()).hexdigest())
               required={
+                  'assets/haruna/documents/ui.js',
+                  'assets/haruna/documents/client.js',
+                  'assets/haruna/documents/docx-worker.js',
+                  'assets/haruna/vendor/mammoth-1.13.0.min.js',
+                  'lib/arm64-v8a/libmtmd.so',
+                  'lib/arm64-v8a/libtesseract.so',
+                  'lib/arm64-v8a/libleptonica.so',
+                  'assets/tessdata/eng.traineddata',
+                  'assets/tessdata/por.traineddata',
                   'assets/haruna/index.html',
                   'assets/haruna/style.css',
                   'assets/haruna/app.js',
@@ -131,21 +150,23 @@ jobs:
               if missing:
                   raise SystemExit(f'Missing Haruna assets in APK: {sorted(missing)}')
               assert hashlib.sha256(z.read('assets/silero_vad.int8.onnx')).hexdigest() == 'c36d490aff5ab924ca6c7aeec4d8f6bd3d22db6fa17611b9c5b17eae58ac3a20', 'Silero asset checksum mismatch'
+              for language,digest in [('eng','7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2'),('por','c4932b937207a9514b7514d518b931a99938c02a28a5a5a553f8599ed58b7deb')]:
+                  assert hashlib.sha256(z.read('assets/tessdata/'+language+'.traineddata')).hexdigest() == digest
               html=z.read('assets/haruna/index.html').decode('utf-8')
               js=z.read('assets/haruna/app.js').decode('utf-8')
               assert 'Haruna' in html
               assert "import llm from './llm-engine.js'" in js
           print('Verified: APK contains the current Haruna UI and bridge assets.')
 
-      - name: Name image installation APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-Multimotor-Controles-ARM64-debug.apk
+      - name: Name stage8 installation APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-Etapa8-ARM64-debug.apk
 
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Haruna-Multimotor-Controles-ARM64-APK
-          path: app/build/outputs/apk/debug/Haruna-Multimotor-Controles-ARM64-debug.apk
+          name: Haruna-Etapa8-ARM64-APK
+          path: app/build/outputs/apk/debug/Haruna-Etapa8-ARM64-debug.apk
           if-no-files-found: error
 
 
@@ -165,7 +186,7 @@ jobs:
           test -f "$MNN_SOURCE/CMakeLists.txt"
           cp -a "$MNN_SOURCE" image-source/MNN
           git rev-parse HEAD > image-source/HARUNA_COMMIT.txt
-          sha256sum app/build/outputs/apk/debug/Haruna-Multimotor-Controles-ARM64-debug.apk > image-source/APK_SHA256.txt
+          sha256sum app/build/outputs/apk/debug/Haruna-Etapa8-ARM64-debug.apk > image-source/APK_SHA256.txt
           tar -czf HARUNA_NEZUMI_CORRESPONDING_SOURCE.tar.gz image-source
 
       - name: Upload source and technical report
@@ -179,6 +200,7 @@ jobs:
             docs/SAFETENSORS_SD15_ANDROID_INTEGRATION.md
             docs/ANDROID_MULTIMOTOR.md
             docs/IMAGE_CONTROLS_ANDROID.md
+            docs/ETAPA_8_DOCUMENTOS_VISAO.md
             docs/evidence/nezumi/
             app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: error

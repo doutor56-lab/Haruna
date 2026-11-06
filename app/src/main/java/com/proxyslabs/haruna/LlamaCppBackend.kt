@@ -90,6 +90,9 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         }
     }
 
+    override fun awaitAuxiliaryReady():Result<Unit> = runCatching {
+        lifecycle.withLock { check(!destroyed) { "Runtime encerrado" };runBlocking(Dispatchers.IO) { waitUntilInitialized() } }
+    }
     override fun installedModelPath(): String? = modelPath.takeIf { !loading && engine.state.value.isModelLoaded }
     fun incrementalConversation(): Boolean = runCatching {
         val runtime = JSONObject(engine.runtimeMetrics()).optJSONObject("runtime")
