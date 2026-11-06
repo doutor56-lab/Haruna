@@ -1,0 +1,25 @@
+name: Package TokForge model
+on:
+  push:
+    branches: [delivery/tokforge-sd15-lcm-mnn]
+    paths: [.github/workflows/package-tokforge.yml, scripts/package_tokforge.py]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Fetch pinned model, verify weights and create ZIP
+        run: python3 scripts/package_tokforge.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TokForge-SD15-LCM-MNN
+          path: |
+            delivery/TokForge-SD15-LCM-MNN.zip
+            delivery/TokForge-SD15-LCM-MNN.zip.sha256
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
