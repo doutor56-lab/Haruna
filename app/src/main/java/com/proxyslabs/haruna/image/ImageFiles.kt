@@ -28,6 +28,16 @@ internal object ImageFiles {
                 try{file.outputStream().use{check(small.compress(Bitmap.CompressFormat.PNG,100,it))}}finally{if(small!==bitmap)small.recycle()}}
         }finally{bitmap.recycle()}
     }
+    fun validateSize(file:File,width:Int,height:Int){val o=BitmapFactory.Options().apply{inJustDecodeBounds=true};BitmapFactory.decodeFile(file.absolutePath,o);check(o.outWidth==width&&o.outHeight==height){"PNG nativo inválido"}}
+    fun finishSize(file:File,width:Int,height:Int,nativeWidth:Int,nativeHeight:Int,legacySquare:Boolean){
+        val source=BitmapFactory.decodeFile(file.absolutePath)?:error("PNG gerado inválido")
+        var cropped:Bitmap?=null;var scaled:Bitmap?=null
+        try{check(source.width==nativeWidth&&source.height==nativeHeight){"Resolução nativa inesperada"}
+            val image=if(legacySquare)source else {check(width<=nativeWidth&&height<=nativeHeight);Bitmap.createBitmap(source,(nativeWidth-width)/2,(nativeHeight-height)/2,width,height).also{cropped=it}}
+            val final=if(image.width!=width||image.height!=height)Bitmap.createScaledBitmap(image,width,height,true).also{scaled=it}else image
+            if(final!==source)file.outputStream().use{check(final.compress(Bitmap.CompressFormat.PNG,100,it)){"Falha ao finalizar PNG"}}
+        }finally{scaled?.takeIf{it!==source&&it!==cropped}?.recycle();cropped?.takeIf{it!==source}?.recycle();source.recycle()}
+    }
     fun save(app:Context,file:File){
         val resolver=app.contentResolver
         val values=ContentValues().apply{put(MediaStore.Images.Media.DISPLAY_NAME,file.name);put(MediaStore.Images.Media.MIME_TYPE,"image/png");put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/Haruna");put(MediaStore.Images.Media.IS_PENDING,1)}

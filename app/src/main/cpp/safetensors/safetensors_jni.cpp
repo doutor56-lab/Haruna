@@ -3,6 +3,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 #include <atomic>
+#include <cmath>
 #include <codecvt>
 #include <locale>
 #include <memory>
@@ -14,7 +15,7 @@
 namespace {
 struct Session {
     std::mutex operation, contextAccess;
-    bool sdxl=false;
+    bool sdxl=false,lowMemory=false;
     sd_ctx_t* ctx=nullptr; // operation owns use; contextAccess protects cancel vs release.
     std::atomic<bool> cancelled{false},closing{false},samplerStarted{false};
     std::atomic<int> phase{0},step{0},total{0};
@@ -42,14 +43,18 @@ struct CallbackScope {explicit CallbackScope(Session* s){sd_set_log_callback(qui
 }
 #define JNI(name) Java_com_proxyslabs_haruna_image_SafetensorsImageNative_##name
 extern "C" JNIEXPORT jlong JNICALL JNI(create)(JNIEnv*,jobject){try{auto s=std::make_shared<Session>();const auto id=++nextId;std::lock_guard<std::mutex> l(registryMutex);sessions.emplace(id,s);return id;}catch(...){lastError="Memória insuficiente para criar sessão Stable Diffusion";return 0;}}
-extern "C" JNIEXPORT jboolean JNICALL JNI(loadSd15)(JNIEnv* env,jobject,jlong id,jstring checkpoint,jboolean sdxl){auto s=find(id);if(!s){lastError="Sessão inexistente";return false;}std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);try{lastError.clear();if(s->closing||s->cancelled){lastError="Carregamento cancelado";return false;}if(s->ctx){lastError="Modelo já carregado";return false;}sd_set_log_callback(quiet,nullptr);s->phase=1;const auto path=fromJava(env,checkpoint);if(path.empty()){lastError="Checkpoint vazio";return false;}sd_ctx_params_t params{};sd_ctx_params_init(&params);params.model_path=path.c_str();params.n_threads=4;params.enable_mmap=true;params.batched_cfg=false;params.backend="cpu";params.params_backend=sdxl?"disk":"cpu";params.flash_attn=sdxl;params.diffusion_flash_attn=sdxl;
+extern "C" JNIEXPORT jboolean JNICALL JNI(loadSd15)(JNIEnv* env,jobject,jlong id,jstring checkpoint,jboolean sdxl,jboolean lowMemory){auto s=find(id);if(!s){lastError="Sessão inexistente";return false;}std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);try{lastError.clear();if(s->closing||s->cancelled){lastError="Carregamento cancelado";return false;}if(s->ctx){lastError="Modelo já carregado";return false;}sd_set_log_callback(quiet,nullptr);s->phase=1;const auto path=fromJava(env,checkpoint);if(path.empty()){lastError="Checkpoint vazio";return false;}sd_ctx_params_t params{};sd_ctx_params_init(&params);params.model_path=path.c_str();params.n_threads=4;params.enable_mmap=true;params.batched_cfg=false;params.backend="cpu";params.params_backend=lowMemory?"disk":"cpu";params.flash_attn=sdxl;params.diffusion_flash_attn=sdxl;
         std::unique_ptr<sd_ctx_t,decltype(&free_sd_ctx)> ctx(new_sd_ctx(&params),free_sd_ctx);
         if(!ctx){lastError="Falha ao carregar Stable Diffusion; confira integridade e memória disponível";return false;}
         const auto* version=sd_get_model_version_name(ctx.get());if(!version||std::string(version)!=(sdxl?"SDXL":"SD 1.x")){lastError="Checkpoint não corresponde à arquitetura selecionada";return false;}
         if(s->closing||s->cancelled){lastError="Carregamento cancelado";return false;}
-        {std::lock_guard<std::mutex> l(s->contextAccess);s->ctx=ctx.release();s->sdxl=sdxl;}s->phase=2;return true;
+        {std::lock_guard<std::mutex> l(s->contextAccess);s->ctx=ctx.release();s->sdxl=sdxl;s->lowMemory=lowMemory;}s->phase=2;return true;
     }catch(const std::bad_alloc&){lastError="Memória insuficiente para carregar Stable Diffusion";}catch(...){lastError="Falha nativa ao preparar Stable Diffusion";}release(*s);return false;}
-extern "C" JNIEXPORT jboolean JNICALL JNI(generatePng)(JNIEnv* env,jobject,jlong id,jstring prompt,jstring negative,jstring output,jint width,jint height,jint steps,jlong seed){auto s=find(id);if(!s){lastError="Sessão inexistente";return false;}std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);std::string path;try{lastError.clear();if(s->closing||s->cancelled){lastError="Geração cancelada";return false;}if(!s->ctx){lastError="Modelo não carregado";return false;}if(width<256||height<256||width>1024||height>1024||width%64||height%64||steps<1||steps>50){lastError="Resolução ou etapas inválidas";return false;}const auto p=fromJava(env,prompt),n=fromJava(env,negative);path=fromJava(env,output);if(p.empty()||p.size()>8000||n.size()>8000||path.empty()){lastError="Descrição ou destino inválido";return false;}sd_img_gen_params_t params{};sd_img_gen_params_init(&params);params.prompt=p.c_str();params.negative_prompt=n.c_str();params.width=width;params.height=height;params.sample_params.sample_steps=steps;params.seed=seed;params.batch_count=1;if(s->sdxl){params.clip_skip=2;params.sample_params.guidance.txt_cfg=5;params.sample_params.sample_method=EULER_SAMPLE_METHOD;params.sample_params.scheduler=DISCRETE_SCHEDULER;params.vae_tiling_params.enabled=true;}s->phase=2;s->step=0;s->total=steps;s->samplerStarted=false;CallbackScope callbacks(s.get());
+extern "C" JNIEXPORT jboolean JNICALL JNI(generatePng)(JNIEnv* env,jobject,jlong id,jstring prompt,jstring negative,jstring output,jint width,jint height,jint steps,jlong seed,jdouble cfg,jint clipSkip,jstring sampler,jstring scheduler){auto s=find(id);if(!s){lastError="Sessão inexistente";return false;}std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);std::string path;try{lastError.clear();if(s->closing||s->cancelled){lastError="Geração cancelada";return false;}if(!s->ctx){lastError="Modelo não carregado";return false;}if(width<256||height<256||width>2048||height>2048||width%(s->sdxl?32:64)||height%(s->sdxl?32:64)||steps<1||steps>100||!std::isfinite(cfg)||cfg<1||cfg>20||clipSkip==0||clipSkip< -1||clipSkip>12||seed< -1||seed>2147483647){lastError="Resolução ou etapas inválidas";return false;}const auto p=fromJava(env,prompt),n=fromJava(env,negative);path=fromJava(env,output);if(p.empty()||p.size()>8000||n.size()>8000||path.empty()){lastError="Descrição ou destino inválido";return false;}sd_img_gen_params_t params{};sd_img_gen_params_init(&params);params.prompt=p.c_str();params.negative_prompt=n.c_str();params.width=width;params.height=height;params.sample_params.sample_steps=steps;params.seed=seed;params.batch_count=1;params.clip_skip=clipSkip;params.sample_params.guidance.txt_cfg=static_cast<float>(cfg);params.vae_tiling_params.enabled=s->sdxl||s->lowMemory;
+        const auto method=fromJava(env,sampler),schedule=fromJava(env,scheduler);
+        if(method=="euler")params.sample_params.sample_method=EULER_SAMPLE_METHOD;else if(method=="euler_a")params.sample_params.sample_method=EULER_A_SAMPLE_METHOD;else if(method=="dpm++2m")params.sample_params.sample_method=DPMPP2M_SAMPLE_METHOD;else if(method!="default"){lastError="Sampler inválido";return false;}
+        if(schedule=="discrete")params.sample_params.scheduler=DISCRETE_SCHEDULER;else if(schedule=="karras")params.sample_params.scheduler=KARRAS_SCHEDULER;else if(schedule!="default"){lastError="Scheduler inválido";return false;}
+        s->phase=2;s->step=0;s->total=steps;s->samplerStarted=false;CallbackScope callbacks(s.get());
         sd_image_generation_result_t* result=nullptr;struct OutputOwner{sd_image_generation_result_t*& p;~OutputOwner(){if(p)free_sd_image_generation_result(p);}} owner{result};const bool ok=generate_image(s->ctx,&params,&result);
         if(s->closing||s->cancelled){lastError="Geração cancelada";return false;}
         if(!ok||!result||result->count!=1||!result->items){lastError="Falha na geração Stable Diffusion";return false;}const auto& image=result->items[0].image;

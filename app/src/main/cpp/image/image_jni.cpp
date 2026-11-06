@@ -17,6 +17,9 @@ static std::mutex lock;
 #include "diffusion/stable_diffusion.hpp"
 #include <MNN/expr/ExecutorScope.hpp>
 #include <atomic>
+#include <cmath>
+static std::atomic<float> guidance{7.5f};
+float image_guidance_scale(){return guidance.load();}
 #include <stdexcept>
 static std::unique_ptr<MNN::DIFFUSION::StableDiffusion> pipeline;
 static std::atomic<long long> ticket{0},cancelled{-1};
@@ -36,4 +39,4 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_proxyslabs_haruna_image_ImageNati
 extern "C" JNIEXPORT void JNICALL Java_com_proxyslabs_haruna_image_ImageNative_finish(JNIEnv*,jobject,jlong id){long long expected=id;ticket.compare_exchange_strong(expected,0);}
 extern "C" JNIEXPORT void JNICALL Java_com_proxyslabs_haruna_image_ImageNative_cancelNative(JNIEnv*,jobject,jlong id){if(ticket.load()==id&&id>0)cancelled=id;}
 extern "C" JNIEXPORT jintArray JNICALL Java_com_proxyslabs_haruna_image_ImageNative_progress(JNIEnv*env,jobject){jint v[]={progressPhase.load(),progressDone.load(),progressTotal.load()};auto a=env->NewIntArray(3);if(a)env->SetIntArrayRegion(a,0,3,v);return a;}
-extern "C" JNIEXPORT jboolean JNICALL Java_com_proxyslabs_haruna_image_ImageNative_generate(JNIEnv*env,jobject,jlong id,jstring path,jstring prompt,jstring output,jint steps,jint memory){std::lock_guard<std::mutex> guard(lock);Utf p(env,path),text(env,prompt),out(env,output);if(!p.p||!text.p||!out.p||ticket.load()!=id||steps<1||steps>50||memory<0||memory>2)return false;try{clear_pipeline();image_checkpoint(1,0,1);pipeline.reset(new MNN::DIFFUSION::StableDiffusion(p.p,MNN::DIFFUSION::STABLE_DIFFUSION_1_5,MNN_FORWARD_CPU,memory));if(!pipeline->load())throw std::runtime_error("load failed");image_checkpoint(1,1,1);bool result=pipeline->run(text.p,out.p,steps,-1,{});clear_pipeline();return result;}catch(...){clear_pipeline();unlink(out.p);return false;}}
+extern "C" JNIEXPORT jboolean JNICALL Java_com_proxyslabs_haruna_image_ImageNative_generate(JNIEnv*env,jobject,jlong id,jstring path,jstring prompt,jstring output,jint steps,jint memory,jfloat cfg,jlong seed){std::lock_guard<std::mutex> guard(lock);Utf p(env,path),text(env,prompt),out(env,output);if(!p.p||!text.p||!out.p||ticket.load()!=id||steps<1||steps>50||memory<0||memory>2||!std::isfinite(cfg)||cfg<1||cfg>20||seed< -1||seed>2147483647)return false;try{guidance=cfg;clear_pipeline();image_checkpoint(1,0,1);pipeline.reset(new MNN::DIFFUSION::StableDiffusion(p.p,MNN::DIFFUSION::STABLE_DIFFUSION_1_5,MNN_FORWARD_CPU,memory));if(!pipeline->load())throw std::runtime_error("load failed");image_checkpoint(1,1,1);bool result=pipeline->run(text.p,out.p,steps,static_cast<int>(seed),{});clear_pipeline();return result;}catch(...){clear_pipeline();unlink(out.p);return false;}}

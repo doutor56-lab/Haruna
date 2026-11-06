@@ -11,7 +11,7 @@ internal object SafetensorsImageNative {
 
     /** Returns 0 on failure; the caller owns and must destroy the handle. */
     external fun create(): Long
-    external fun loadSd15(handle: Long, checkpointPath: String, sdxl: Boolean = false): Boolean
+    external fun loadSd15(handle: Long, checkpointPath: String, sdxl: Boolean = false, lowMemory: Boolean = sdxl): Boolean
     external fun generatePng(
         handle: Long,
         prompt: String,
@@ -20,7 +20,8 @@ internal object SafetensorsImageNative {
         width: Int,
         height: Int,
         steps: Int,
-        seed: Long
+        seed: Long,
+        cfg: Double, clipSkip: Int, sampler: String, scheduler: String
     ): Boolean
     external fun cancel(handle: Long)
     external fun destroy(handle: Long)

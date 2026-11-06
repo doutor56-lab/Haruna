@@ -33,6 +33,24 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
     private fun selectedSdxl()=models[prefs.getString("selected",null)]?.optString("format")==SafetensorsPackage.sdxlFormat
     private fun outputResolution()=prefs.getInt(if(selectedSdxl())"sdxlResolution" else "resolution",if(selectedSdxl())1024 else 256)
     private fun outputSteps()=prefs.getInt(if(selectedSdxl())"sdxlSteps" else "steps",if(selectedSdxl())28 else 5)
+    private var restorePath:String?=null
+    private var restoreWarning:String?=null
+    private fun optionKey(id:String?=prefs.getString("selected",null))=when {models[id]?.optString("format")==SafetensorsPackage.sdxlFormat->"options-sdxl";isSafetensors(id)->"options-sd15";isNezumi(id)->"options-nezumi";else->"options-mnn"}
+    private fun optionEngine(id:String?=prefs.getString("selected",null))=when {isSafetensors(id)->"safetensors";isNezumi(id)->"nezumi";else->"mnn"}
+    private fun options(id:String?=prefs.getString("selected",null)):ImageOptions {
+        val kind=optionEngine(id);val sf=kind=="safetensors";val xl=models[id]?.optString("format")==SafetensorsPackage.sdxlFormat
+        val side=prefs.getInt(if(xl)"sdxlResolution" else "resolution",if(xl)1024 else 256)
+        val d=ImageOptions(side,side,prefs.getInt(if(xl)"sdxlSteps" else "steps",if(xl)28 else 5),if(xl)5.0 else if(sf)7.0 else 7.5,if(xl)2 else -1,if(xl)"euler" else if(kind=="nezumi")"dpm++2m" else "default",if(xl||kind=="nezumi")"discrete" else "default",-1,"",xl,if(xl)1024 else 512,if(xl)32 else 64)
+        val saved=prefs.getString(optionKey(id),null)?:return d
+        return d.updated(JSONObject(saved),kind).let{it.copy(legacySide=JSONObject(saved).optInt("legacySide",0))}
+    }
+    private fun finishImage(){ImageLease.lock.withLock {
+        free();val path=restorePath;restorePath=null
+        if(!closed&&path!=null&&!backend.status().modelLoaded){val finalState=job.optString("state");if(finalState in setOf("COMPLETED","CANCELLED","ERROR"))job.put("state","RESTORING_LLM");phase="RESTORING_LLM";publish()
+            runCatching{backend.loadModel(path).getOrThrow()}.onFailure{restoreWarning="Imagem liberada, mas não foi possível recarregar o GGUF anterior. Carregue-o novamente."}
+            if(!backend.status().modelLoaded)restoreWarning="O backend não confirmou a recarga do GGUF anterior.";job.put("state",finalState)
+        }
+    }}
     private fun isNezumi(id:String?)=models[id]?.optString("format")==NezumiPackage.format
     private fun available(id:String?)=availableFormat(models[id]?.optString("format").orEmpty())
     private fun model(id:String,m:JSONObject)=JSONObject().put("id",id).put("name",m.optString("displayName","SD1.5 MNN").take(64)).put("format",m.optString("format","haruna_sd15")).put("engineAvailable",availableFormat(m.optString("format"))).put("state","INSTALLED")
@@ -49,7 +67,7 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
             catch(e:Exception){models[dir.name]=JSONObject().put("id",dir.name).put("name","Pacote inválido").put("state","INCOMPATIBLE")}
         };phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";publish()
     }}
-    private fun publish(){snapshot=JSONObject().put("state",phase).put("busy",busy).put("imageEngineBusy",ImageLease.active).put("error",error).put("copiedBytes",copied).put("engineAvailable",available(prefs.getString("selected",null))).put("performanceSupported",!isNezumi(prefs.getString("selected",null))&&!isSafetensors(prefs.getString("selected",null))).put("engine",if(isSafetensors(prefs.getString("selected",null)))(if(selectedSdxl())"stable-diffusion.cpp CPU · SDXL/Illustrious · pesos em disco" else "stable-diffusion.cpp CPU · SD1.5 experimental") else "MNN CPU · componentes SD1.5").put("generationAvailable",available(prefs.getString("selected",null))).put("generation",job).put("loaded",loaded).put("selected",prefs.getString("selected",null)).put("models",JSONArray(models.values.toList())).put("nativeSide",if(selectedSdxl())1024 else 512).put("resolution",outputResolution()).put("steps",outputSteps()).put("performance",prefs.getString("performance","balanced")).put("autoSave",prefs.getBoolean("autoSave",true)).put("backend","CPU").toString()}
+    private fun publish(){snapshot=options().json().put("state",phase).put("busy",busy).put("imageEngineBusy",ImageLease.active).put("error",error).put("copiedBytes",copied).put("engineAvailable",available(prefs.getString("selected",null))).put("performanceSupported",!isNezumi(prefs.getString("selected",null))&&!isSafetensors(prefs.getString("selected",null))).put("engine",if(isSafetensors(prefs.getString("selected",null)))(if(selectedSdxl())"stable-diffusion.cpp CPU · SDXL/Illustrious · pesos em disco" else "stable-diffusion.cpp CPU · SD1.5 experimental") else "MNN CPU · componentes SD1.5").put("generationAvailable",available(prefs.getString("selected",null))).put("generation",job).put("loaded",loaded).put("selected",prefs.getString("selected",null)).put("models",JSONArray(models.values.toList())).put("nativeSide",if(selectedSdxl())1024 else 512).put("resolution",options().width).put("restoreWarning",restoreWarning).put("nativeWidth",options().nativeWidth(optionEngine()=="safetensors")).put("nativeHeight",options().nativeHeight(optionEngine()=="safetensors")).put("engineKind",optionEngine()).put("maxSteps",if(optionEngine()=="safetensors")100 else 50).put("performance",prefs.getString("performance","balanced")).put("autoSave",prefs.getBoolean("autoSave",true)).put("backend","CPU").toString()}
     @JavascriptInterface fun status():String {val s=JSONObject(snapshot).put("busy",busy).put("imageEngineBusy",ImageLease.active);safetensorsSession?.let{s.put("nativeProgress",JSONArray(it.progress().toList()))};if(nezumiHandle>0&&NezumiImageNative.available){s.put("nativeProgress",JSONArray(NezumiImageNative.progress(nezumiHandle).toList()))};if(nativeTicket>0&&ImageNative.available){val p=ImageNative.progress();s.put("nativeProgress",JSONArray(p.toList()))};return s.toString()}
     @JavascriptInterface fun add(){if(!closed&&!busy)picker()}
     @JavascriptInterface fun cancel(){cancel.set(true);safetensorsSession?.cancel();val h=nezumiHandle;if(h>0&&NezumiImageNative.available)NezumiImageNative.cancel(h);val t=nativeTicket;if(t>0&&ImageNative.available)ImageNative.cancelNative(t)}
@@ -72,24 +90,33 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
     }
     private fun dir(id:String):File {require(id.matches(Regex("[0-9a-f-]{36}"))&&models.containsKey(id)){"Modelo não encontrado"};return File(root,id)}
     @JavascriptInterface fun select(id:String)=submit {dir(id);check(models[id]?.optString("state")!="INCOMPATIBLE"){"Modelo incompatível"};check(prefs.edit().putString("selected",id).commit())}
-    @JavascriptInterface fun configure(json:String)=submit {val p=JSONObject(json);val r=p.getInt("resolution");val s=p.getInt("steps");val m=p.getString("performance");require(r in (if(selectedSdxl())listOf(256,512,1024) else listOf(256,512))&&s in 1..50&&m in listOf("economy","balanced","performance")){"Configuração inválida"};check(prefs.edit().putInt(if(selectedSdxl())"sdxlResolution" else "resolution",r).putInt(if(selectedSdxl())"sdxlSteps" else "steps",s).putString("performance",m).putBoolean("autoSave",p.getBoolean("autoSave")).commit())}
+    @JavascriptInterface fun configure(json:String)=submit {
+        val p=JSONObject(json);val next=options().updated(p,optionEngine());val m=p.optString("performance",prefs.getString("performance","balanced"));require(m in listOf("economy","balanced","performance")){"Configuração inválida"}
+        val edit=prefs.edit().putString(optionKey(),next.json().toString()).putString("performance",m)
+            .putBoolean("autoSave",if(p.has("autoSave"))p.getBoolean("autoSave")else prefs.getBoolean("autoSave",true))
+        // Legacy callers still work; new per-engine controls must not overwrite other engines' defaults.
+        if(p.has("resolution")){edit.putInt(if(selectedSdxl())"sdxlResolution" else "resolution",next.width);if(selectedSdxl()||next.steps<=50)edit.putInt(if(selectedSdxl())"sdxlSteps" else "steps",next.steps)}
+        check(edit.commit())
+
+    }
+
     private fun free(){ImageLease.lock.withLock {if(leaseOwned){if(safetensorsSession!=null){val session=safetensorsSession;safetensorsSession=null;session?.close()}else if(nezumiHandle>0){val h=nezumiHandle;nezumiHandle=0;NezumiImageNative.destroy(h)}else if(ImageNative.available)ImageNative.unload();loaded?.let{models[it]?.put("state","INSTALLED")};loaded=null;leaseOwned=false;ImageLease.active=false}}}
-    @JavascriptInterface fun unload()=submit {free();phase="INSTALLED"}
-    @JavascriptInterface fun remove(id:String,confirmed:Boolean)=submit {require(confirmed){"Confirme a remoção"};val file=dir(id);ImageLease.lock.withLock {check(!ImageLease.active||leaseOwned){"Outro controlador está utilizando os modelos de imagem"};if(loaded==id)free();check(file.deleteRecursively()){ "Não foi possível remover o pacote"}};models.remove(id);if(prefs.getString("selected",null)==id)prefs.edit().remove("selected").commit();phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED"}
+    @JavascriptInterface fun unload()=submit {finishImage();phase="INSTALLED"}
+    @JavascriptInterface fun remove(id:String,confirmed:Boolean)=submit {require(confirmed){"Confirme a remoção"};val file=dir(id);ImageLease.lock.withLock {check(!ImageLease.active||leaseOwned){"Outro controlador está utilizando os modelos de imagem"};if(loaded==id)finishImage();check(file.deleteRecursively()){ "Não foi possível remover o pacote"}};models.remove(id);if(prefs.getString("selected",null)==id)prefs.edit().remove("selected").commit();phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED"}
     @JavascriptInterface fun load(id:String)=submit {prepare(id,true)}
     private fun prepare(id:String,preload:Boolean) {
         check(available(id)){"Motor do modelo de imagem indisponível nesta build"};val file=dir(id);ImagePackage.verify(file){cancel.get()||closed};val sf=isSafetensors(id);val nezumi=isNezumi(id);if(!sf&&!(if(nezumi)NezumiImageNative.validateFiles(NezumiPackage.graphFiles(file)) else ImageNative.validate(file.absolutePath))){models[id]?.put("state","INCOMPATIBLE");throw IllegalArgumentException("Pacote incompatível com o motor MNN CPU desta build")}
         check(!cancel.get()&&!closed){"Operação cancelada"};free()
-        ImageLease.lock.withLock {check(!ImageLease.active){"Outro modelo de imagens está em uso"};ImageLease.active=true;leaseOwned=true;try{backend.unloadModel().getOrThrow();check(!backend.status().modelLoaded){"O GGUF continua carregado"}}catch(e:Exception){ImageLease.active=false;leaseOwned=false;throw e}}
+        ImageLease.lock.withLock {check(!ImageLease.active){"Outro modelo de imagens está em uso"};ImageLease.active=true;leaseOwned=true;try{if(restorePath==null&&backend.status().modelLoaded)restorePath=checkNotNull(backend.installedModelPath()){ "O backend não identificou o GGUF ativo; recarregue-o antes de gerar imagens." };restoreWarning=null;backend.unloadModel().getOrThrow();check(!backend.status().modelLoaded){"O GGUF continua carregado"}}catch(e:Exception){finishImage();throw e}}
         try{val info=ActivityManager.MemoryInfo();app.getSystemService(ActivityManager::class.java).getMemoryInfo(info)
-            val bytes=file.listFiles().orEmpty().sumOf{it.length()};check(!info.lowMemory&&info.availMem>if(models[id]?.optString("format")==SafetensorsPackage.sdxlFormat)3L*1024*1024*1024 else maxOf(bytes+512L*1024*1024,3L*1024*1024*1024)){"Memória disponível insuficiente; modelo instalado foi preservado"}
+            val bytes=file.listFiles().orEmpty().sumOf{it.length()};check(!info.lowMemory&&info.availMem>if(sf&&options(id).lowMemory)3L*1024*1024*1024 else maxOf(bytes+512L*1024*1024,3L*1024*1024*1024)){"Memória disponível insuficiente; modelo instalado foi preservado"}
             phase="LOADING";models[id]?.put("state","LOADING");publish()
-            if(sf){SafetensorsSession.open(File(file,SafetensorsPackage.checkpoint),{cancel.get()||closed}){safetensorsSession=it}}
+            if(sf){SafetensorsSession.open(File(file,SafetensorsPackage.checkpoint),{cancel.get()||closed},options(id).lowMemory){safetensorsSession=it}}
             else if(nezumi){val h=NezumiImageNative.create();check(h>0){"Motor Nezumi indisponível"};nezumiHandle=h;check(!cancel.get()&&!closed){"Carregamento cancelado"};check(NezumiImageNative.loadCpu(h,file.absolutePath)&&NezumiImageNative.isLoaded(h)){NezumiImageNative.lastError()}}
             else if(preload)check(ImageNative.load(file.absolutePath)){"Não foi possível preparar os componentes SD1.5. Pode haver incompatibilidade ou falta de memória."}
             if(cancel.get()||closed)throw IllegalStateException("Carregamento cancelado")
             if(preload){loaded=id;phase="LOADED";models[id]?.put("state","LOADED")}
-        }catch(e:Throwable){free();models[id]?.put("state","ERROR");throw e}
+        }catch(e:Throwable){finishImage();models[id]?.put("state","ERROR");throw e}
     }
     private val outputs=File(app.filesDir,"generated-images").apply{mkdirs()}
     @JavascriptInterface fun cancelGeneration(id:String){if(activeJob==id)cancel()}
@@ -103,22 +130,26 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
         try {val selected=prefs.getString("selected",null)?:throw IllegalStateException("Selecione um modelo SD1.5 em Configurações")
             check(outputs.usableSpace>64L*1024*1024){"Espaço insuficiente para salvar a imagem"}
             prepare(selected,false);check(!cancel.get()&&!closed){"Geração cancelada"}
-            val sf=isSafetensors(selected);val nezumi=isNezumi(selected);val t=if(nezumi||sf)0L else tickets.incrementAndGet();if(!nezumi&&!sf){check(ImageNative.reserve(t)){"Motor de imagem ocupado"};nativeTicket=t}
+            val config=options();val sf=isSafetensors(selected);val nezumi=isNezumi(selected);val t=if(nezumi||sf)0L else tickets.incrementAndGet();if(!nezumi&&!sf){check(ImageNative.reserve(t)){"Motor de imagem ocupado"};nativeTicket=t}
             check(!cancel.get()&&!closed){"Geração cancelada"};phase="GENERATING";job.put("state","GENERATING");publish()
             val mode=when(prefs.getString("performance","balanced")){"economy"->0;"performance"->1;else->2}
-            val ok=if(sf){val session=checkNotNull(safetensorsSession);val side=if(session.sdxl)1024 else 512;session.generate(prompt,"",part,side,side,if(session.sdxl)prefs.getInt("sdxlSteps",28) else outputSteps(),-1L);ImageFiles.validateDimensions(part,side);true}else if(nezumi){val rgb=NezumiImageNative.generateRgb(nezumiHandle,prompt,"",outputSteps(),-1L)?:throw IllegalStateException(NezumiImageNative.lastError());check(!cancel.get()&&!closed){"Geração cancelada"};ImageFiles.writeRgb(part,rgb);true}else ImageNative.generate(t,dir(selected).absolutePath,prompt,part.absolutePath,outputSteps(),mode)
+            val nw=config.nativeWidth(sf);val nh=config.nativeHeight(sf)
+            val ok=if(sf){checkNotNull(safetensorsSession).generate(prompt,config.negativePrompt,part,nw,nh,config.steps,config.seed,config.cfg,config.clipSkip,config.sampler,config.scheduler);ImageFiles.validateSize(part,nw,nh);true}
+                else if(nezumi){val rgb=NezumiImageNative.generateRgb(nezumiHandle,prompt,config.negativePrompt,config.steps,config.seed,config.cfg.toFloat(),config.sampler,config.scheduler)?:throw IllegalStateException(NezumiImageNative.lastError());check(!cancel.get()&&!closed){"Geração cancelada"};ImageFiles.writeRgb(part,rgb);true}
+                else ImageNative.generate(t,dir(selected).absolutePath,prompt,part.absolutePath,config.steps,mode,config.cfg.toFloat(),config.seed)
+
             check(!cancel.get()&&!closed){"Geração cancelada"};check(ok&&part.isFile){"O MNN não concluiu a geração"}
-            ImageFiles.resize(part,outputResolution(),if(sf&&safetensorsSession?.sdxl==true)1024 else 512)
+            ImageFiles.finishSize(part,config.width,config.height,nw,nh,config.legacySide>0)
             check(!cancel.get()&&!closed){"Geração cancelada"};check(part.renameTo(target)){"Não foi possível salvar o PNG"}
-            job.put("state","COMPLETED").put("file",target.name).put("nativeResolution",if(sf&&safetensorsSession?.sdxl==true)1024 else 512).put("outputResolution",outputResolution())
+            job.put("state","COMPLETED").put("file",target.name).put("nativeResolution",if(nw==nh)nw else JSONObject.NULL).put("outputResolution",config.width).put("outputWidth",config.width).put("outputHeight",config.height).put("nativeWidth",nw).put("nativeHeight",nh).put("steps",config.steps).put("cfg",config.cfg).put("seed",config.seed)
             if(prefs.getBoolean("autoSave",true))runCatching{ImageFiles.save(app,target)}.onFailure{job.put("saveWarning","PNG privado salvo; não foi possível salvar na galeria")}
-        }catch(e:OutOfMemoryError){part.delete();job.put("state","ERROR").put("error","Memória insuficiente para concluir a imagem. O modelo instalado foi preservado.")}catch(e:Exception){part.delete();job.put("state",if(cancel.get()||closed)"CANCELLED" else "ERROR").put("error",if(cancel.get()||closed)"Geração cancelada" else if(e.message=="Memória disponível insuficiente; modelo instalado foi preservado")"Memória livre insuficiente. A geração requer margem preventiva de pelo menos 3 GiB; o modelo instalado foi preservado." else if((e.message.orEmpty().startsWith("Motor Nezumi CPU: erro técnico ")||e.message.orEmpty().startsWith("SD1.5 CPU: ")))e.message else "Não foi possível concluir a imagem. Confira o modelo e a memória disponível.")}
-        finally {if(nativeTicket>0){ImageNative.finish(nativeTicket);nativeTicket=0};free();models.values.filter{it.optString("state")=="LOADING"}.forEach{it.put("state","INSTALLED")};activeJob=null;phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";val meta=File(outputs,"$request.json.part");meta.writeText(job.toString());meta.renameTo(File(outputs,"$request.json"));publish()}
+        }catch(e:OutOfMemoryError){part.delete();job.put("state","ERROR").put("error","Memória insuficiente para concluir a imagem. O modelo instalado foi preservado.")}catch(e:Exception){part.delete();job.put("state",if(cancel.get()||closed)"CANCELLED" else "ERROR").put("error",if(cancel.get()||closed)"Geração cancelada" else if(e.message=="Memória disponível insuficiente; modelo instalado foi preservado")"Memória livre insuficiente. A geração requer margem preventiva de pelo menos 3 GiB; o modelo instalado foi preservado." else if(e.message=="O backend não identificou o GGUF ativo; recarregue-o antes de gerar imagens.")e.message else if((e.message.orEmpty().startsWith("Motor Nezumi CPU: erro técnico ")||(e.message.orEmpty().startsWith("SD1.5 CPU: ")||e.message.orEmpty().startsWith("Stable Diffusion CPU: "))))e.message else "Não foi possível concluir a imagem. Confira o modelo e a memória disponível.")}
+        finally {if(nativeTicket>0){ImageNative.finish(nativeTicket);nativeTicket=0};finishImage();restoreWarning?.let{job.put("restoreWarning",it)};models.values.filter{it.optString("state")=="LOADING"}.forEach{it.put("state","INSTALLED")};activeJob=null;phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";val meta=File(outputs,"$request.json.part");meta.writeText(job.toString());meta.renameTo(File(outputs,"$request.json"));publish()}
         }
     }
     private fun image(id:String):File {require(id.matches(Regex("[0-9a-f-]{36}")));return File(outputs,"$id.png").also{require(it.isFile)}}
     @JavascriptInterface fun save(id:String)=submit {ImageFiles.save(app,image(id))}
     @JavascriptInterface fun open(id:String,share:Boolean){val f=runCatching{image(id)}.getOrNull()?:return;ImageFiles.open(app,f,share)}
-    @Synchronized fun close(){if(closed)return;closed=true;cancel();worker.execute{free()};worker.shutdown()}
+    @Synchronized fun close(){if(closed)return;closed=true;cancel();worker.execute{restorePath=null;free()};worker.shutdown()}
 }
 

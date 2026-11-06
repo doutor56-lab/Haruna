@@ -25,7 +25,7 @@ internal object NezumiImageNative {
         prompt: String,
         negativePrompt: String,
         steps: Int,
-        seed: Long
+        seed: Long, cfg:Float, sampler:String, scheduler:String
     ): ByteArray?
 
     external fun cancel(handle: Long)
