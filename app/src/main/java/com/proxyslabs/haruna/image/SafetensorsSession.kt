@@ -63,6 +63,7 @@ internal class SafetensorsSession private constructor(@Volatile private var hand
         )) { SafetensorsImageNative.lastError() }
     }
 
+    fun preview(enabled:Boolean):Boolean = SafetensorsImageNative.setPreviewEnabled(handle,enabled)
     fun progress():IntArray {val id=handle;return if(id==0L)intArrayOf(0,0,0) else SafetensorsImageNative.progress(id)}
 
     // Native cancel must remain callable while generate() holds the session monitor.

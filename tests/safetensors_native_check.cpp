@@ -8,6 +8,7 @@ struct sd_ctx_t { std::atomic<bool> freed{false}; };
 std::atomic<int> cancellations{0},frees{0};
 void sd_set_log_callback(sd_log_cb_t,void*){}
 void sd_set_progress_callback(sd_progress_cb_t,void*){}
+void sd_set_preview_callback(sd_preview_cb_t,preview_t,int,bool,bool,void*){}
 void sd_ctx_params_init(sd_ctx_params_t* p){std::memset(p,0,sizeof(*p));}
 sd_ctx_t* new_sd_ctx(const sd_ctx_params_t*){return nullptr;}
 void free_sd_ctx(sd_ctx_t* p){assert(!p->freed.exchange(true));++frees;/* keep tiny fake allocation for race assertions */}

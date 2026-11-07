@@ -3,6 +3,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 #include <atomic>
+#include <vector>
+#include <algorithm>
+#include <cstdio>
 #include <cmath>
 #include <codecvt>
 #include <locale>
@@ -15,7 +18,7 @@
 namespace {
 struct Session {
     std::mutex operation, contextAccess;
-    bool sdxl=false,lowMemory=false;
+    bool sdxl=false,lowMemory=false,previewEnabled=false;std::string previewPath;
     sd_ctx_t* ctx=nullptr; // operation owns use; contextAccess protects cancel vs release.
     std::atomic<bool> cancelled{false},closing{false},samplerStarted{false};
     std::atomic<int> phase{0},step{0},total{0};
@@ -39,10 +42,13 @@ void progress(int step,int steps,float,void* data){auto& s=*static_cast<Session*
     }
     if(s.cancelled)cancel(s);
 }
-struct CallbackScope {explicit CallbackScope(Session* s){sd_set_log_callback(quiet,nullptr);sd_set_progress_callback(progress,s);}~CallbackScope(){sd_set_progress_callback(nullptr,nullptr);}};
+void preview(int,int count,sd_image_t* frames,bool,void* data){auto& s=*static_cast<Session*>(data);if(!s.previewEnabled||s.cancelled||s.closing||count<1||!frames||s.previewPath.empty())return;const auto& f=frames[0];if(!f.data||!f.width||!f.height||f.width>16384||f.height>16384||(f.channel!=3&&f.channel!=4))return;
+    try{const unsigned side=std::max(f.width,f.height);const int w=std::max(1u,f.width*128u/side),h=std::max(1u,f.height*128u/side);std::vector<unsigned char> rgb(w*h*3);for(int y=0;y<h;y++)for(int x=0;x<w;x++){size_t src=((static_cast<size_t>(y)*f.height/h)*f.width+static_cast<size_t>(x)*f.width/w)*f.channel;for(int c=0;c<3;c++)rgb[(y*w+x)*3+c]=f.data[src+c];}const auto temp=s.previewPath+".part";if(stbi_write_png(temp.c_str(),w,h,3,rgb.data(),w*3))std::rename(temp.c_str(),s.previewPath.c_str());else unlink(temp.c_str());}catch(...){/* Preview is optional; never fail or alter the actual denoising run. */}}
+struct CallbackScope {explicit CallbackScope(Session* s){sd_set_log_callback(quiet,nullptr);sd_set_progress_callback(progress,s);sd_set_preview_callback(s->previewEnabled?preview:nullptr,s->previewEnabled?PREVIEW_PROJ:PREVIEW_NONE,std::max(1,s->total.load()/3),true,false,s);}~CallbackScope(){sd_set_preview_callback(nullptr,PREVIEW_NONE,0,false,false,nullptr);sd_set_progress_callback(nullptr,nullptr);}};
 }
 #define JNI(name) Java_com_proxyslabs_haruna_image_SafetensorsImageNative_##name
 extern "C" JNIEXPORT jlong JNICALL JNI(create)(JNIEnv*,jobject){try{auto s=std::make_shared<Session>();const auto id=++nextId;std::lock_guard<std::mutex> l(registryMutex);sessions.emplace(id,s);return id;}catch(...){lastError="Memória insuficiente para criar sessão Stable Diffusion";return 0;}}
+extern "C" JNIEXPORT jboolean JNICALL JNI(setPreviewEnabled)(JNIEnv*,jobject,jlong id,jboolean enabled){auto s=find(id);if(!s)return false;std::lock_guard<std::mutex> op(s->operation);if(s->closing||s->cancelled)return false;s->previewEnabled=enabled;return true;}
 extern "C" JNIEXPORT jboolean JNICALL JNI(loadSd15)(JNIEnv* env,jobject,jlong id,jstring checkpoint,jboolean sdxl,jboolean lowMemory){auto s=find(id);if(!s){lastError="Sessão inexistente";return false;}std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);try{lastError.clear();if(s->closing||s->cancelled){lastError="Carregamento cancelado";return false;}if(s->ctx){lastError="Modelo já carregado";return false;}sd_set_log_callback(quiet,nullptr);s->phase=1;const auto path=fromJava(env,checkpoint);if(path.empty()){lastError="Checkpoint vazio";return false;}sd_ctx_params_t params{};sd_ctx_params_init(&params);params.model_path=path.c_str();params.n_threads=4;params.enable_mmap=true;params.batched_cfg=false;params.backend="cpu";params.params_backend=lowMemory?"disk":"cpu";params.flash_attn=sdxl;params.diffusion_flash_attn=sdxl;
         std::unique_ptr<sd_ctx_t,decltype(&free_sd_ctx)> ctx(new_sd_ctx(&params),free_sd_ctx);
         if(!ctx){lastError="Falha ao carregar Stable Diffusion; confira integridade e memória disponível";return false;}
@@ -54,7 +60,7 @@ extern "C" JNIEXPORT jboolean JNICALL JNI(generatePng)(JNIEnv* env,jobject,jlong
         const auto method=fromJava(env,sampler),schedule=fromJava(env,scheduler);
         if(method=="euler")params.sample_params.sample_method=EULER_SAMPLE_METHOD;else if(method=="euler_a")params.sample_params.sample_method=EULER_A_SAMPLE_METHOD;else if(method=="dpm++2m")params.sample_params.sample_method=DPMPP2M_SAMPLE_METHOD;else if(method!="default"){lastError="Sampler inválido";return false;}
         if(schedule=="discrete")params.sample_params.scheduler=DISCRETE_SCHEDULER;else if(schedule=="karras")params.sample_params.scheduler=KARRAS_SCHEDULER;else if(schedule!="default"){lastError="Scheduler inválido";return false;}
-        s->phase=2;s->step=0;s->total=steps;s->samplerStarted=false;CallbackScope callbacks(s.get());
+        s->previewPath=path;const auto suffix=s->previewPath.rfind(".part.png");if(suffix!=std::string::npos)s->previewPath.replace(suffix,9,".preview.png");else s->previewEnabled=false;s->phase=2;s->step=0;s->total=steps;s->samplerStarted=false;CallbackScope callbacks(s.get());
         sd_image_generation_result_t* result=nullptr;struct OutputOwner{sd_image_generation_result_t*& p;~OutputOwner(){if(p)free_sd_image_generation_result(p);}} owner{result};const bool ok=generate_image(s->ctx,&params,&result);
         if(s->closing||s->cancelled){lastError="Geração cancelada";return false;}
         if(!ok||!result||result->count!=1||!result->items){lastError="Falha na geração Stable Diffusion";return false;}const auto& image=result->items[0].image;

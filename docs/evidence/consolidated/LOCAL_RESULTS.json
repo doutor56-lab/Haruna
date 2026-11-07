@@ -1,0 +1,55 @@
+{
+  "environment": "Linux host; NOT Android/device",
+  "model": "SD1.5 v1-5-pruned-emaonly-fp16.safetensors",
+  "configuration": {
+    "width": 512,
+    "height": 512,
+    "steps": 1,
+    "sampler": "euler",
+    "scheduler": "discrete",
+    "cfg": 7,
+    "lowMemory": true
+  },
+  "batch": {
+    "sessionCount": 1,
+    "realImages": [
+      {
+        "index": 1,
+        "seed": 424242,
+        "bytes": 375877,
+        "sha256": "601f28ef4929167a53e5d6880e6652367a81d59f9e621c23ae228dbd078bbb81"
+      },
+      {
+        "index": 2,
+        "seed": 424243,
+        "bytes": 512346,
+        "sha256": "cfaf4995a87727aafcf40470dd2954902603508fbd80f367202dbb669024816c"
+      },
+      {
+        "index": 3,
+        "seed": 424244,
+        "bytes": 557031,
+        "sha256": "0ff16696a4c064ca92b22982501425840d6746612f02723634b2db1ec9e009ba"
+      },
+      {
+        "index": 4,
+        "seed": 424245,
+        "bytes": 384237,
+        "sha256": "9f9928ea7ce9a59ff20dfb8c5a7a208348f67f7544ab0d0d482ec04020a24374"
+      }
+    ],
+    "note": "Existing pinned SDK and JNI generation interface exercised; Kotlin batch control validated separately with fake Android/JNI."
+  },
+  "preview": {
+    "adapter": "updated JNI",
+    "mode": "PREVIEW_PROJ",
+    "width": 128,
+    "height": 128,
+    "bytes": 14611,
+    "sha256": "810714b314d54dd1ee260928250e7ec437c8dbcf9a2ef6a292433cf7cd872529",
+    "finalMatchesPreviewOff": true
+  },
+  "androidTested": false,
+  "newApkProduced": false,
+  "remoteBuildExecuted": false
+}

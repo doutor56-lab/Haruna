@@ -23,6 +23,7 @@ internal object SafetensorsImageNative {
         seed: Long,
         cfg: Double, clipSkip: Int, sampler: String, scheduler: String
     ): Boolean
+    external fun setPreviewEnabled(handle:Long,enabled:Boolean):Boolean
     external fun cancel(handle: Long)
     external fun destroy(handle: Long)
     external fun lastError(): String

@@ -1,0 +1,4 @@
+package com.proxyslabs.haruna.image
+import java.io.File
+/** Explicit local real checkpoint only. No downloads, Android/device inference claim or user data. */
+fun main(args:Array<String>){require(args.size>=2);val model=File(args[0]);val dir=File(args[1]).apply{mkdirs()};val count=args.getOrNull(2)?.toInt()?:4;require(count in 1..4);val previews=args.getOrNull(3)=="preview";SafetensorsSession.open(model,lowMemory=true).use{session->if(previews)check(session.preview(true));repeat(count){index->val id="session-${index+1}";val png=File(dir,"$id.part.png");session.generate("a red apple on a wooden table","",png,512,512,1,424242L+index,7.0,-1,"euler","discrete");check(png.length()>100);if(previews)check(File(dir,"$id.preview.png").length()>100);check(png.renameTo(File(dir,"$id.png")));println("REAL PNG ${index+1}/$count bytes=${File(dir,"$id.png").length()} seed=${424242+index}")}};println("ONE SESSION FREED")}

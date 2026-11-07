@@ -138,7 +138,7 @@ class MainActivity : AppCompatActivity() {
         val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .addPathHandler("/documents/",WebViewAssetLoader.PathHandler{path->documents.serve(path)})
             .addPathHandler("/generated/", WebViewAssetLoader.PathHandler { path ->
-                if(!path.matches(Regex("[0-9a-f-]{36}\\.png"))) null else {
+                if(!path.matches(Regex("[0-9a-f-]{36}(?:\\.preview)?\\.png"))) null else {
                     val file=java.io.File(filesDir,"generated-images/$path")
                     if(file.isFile) android.webkit.WebResourceResponse("image/png",null,file.inputStream()) else null
                 }

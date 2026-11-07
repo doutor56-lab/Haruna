@@ -5,6 +5,7 @@ import {diagnosticCards,diagnosticReport} from './report.js';
 
 const settings=document.querySelector('#settingsView');
 const activityIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h4l3-8 5 16 3-8h5"/></svg>';
+let performanceVisible=false;
 let laboratory=null;
 let experiment=null,experimentInitialized=false;
 let dialog=null,timer=null,ticket=0,native={},cards=[],savedScroll=0,returnFocus=null;
@@ -13,12 +14,12 @@ launcher.innerHTML=activityIcon+'<span>DBG</span>';launcher.setAttribute('aria-l
 settings?.appendChild(launcher);
 
 function stopTimer(){clearTimeout(timer);timer=null}
-function schedule(){stopTimer();if(dialog&&!document.hidden)timer=setTimeout(refresh,5000)}
+function schedule(){stopTimer();if((dialog||performanceVisible)&&!document.hidden)timer=setTimeout(refresh,5000)}
 function requestSnapshot(){
- if(!dialog||document.hidden)return;
+ if((!dialog&&!performanceVisible)||document.hidden)return;
  try{window.HarunaDiagnostics?.requestSnapshot(ticket)}catch{}
 }
-function refresh(){if(!dialog||document.hidden)return;requestSnapshot();render();schedule()}
+function refresh(){if((!dialog&&!performanceVisible)||document.hidden)return;requestSnapshot();render();schedule()}
 function render(){
  if(!dialog)return;
  if(!experimentInitialized&&native.llm?.observation){
@@ -39,7 +40,7 @@ function render(){
 function finishClose(){
  if(!dialog)return;laboratory?.dispose();laboratory=null;experiment?.dispose();experiment=null;experimentInitialized=false;stopTimer();const old=dialog;dialog=null;ticket++;native={};cards=[];old.remove();
  if(settings&&!settings.hidden){settings.scrollTop=savedScroll;if(returnFocus?.isConnected)returnFocus.focus({preventScroll:true})}
- returnFocus=null;
+ returnFocus=null;schedule();
 }
 function close(){dialog?.close()}
 function open(){
@@ -78,9 +79,12 @@ async function copy(){
 }
 launcher.onclick=open;
 window.addEventListener('haruna-dbg-snapshot',event=>{
- if(!dialog||event.detail?.ticket!==ticket)return;
+ if(event.detail?.ticket!==ticket)return;
+ window.dispatchEvent(new CustomEvent('haruna-memory-observation',{detail:event.detail}));
+ if(!dialog)return;
  native=event.detail;render();
 });
-document.addEventListener('visibilitychange',()=>{if(!dialog)return;if(document.hidden)stopTimer();else refresh()});
+window.addEventListener('haruna-model-performance',e=>{performanceVisible=!!e.detail;if(performanceVisible)refresh();else if(!dialog)stopTimer()});
+document.addEventListener('visibilitychange',()=>{if(!dialog&&!performanceVisible)return;if(document.hidden)stopTimer();else refresh()});
 window.addEventListener('pagehide',()=>{if(dialog)close()});
 
