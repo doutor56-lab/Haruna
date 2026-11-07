@@ -181,6 +181,29 @@ document.addEventListener('visibilitychange',()=>{document.documentElement.class
 window.addEventListener('haruna-call-stop',endVoice);
 window.addEventListener('pagehide',endVoice);
 document.addEventListener('click',e=>{const button=e.target.closest('button');if(button?.classList.contains('nav-item')&&button.dataset.view!=='chat'&&localCall)localCall.view.minimize();if(button?.id==='attach')endVoice()},true);
-const shortcuts=document.createElement('div');shortcuts.className='voice-shortcuts';shortcuts.innerHTML=`<button type="button" data-call>${voiceIcon('phone')}Chamada de voz</button><button type="button" data-voice-config>${voiceIcon('settings')}Configurar voz</button>`;composer?.before(shortcuts);shortcuts.querySelector('[data-call]').onclick=()=>phone.click();shortcuts.querySelector('[data-voice-config]').onclick=openVoiceSettings;
+// The phone remains the primary call action; voice options live in a discreet menu.
+const voiceMenu=document.createElement('div');
+voiceMenu.className='haruna-voice-menu';
+voiceMenu.hidden=true;
+voiceMenu.innerHTML=`<button type="button" data-call>${voiceIcon('phone')}Iniciar conversa por voz</button><button type="button" data-voice-config>${voiceIcon('settings')}Configurar voz</button>`;
+const voiceMore=document.createElement('button');
+voiceMore.type='button';
+voiceMore.className='ghost haruna-voice-more';
+voiceMore.setAttribute('aria-label','Mais opções de voz');
+voiceMore.setAttribute('aria-expanded','false');
+voiceMore.textContent='⋮';
+document.querySelector('.topbar .actions')?.append(voiceMore);
+document.querySelector('.topbar')?.append(voiceMenu);
+const toggleVoiceMenu=(open)=>{voiceMenu.hidden=!open;voiceMore.setAttribute('aria-expanded',String(open))};
+voiceMore.onclick=()=>toggleVoiceMenu(voiceMenu.hidden);
+voiceMenu.querySelector('[data-call]').onclick=()=>{toggleVoiceMenu(false);phone.click()};
+voiceMenu.querySelector('[data-voice-config]').onclick=()=>{toggleVoiceMenu(false);openVoiceSettings()};
+phone.addEventListener('contextmenu',event=>{event.preventDefault();toggleVoiceMenu(true)});
+let voiceHold=null,held=false;
+phone.addEventListener('pointerdown',event=>{if(event.pointerType==='mouse')return;held=false;clearTimeout(voiceHold);voiceHold=setTimeout(()=>{held=true;toggleVoiceMenu(true)},550)});
+for(const type of ['pointerup','pointercancel','pointerleave'])phone.addEventListener(type,()=>clearTimeout(voiceHold));
+phone.addEventListener('click',event=>{if(!held)return;event.stopImmediatePropagation();held=false},true);
+document.addEventListener('click',event=>{if(!voiceMenu.hidden&&!voiceMenu.contains(event.target)&&event.target!==voiceMore&&event.target!==phone)toggleVoiceMenu(false)});
+
 refresh();
 
