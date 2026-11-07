@@ -18,3 +18,39 @@
 .image-dimensions[open]{width:min(360px,calc(100vw - 96px));max-height:min(68dvh,calc(var(--image-composer-top,80dvh) - 20px));font-size:13px}.image-panel-overview{grid-template-columns:minmax(62px,.8fr) minmax(0,1.2fr);gap:10px}.image-panel-body{padding:12px}.image-panel-heading{padding:10px;gap:7px}.image-panel-heading strong{font-size:14px}.image-panel-heading svg{width:20px;height:20px}.image-panel-heading [data-close]{min-width:28px}.image-dimensions .image-choice{gap:3px}.image-dimensions .image-choice button{font-size:11px;min-height:36px;padding:6px 2px}.image-dimensions select{padding:8px 5px}.image-panel-footer{padding:10px}.image-dimensions [data-panel-save]{font-size:14px}.image-dimensions .image-count{gap:7px}.image-count select{width:58px}
 .status-row #think{margin-left:auto;flex:0 0 36px;width:36px;height:36px;min-height:36px;border:0;background:transparent;color:#d1a8ff;border-radius:10px}.status-row #think.active{background:#8d43e42b}.status-row #think:focus-visible{outline:2px solid #bd85ff;outline-offset:2px}
 .image-dimensions[open]{max-height:min(68dvh,calc(var(--image-composer-top,80dvh) - var(--image-panel-top,100px) - 8px))}
+
+
+/* Reference chat layout: preserve original Haruna colors and components. */
+.topbar{position:relative}
+.haruna-voice-more{font-size:24px;line-height:1;min-width:38px}
+.haruna-voice-menu{position:absolute;z-index:12;right:12px;top:calc(100% - 3px);width:min(290px,calc(100vw - 24px));padding:7px;border:1px solid #353b58;border-radius:16px;background:#121829;box-shadow:0 16px 35px #0009}
+.haruna-voice-menu[hidden]{display:none!important}
+.haruna-voice-menu button{display:flex;align-items:center;gap:12px;width:100%;min-height:46px;padding:9px 12px;border:0;border-radius:10px;background:transparent;color:#e8e7f4;text-align:left;font:inherit}
+.haruna-voice-menu button+button{border-top:1px solid #303650;border-radius:0}
+.haruna-voice-menu svg{width:20px;height:20px;flex:none}
+.haruna-message-actions{display:flex;align-items:center;gap:7px;margin-top:10px;padding-top:7px;border-top:1px solid #ffffff13;white-space:normal}
+.haruna-message-actions button{display:grid;place-items:center;width:35px;height:33px;border:1px solid #323b56;border-radius:11px;background:#151c2e;color:#c8c5de;font-size:21px;line-height:1;cursor:pointer}
+.haruna-message-actions button:focus-visible,.haruna-voice-menu button:focus-visible{outline:2px solid #a17cff;outline-offset:2px}
+.msg.assistant .bubble{min-width:0}
+.msg.user .bubble{background:linear-gradient(135deg,#3a285c,#39245f);border-color:#8250c2;box-shadow:none}
+#generateImage{flex-shrink:0}
+@media(orientation:landscape) and (min-width:800px) and (min-height:350px){
+ .app:has(#chatView:not([hidden])) .drawer{position:absolute;inset:72px auto 65px 0;width:clamp(245px,27vw,350px);transform:none;z-index:2;border:1px solid #252d45;border-radius:18px;padding:14px;background:#0e1423;box-shadow:none;transition:none}
+ .app:has(#chatView:not([hidden])) .drawer #closeMenu{display:none}
+ .app:has(#chatView:not([hidden])) .scrim{display:none!important}
+ .app:has(#chatView:not([hidden])) #chatView{margin-left:clamp(253px,calc(27vw + 8px),358px);min-width:0}
+ .topbar{padding-top:6px;padding-bottom:6px}
+ .chat-view .messages{padding-top:8px;padding-bottom:8px;gap:10px}
+ .chat-view .status-row{padding:4px 10px;margin-top:0}
+ .chat-view .composer{padding:4px 6px;margin-bottom:3px}
+ .chat-view .footer-note{display:none}
+ .bottom-nav{grid-template-columns:repeat(4,minmax(0,1fr));padding-top:2px;padding-bottom:2px}
+ .bottom-nav .nav-item{min-height:42px;gap:0}
+ .bottom-nav .nav-item small{line-height:1.1}
+ .msg{max-width:92%}
+}
+@media(max-width:420px){
+ .haruna-message-actions button{width:32px;height:32px}
+ .composer{gap:5px}
+ #generateImage{width:38px;flex-basis:38px}
+}
