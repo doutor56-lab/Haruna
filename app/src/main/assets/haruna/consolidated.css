@@ -50,7 +50,7 @@
 .settings-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;margin:14px 0}
 .settings-category-button{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-height:76px;padding:14px 42px 14px 15px;border:1px solid #40386e;border-radius:15px;background:#151b30;color:inherit;text-align:left;font:inherit;cursor:pointer}
 .settings-category-button small{color:#aaa8c5;line-height:1.4}
-.settings-category-button span{position:absolute;right:15px;top:50%;transform:translateY(-50%);color:#b994ff;font-size:24px}
+.settings-category-button span{position:absolute;right:15px;top:50%;transform:translateY(-50%);color:#b994ff}
 .settings-category-button:focus-visible,.settings-category-heading button:focus-visible{outline:2px solid #b994ff;outline-offset:2px}
 .settings-category-heading{margin:12px 0 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 .settings-category-heading button{border:1px solid #40386e;border-radius:11px;background:#151b30;color:inherit;padding:10px 12px;font:inherit}
