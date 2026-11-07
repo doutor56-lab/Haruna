@@ -212,7 +212,8 @@ jobs:
           if-no-files-found: error
 
       - name: Prune old APK artifacts after successful publication
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/consolidated-image-batches' && github.event.head_commit.message == 'build: Android 0.8.2 panel and authorized APK retention'
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/feature/consolidated-image-batches' && github.event.head_commit.message == 'build: Android 0.8.2 panel and authorized APK retention'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
