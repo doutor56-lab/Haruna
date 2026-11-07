@@ -1,87 +1,75 @@
-// Navigation-only organization. Existing controls and persistence remain untouched.
+// Preserve existing Settings cards and place model-related controls inside Local Models.
 const settings = document.querySelector('#settingsView');
 const memory = document.querySelector('#memoryView');
 const library = document.querySelector('#libraryView');
 
 if (settings) {
-  const groups = [
-    ['appearance', 'Aparência', 'Tema claro, escuro ou automático'],
-    ['models', 'Modelos locais', 'Modelos instalados, desempenho e motores'],
-    ['images', 'Geração de imagens', 'Modelos e preferências de imagens'],
-    ['vision', 'Interpretação de imagens', 'Modelos para analisar imagens'],
-    ['voice', 'Voz e conversação', 'Reconhecimento, fala e conversa por voz'],
-    ['privacy', 'Privacidade e armazenamento', 'Dados e processamento local'],
-    ['general', 'Geral', 'Funcionalidades previstas para o futuro']
-  ];
+  const host = settings.querySelector('#localModels');
   const futureCard = document.createElement('section');
   futureCard.className = 'page-card haruna-future-settings';
-  futureCard.dataset.settingsCategory = 'general';
-  futureCard.innerHTML = '<div class="section-title"><strong>Novidades em desenvolvimento</strong></div><p>Esta seção será destinada a novas configurações e recursos da Haruna.</p><p>Futuramente, poderão ser adicionadas opções de idioma, notificações, personalização e outras preferências.</p><p class="settings-note">Essas funcionalidades ainda não estão disponíveis.</p>';
+  futureCard.innerHTML = '<div class="section-title"><strong>Geral</strong></div><p><strong>Novidades em desenvolvimento</strong></p><p>Esta seção será destinada a novas configurações e recursos da Haruna.</p><p>Futuramente, poderão ser adicionadas opções de idioma, notificações, personalização e outras preferências.</p><p class="settings-note">Essas funcionalidades ainda não estão disponíveis.</p>';
   settings.append(futureCard);
-  const navigation = document.createElement('div');
-  navigation.className = 'settings-category-nav';
-  navigation.setAttribute('aria-label', 'Categorias de configurações');
-  const heading = document.createElement('div');
-  heading.className = 'settings-category-heading';
-  heading.hidden = true;
-  const back = document.createElement('button');
-  back.type = 'button';
-  back.textContent = '‹ Todas as configurações';
-  const title = document.createElement('strong');
-  heading.append(back, title);
-  const cards = document.createElement('div');
-  cards.className = 'settings-category-grid';
-  navigation.append(heading, cards);
-  settings.querySelector('.page-head')?.after(navigation);
-  let selected = null;
-  const categoryOf = node => {
-    if (node.dataset.settingsCategory) return node.dataset.settingsCategory;
-    if (node.id === 'localModels' || node.querySelector('#modelList')) return 'models';
-    const headingText = (node.querySelector('.section-title strong,h3')?.textContent || '').toLowerCase();
-    if (/aparência|aparencia/.test(headingText)) return 'appearance';
-    if (node.classList.contains('vision-settings')) return 'vision';
-    if (node.classList.contains('recognition-settings') || node.classList.contains('speech-settings') || node.classList.contains('voice-settings')) return 'voice';
-    if (node.dataset.modelGroup === 'images' || node.classList.contains('image-settings')) return 'images';
-    const name = (node.querySelector('.section-title strong,h3')?.textContent || '').toLowerCase();
-    if (/imagem|difus[aã]o/.test(name)) return /interpreta|vis[aã]o/.test(name) ? 'vision' : 'images';
-    if (/voz|fala|reconhec|ditado|conversa por voz/.test(name)) return 'voice';
-    if (/privacidade|armazenamento/.test(name)) return 'privacy';
-    return 'general';
-  };
-  const apply = () => {
-    const sections = [...settings.children].filter(n => n.classList.contains('page-card'));
-    for (const section of sections) section.hidden = selected !== null && categoryOf(section) !== selected;
-    cards.hidden = selected !== null;
-    heading.hidden = selected === null;
-    if (selected) title.textContent = groups.find(g => g[0] === selected)?.[1] || '';
-    for (const button of cards.children) {
-      const count = sections.filter(s => categoryOf(s) === button.dataset.category).length;
-      button.hidden = count === 0;
+  if (host) {
+    const details = document.createElement('details');
+    details.className = 'model-extra-settings';
+    const summary = document.createElement('summary');
+    summary.textContent = 'Outras configurações de modelos';
+    const tabs = document.createElement('div');
+    tabs.className = 'model-extra-tabs';
+    tabs.setAttribute('role', 'tablist');
+    const panelsHost = document.createElement('div');
+    panelsHost.className = 'model-extra-content';
+    details.append(summary, tabs, panelsHost);
+    host.append(details);
+    const groups = [['images','Geração de imagens'],['vision','Interpretação de imagens'],['voice','Voz']];
+    const panels = new Map();
+    let selected = 'images';
+    const render = () => {
+      for (const [key, panel] of panels) panel.hidden = key !== selected;
+      for (const button of tabs.children) button.setAttribute('aria-selected', String(button.dataset.category === selected));
+    };
+    for (const [key, label] of groups) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.category = key;
+      button.setAttribute('role','tab');
+      button.textContent = label;
+      const panel = document.createElement('section');
+      panel.className = 'model-extra-panel';
+      panels.set(key, panel);
+      tabs.append(button);
+      panelsHost.append(panel);
+      button.addEventListener('click', () => { selected = key; render(); });
     }
-  };
-  for (const [key, label, description] of groups) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'settings-category-button';
-    button.dataset.category = key;
-    const strong = document.createElement('strong');
-    strong.textContent = label;
-    const small = document.createElement('small');
-    small.textContent = description;
-    const arrow = document.createElement('span');
-    arrow.textContent = '›';
-    arrow.setAttribute('aria-hidden', 'true');
-    button.append(strong, small, arrow);
-    button.addEventListener('click', () => { selected = key; apply(); settings.scrollTop = 0; });
-    cards.append(button);
+    const categoryOf = node => {
+      if (node.classList.contains('vision-settings')) return 'vision';
+      if (node.classList.contains('recognition-settings') || node.classList.contains('speech-settings') || node.classList.contains('voice-settings')) return 'voice';
+      if (node.dataset.modelGroup === 'images' || node.classList.contains('image-settings')) return 'images';
+      const heading = (node.querySelector('.section-title strong,h3')?.textContent || '').toLowerCase();
+      if (/interpreta.*imagem|vis[aã]o/.test(heading)) return 'vision';
+      if (/gera.*imagem|difus[aã]o|modelo.*imagem/.test(heading)) return 'images';
+      if (/voz|fala|reconhec|ditado/.test(heading)) return 'voice';
+      return null;
+    };
+    const organize = () => {
+      for (const node of [...settings.children]) {
+        if (!node.classList.contains('page-card') || node === host) continue;
+        const category = categoryOf(node);
+        if (category) panels.get(category).append(node);
+      }
+      render();
+    };
+    new MutationObserver(organize).observe(settings, {childList:true});
+    organize();
+    window.addEventListener('haruna-open-settings-category', event => {
+      const category = event.detail?.category;
+      if (!panels.has(category)) return;
+      details.open = true;
+      selected = category;
+      render();
+      host.scrollIntoView({block:'start'});
+    });
   }
-  window.addEventListener('haruna-open-settings-category', event => { const category = event.detail?.category; if (groups.some(group => group[0] === category)) { selected = category; apply(); settings.scrollTop = 0; } });
-  back.addEventListener('click', () => { selected = null; apply(); settings.scrollTop = 0; });
-  // Only direct-child additions are observed: dynamically registered controls
-  // appear in the correct category without replacing or cloning their nodes.
-  const observer = new MutationObserver(() => apply());
-  observer.observe(settings, { childList: true });
-  apply();
 }
 
 if (memory && library) {
