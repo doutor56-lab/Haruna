@@ -54,3 +54,25 @@
  .composer{gap:5px}
  #generateImage{width:38px;flex-basis:38px}
 }
+
+
+/* Settings polish: consistent spacing, hierarchy and compact model management. */
+#settingsView .page-card{border:1px solid #29314b;border-radius:20px;background:#101626;padding:16px;margin-bottom:14px;box-shadow:0 8px 24px rgba(0,0,0,.10)}
+#settingsView .section-title{margin-bottom:10px}
+#settingsView .section-title small,#settingsView .settings-note{color:#98a3bd;line-height:1.5}
+#settingsView .setting-row{gap:10px;padding:11px 0;border-color:#29314b}
+#settingsView button,#settingsView select,#settingsView input,#settingsView textarea{max-width:100%;box-sizing:border-box}
+#settingsView .model-actions{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
+#settingsView .model-actions button{min-height:36px;padding:7px 11px;border-radius:11px}
+#settingsView .page-card p{line-height:1.55;overflow-wrap:anywhere}
+.image-settings-card .image-settings-intro{color:#a7b3ce;margin:4px 0 10px}
+.image-settings-card .image-settings-help{color:#929db8;margin:6px 0 14px}
+.image-settings-card .image-settings-subtitle{font-size:13px;font-weight:700;color:#d9dff2;margin:15px 0 8px;padding-top:10px;border-top:1px solid #29314b}
+.image-settings-card .image-settings-help{font-size:11px}
+.image-settings-card .image-settings-intro,.image-settings-card label,.image-settings-card [data-preview-support],.image-settings-card [data-native-info]{font-size:12px}
+.image-settings-card [data-models] .setting-row{background:#141c2e;border:1px solid #303a58;border-radius:13px;padding:12px;margin:8px 0}
+.image-settings-card [data-models] .setting-row span{font-size:12px;color:#dbe2f4}
+.image-settings-card [data-models] .model-actions button{min-height:32px;padding:6px 10px}
+.image-settings-card details{border:1px solid #29314b;border-radius:12px;padding:10px;margin:10px 0}
+.image-settings-card details summary{color:#c8b9ff;cursor:pointer}
+.image-settings-card [data-chat-only-dimensions]{display:none!important}
