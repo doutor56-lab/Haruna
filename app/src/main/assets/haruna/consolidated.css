@@ -94,15 +94,15 @@
 
 /* Document Library: align imported module with Haruna's existing card design. */
 #libraryView .document-library{box-sizing:border-box;width:100%;min-width:0;margin:14px 0 22px;padding:20px;border:1px solid rgba(151,148,202,.17);border-radius:22px;background:#101628;box-shadow:0 12px 30px rgba(0,0,0,.12)}
-#libraryView .document-library>h3{margin:0 0 8px;font-size:inherit;font-weight:700;letter-spacing:-.012em;line-height:1.35;color:inherit}
-#libraryView .document-library>p{margin:0 0 16px;font-size:inherit;line-height:1.5;color:#a3a8c0;overflow-wrap:anywhere}
+#libraryView .document-library>h3{margin:0 0 8px;font-weight:700;letter-spacing:-.012em;line-height:1.35;color:inherit}
+#libraryView .document-library>p{margin:0 0 16px;line-height:1.5;color:#a3a8c0;overflow-wrap:anywhere}
 #libraryView .document-library>.document-actions{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px}
 #libraryView .document-library>.document-actions button{min-height:44px;padding:10px 16px;border:1px solid #7651dc;border-radius:13px;background:#211b3c;color:#f2edff;font:inherit;font-weight:600;cursor:pointer}
 #libraryView .document-library>input[type=search]{display:block;box-sizing:border-box;width:100%;min-width:0;min-height:48px;margin:0 0 14px;padding:12px 15px;border:1px solid #353c58;border-radius:14px;background:#141b30;color:#f2f1fc;font:inherit;line-height:1.4;outline:none;-webkit-appearance:none;appearance:none}
 #libraryView .document-library>input[type=search]::placeholder{color:#969bb5;opacity:1}
 #libraryView .document-library>input[type=search]:focus{border-color:#956bff;box-shadow:0 0 0 2px rgba(149,107,255,.18)}
 #libraryView .document-library>.model-row,#libraryView .document-library .model-row{min-width:0;overflow-wrap:anywhere}
-#libraryView .document-library>div:not(.document-actions):not(.document-search-hits)>p{margin:10px 0;color:#a3a8c0;font-size:inherit;line-height:1.5}
+#libraryView .document-library>div:not(.document-actions):not(.document-search-hits)>p{margin:10px 0;color:#a3a8c0;line-height:1.5}
 #libraryView .document-library .document-search-hits{display:grid;gap:8px;min-width:0}
 #libraryView .document-library .document-search-hits button{max-width:100%;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:520px){#libraryView .document-library{padding:16px;border-radius:19px}}
