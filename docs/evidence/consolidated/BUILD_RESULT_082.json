@@ -1,0 +1,541 @@
+{
+  "version": "0.8.2-consolidada",
+  "versionCode": 11,
+  "sourceCommit": "aa90915a834f377ae173487eac7562fc3fbf3078",
+  "workflowRun": 42338386688,
+  "conclusion": "success",
+  "artifactId": 13561613186,
+  "apkFile": "Haruna-Consolidada-ARM64-debug.apk",
+  "apkBytes": 79573394,
+  "apkSha256": "fa6179efecabe3fb648a959bd8a75e9761995d92e666f35cf571b8b922b29a71",
+  "certificateSha256": "e6fe4f1559a66bc894793e115bb7189f8befc59ff2c3368bf6e8e0c3a370a211",
+  "signatureVerified": true,
+  "signatureScheme": "v2",
+  "sameCertificateAsPrevious": false,
+  "download": "https://github.com/doutor56-lab/Haruna/actions/runs/42338386688/artifacts/13561613186",
+  "physicalAndroidTested": false,
+  "tests": [
+    "Kotlin compilation",
+    "Controller/JNI and Gradle unit tests",
+    "Document and SQL integration",
+    "Static consolidation checks",
+    "UI mock bridge: 360x800 and 800x1280, side panel limits, thinking placement and toggle, image icon open/close",
+    "Downloaded APK checksum/signature and source asset equality"
+  ],
+  "cleanup": {
+    "currentRun": 42338386688,
+    "previousVersionsRetained": 4,
+    "removed": [
+      {
+        "id": 13459878919,
+        "name": "Haruna-SD15-Safetensors-ARM64-APK",
+        "bytes": 48645241,
+        "run": 42121396717
+      },
+      {
+        "id": 13421573348,
+        "name": "Haruna-Nezumi-ARM64-APK",
+        "bytes": 31475571,
+        "run": 42039920698
+      },
+      {
+        "id": 13394151031,
+        "name": "Haruna-9B-APK",
+        "bytes": 29966326,
+        "run": 41978257995
+      },
+      {
+        "id": 13390001740,
+        "name": "haruna-image-models-apk",
+        "bytes": 29303304,
+        "run": 41968716656
+      },
+      {
+        "id": 13383169022,
+        "name": "haruna-vulkan-experimental-apk",
+        "bytes": 36336884,
+        "run": 41955887972
+      },
+      {
+        "id": 13381219465,
+        "name": "haruna-vulkan-experimental-apk",
+        "bytes": 36336584,
+        "run": 41949768841
+      },
+      {
+        "id": 13377767432,
+        "name": "haruna-vulkan-experimental-apk",
+        "bytes": 36333793,
+        "run": 41941621774
+      },
+      {
+        "id": 13376864148,
+        "name": "haruna-vulkan-experimental-apk",
+        "bytes": 36333553,
+        "run": 41941611242
+      },
+      {
+        "id": 13370049991,
+        "name": "haruna-vulkan-experimental-apk",
+        "bytes": 36333754,
+        "run": 41925248399
+      },
+      {
+        "id": 13361015424,
+        "name": "haruna-debug-apk",
+        "bytes": 28100409,
+        "run": 41902675328
+      },
+      {
+        "id": 13319396809,
+        "name": "haruna-debug-apk",
+        "bytes": 28297506,
+        "run": 41823962206
+      },
+      {
+        "id": 13057771257,
+        "name": "Haruna-incremental-vulkan-APK",
+        "bytes": 36483812,
+        "run": 41239107227
+      },
+      {
+        "id": 13056951334,
+        "name": "Haruna-incremental-cpu-APK",
+        "bytes": 28146845,
+        "run": 41236818020
+      },
+      {
+        "id": 12846747108,
+        "name": "haruna-2d3f021-samsung-diagnostic-apk",
+        "bytes": 27285369,
+        "run": 40755169130
+      },
+      {
+        "id": 12840033143,
+        "name": "haruna-665c5ab-context-kv-cache-apk",
+        "bytes": 27260924,
+        "run": 40741553840
+      },
+      {
+        "id": 12834438694,
+        "name": "haruna-5c973ba-streaming-backpressure-apk",
+        "bytes": 27249355,
+        "run": 40729557093
+      },
+      {
+        "id": 12829432168,
+        "name": "haruna-03188bf-native-stability-apk",
+        "bytes": 27234501,
+        "run": 40716035238
+      },
+      {
+        "id": 12822075139,
+        "name": "haruna-f0a8544-runtime-baseline-apk",
+        "bytes": 27216466,
+        "run": 40697357318
+      },
+      {
+        "id": 12785549395,
+        "name": "haruna-add31e5-context-roles-apk",
+        "bytes": 27174636,
+        "run": 40616833563
+      },
+      {
+        "id": 12728224895,
+        "name": "haruna-8e531ad-memory-behavior-apk",
+        "bytes": 27163572,
+        "run": 40490040721
+      },
+      {
+        "id": 12710323026,
+        "name": "haruna-9f5ec1d-memory-behavior-apk",
+        "bytes": 27163266,
+        "run": 40449693208
+      },
+      {
+        "id": 12710431663,
+        "name": "haruna-e7c2298-memory-behavior-apk",
+        "bytes": 27163198,
+        "run": 40449512726
+      },
+      {
+        "id": 12708677698,
+        "name": "haruna-3057589-essential-rag-apk",
+        "bytes": 27139322,
+        "run": 40445239880
+      },
+      {
+        "id": 12708417554,
+        "name": "haruna-cd5ba79-essential-rag-apk",
+        "bytes": 27139612,
+        "run": 40445615082
+      },
+      {
+        "id": 12657598852,
+        "name": "haruna-54a7ed0-debug-apk",
+        "bytes": 27096500,
+        "run": 40336712654
+      },
+      {
+        "id": 12651228121,
+        "name": "haruna-9c605395-debug-apk",
+        "bytes": 27084005,
+        "run": 40324648853
+      },
+      {
+        "id": 12644058675,
+        "name": "haruna-debug-apk",
+        "bytes": 13086896,
+        "run": 40308257467
+      },
+      {
+        "id": 12637218770,
+        "name": "haruna-debug-apk",
+        "bytes": 27082113,
+        "run": 40292937826
+      },
+      {
+        "id": 12635908204,
+        "name": "haruna-debug-apk",
+        "bytes": 27080366,
+        "run": 40288939098
+      },
+      {
+        "id": 12625597328,
+        "name": "haruna-debug-apk",
+        "bytes": 27078348,
+        "run": 40262626770
+      },
+      {
+        "id": 12623860206,
+        "name": "haruna-debug-apk",
+        "bytes": 27054680,
+        "run": 40257402567
+      },
+      {
+        "id": 12617167862,
+        "name": "haruna-debug-apk",
+        "bytes": 13135317,
+        "run": 40241223932
+      },
+      {
+        "id": 12612587336,
+        "name": "haruna-debug-apk",
+        "bytes": 13129675,
+        "run": 40227462220
+      },
+      {
+        "id": 12611480081,
+        "name": "haruna-debug-apk",
+        "bytes": 13126542,
+        "run": 40223342983
+      },
+      {
+        "id": 12608407987,
+        "name": "haruna-debug-apk",
+        "bytes": 13122576,
+        "run": 40219016810
+      },
+      {
+        "id": 12606340564,
+        "name": "haruna-debug-apk",
+        "bytes": 13122612,
+        "run": 40210111457
+      },
+      {
+        "id": 12604886892,
+        "name": "haruna-debug-apk",
+        "bytes": 13122347,
+        "run": 40206844463
+      },
+      {
+        "id": 12601961407,
+        "name": "haruna-debug-apk",
+        "bytes": 13123271,
+        "run": 40198696571
+      },
+      {
+        "id": 12600132764,
+        "name": "haruna-debug-apk",
+        "bytes": 13122724,
+        "run": 40195371054
+      },
+      {
+        "id": 12599151684,
+        "name": "haruna-debug-apk",
+        "bytes": 13121886,
+        "run": 40192222613
+      },
+      {
+        "id": 12598725826,
+        "name": "haruna-debug-apk",
+        "bytes": 13121381,
+        "run": 40190213181
+      },
+      {
+        "id": 12597659811,
+        "name": "haruna-debug-apk",
+        "bytes": 13121536,
+        "run": 40190231152
+      },
+      {
+        "id": 12597523418,
+        "name": "haruna-debug-apk",
+        "bytes": 13121353,
+        "run": 40187929392
+      },
+      {
+        "id": 12596635353,
+        "name": "haruna-debug-apk",
+        "bytes": 13121382,
+        "run": 40186063970
+      },
+      {
+        "id": 12583774662,
+        "name": "haruna-debug-apk",
+        "bytes": 13119850,
+        "run": 40154966889
+      },
+      {
+        "id": 12582919712,
+        "name": "haruna-debug-apk",
+        "bytes": 13119875,
+        "run": 40152200503
+      },
+      {
+        "id": 12583095492,
+        "name": "haruna-debug-apk",
+        "bytes": 13118900,
+        "run": 40150443723
+      },
+      {
+        "id": 12582021955,
+        "name": "haruna-debug-apk",
+        "bytes": 13117420,
+        "run": 40148184894
+      },
+      {
+        "id": 12581255586,
+        "name": "haruna-debug-apk",
+        "bytes": 13086899,
+        "run": 40144697271
+      },
+      {
+        "id": 12580315002,
+        "name": "haruna-debug-apk",
+        "bytes": 13087265,
+        "run": 40143352944
+      },
+      {
+        "id": 12578749324,
+        "name": "haruna-debug-apk",
+        "bytes": 13117161,
+        "run": 40141152583
+      },
+      {
+        "id": 12578356732,
+        "name": "haruna-debug-apk",
+        "bytes": 13116613,
+        "run": 40139223513
+      },
+      {
+        "id": 12577063067,
+        "name": "haruna-debug-apk",
+        "bytes": 13114964,
+        "run": 40137064094
+      },
+      {
+        "id": 12576859171,
+        "name": "haruna-debug-apk",
+        "bytes": 13113579,
+        "run": 40135343929
+      },
+      {
+        "id": 12571772681,
+        "name": "haruna-debug-apk",
+        "bytes": 13087195,
+        "run": 40121128409
+      },
+      {
+        "id": 12572415483,
+        "name": "haruna-debug-apk",
+        "bytes": 13084599,
+        "run": 40121000473
+      },
+      {
+        "id": 12571647229,
+        "name": "haruna-debug-apk",
+        "bytes": 13086044,
+        "run": 40121036562
+      },
+      {
+        "id": 12569663815,
+        "name": "haruna-debug-apk",
+        "bytes": 13079322,
+        "run": 40118023530
+      },
+      {
+        "id": 12568501167,
+        "name": "haruna-debug-apk",
+        "bytes": 13078065,
+        "run": 40114990000
+      },
+      {
+        "id": 12567167032,
+        "name": "haruna-debug-apk",
+        "bytes": 13076521,
+        "run": 40110888805
+      },
+      {
+        "id": 12550217321,
+        "name": "haruna-debug-apk",
+        "bytes": 13076159,
+        "run": 40066893329
+      },
+      {
+        "id": 12550306963,
+        "name": "haruna-debug-apk",
+        "bytes": 13076117,
+        "run": 40066879005
+      },
+      {
+        "id": 12550406789,
+        "name": "haruna-debug-apk",
+        "bytes": 13075520,
+        "run": 40066868228
+      },
+      {
+        "id": 12550536039,
+        "name": "haruna-debug-apk",
+        "bytes": 13076141,
+        "run": 40066886308
+      },
+      {
+        "id": 12550400934,
+        "name": "haruna-debug-apk",
+        "bytes": 13076212,
+        "run": 40066899886
+      },
+      {
+        "id": 12547665240,
+        "name": "haruna-debug-apk",
+        "bytes": 13073731,
+        "run": 40059653350
+      },
+      {
+        "id": 12546711176,
+        "name": "haruna-debug-apk",
+        "bytes": 12833742,
+        "run": 40057799541
+      },
+      {
+        "id": 12545821756,
+        "name": "haruna-debug-apk",
+        "bytes": 12833506,
+        "run": 40055695274
+      },
+      {
+        "id": 12544683895,
+        "name": "haruna-debug-apk",
+        "bytes": 12833504,
+        "run": 40054152162
+      },
+      {
+        "id": 12543954565,
+        "name": "haruna-debug-apk",
+        "bytes": 12833502,
+        "run": 40052544966
+      },
+      {
+        "id": 12543023458,
+        "name": "haruna-debug-apk",
+        "bytes": 12833333,
+        "run": 40050110267
+      },
+      {
+        "id": 12542142120,
+        "name": "haruna-debug-apk",
+        "bytes": 12830828,
+        "run": 40046863953
+      },
+      {
+        "id": 12540614103,
+        "name": "haruna-debug-apk",
+        "bytes": 12830601,
+        "run": 40043234423
+      },
+      {
+        "id": 12541232537,
+        "name": "haruna-debug-apk",
+        "bytes": 12829959,
+        "run": 40043199719
+      },
+      {
+        "id": 12541396892,
+        "name": "haruna-debug-apk",
+        "bytes": 12830568,
+        "run": 40043209292
+      },
+      {
+        "id": 12540787874,
+        "name": "haruna-debug-apk",
+        "bytes": 12829387,
+        "run": 40043190472
+      },
+      {
+        "id": 12541165004,
+        "name": "haruna-debug-apk",
+        "bytes": 12827579,
+        "run": 40042823765
+      },
+      {
+        "id": 12540223289,
+        "name": "haruna-debug-apk",
+        "bytes": 12827101,
+        "run": 40042808507
+      },
+      {
+        "id": 12540294430,
+        "name": "haruna-debug-apk",
+        "bytes": 12827991,
+        "run": 40043157583
+      },
+      {
+        "id": 12540279374,
+        "name": "haruna-debug-apk",
+        "bytes": 12762592,
+        "run": 40042799306
+      },
+      {
+        "id": 12539794679,
+        "name": "haruna-debug-apk",
+        "bytes": 12829035,
+        "run": 40043178224
+      },
+      {
+        "id": 12538917172,
+        "name": "haruna-debug-apk",
+        "bytes": 12762591,
+        "run": 40038607523
+      }
+    ],
+    "bytesRemoved": 1580673284
+  },
+  "previousApkRunsRetained": [
+    42328548271,
+    42301711003,
+    42226923268,
+    42144339412
+  ],
+  "preserved": [
+    "sources",
+    "reports",
+    "Windows artifacts",
+    "model downloads",
+    "releases",
+    "branches",
+    "commits",
+    "user data"
+  ],
+  "warning": "Original signing key unavailable. Do not uninstall or clear data to bypass signature mismatch."
+}
