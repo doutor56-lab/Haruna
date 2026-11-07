@@ -1,0 +1,56 @@
+{
+  "version": "0.8.1-consolidada",
+  "versionCode": 10,
+  "applicationId": "com.proxyslabs.haruna.incremental",
+  "branch": "feature/consolidated-image-batches",
+  "sourceCommit": "9a6ffe4c070651c096e5f83e087193600d6a613d",
+  "implementationCommit": "d054b0e489c7507da8a35dda172889f96ef5b680",
+  "baselineCommit": "0283303d24c58492b5d59588439ec84440f77095",
+  "workflow": {
+    "id": 42328548271,
+    "url": "https://github.com/doutor56-lab/Haruna/actions/runs/42328548271",
+    "conclusion": "success",
+    "startedAt": "2026-11-07T02:18:07Z",
+    "completedAt": "2026-11-07T03:05:08Z"
+  },
+  "apk": {
+    "file": "Haruna-Consolidada-ARM64-debug.apk",
+    "bytes": 79570666,
+    "sha256": "1d5f81c4c613a53b2f89aa32f808983d45d19768039128bf962aad9b6a40e22b",
+    "artifactId": 13558266843,
+    "download": "https://github.com/doutor56-lab/Haruna/actions/runs/42328548271/artifacts/13558266843",
+    "archiveSha256": "a22ca37d1922705f3ddcad5c012d2ad37a563ad681c7b7507708209623bb0bee"
+  },
+  "signature": {
+    "verified": true,
+    "scheme": "v2",
+    "minPlatformChecked": 33,
+    "certificateSha256": "e0405987dd1653ae67dd3ae249b613fa765e7cd26d7695eb8b4a81411c4cc29f",
+    "previousStage8CertificateSha256": "7e65682b5b38c6c4e3c39b47f39320cea87ba3cad9747e47e637ed983892b030",
+    "matchesPrevious": false,
+    "originalPrivateKeyAvailable": false,
+    "inPlaceUpdateSupported": false,
+    "warning": "Não desinstalar nem limpar dados. Atualização sobre instalação anterior exige assinatura original."
+  },
+  "validation": {
+    "androidBuild": "passed",
+    "kotlinCompilation": "passed",
+    "controllerAndJniTests": "passed with explicitly simulated Android/native dependencies",
+    "gradleUnitTests": "passed",
+    "documentAndSqlTests": "passed",
+    "imageIntentTests": "passed with simulated LLM",
+    "staticConsolidationChecks": "passed",
+    "apkAssetSourceEquality": "passed",
+    "previewJniSymbolPackaged": true,
+    "vulkanLibraryPackaged": false,
+    "realHostImageTests": "four PNGs in one SDK/JNI session; updated adapter real preview and final PNG, see LOCAL_RESULTS.json",
+    "physicalAndroidTested": false
+  },
+  "limitations": [
+    "Requer validação física no Teclast T60 AI.",
+    "MNN Haruna antigo: somente uma imagem por geração; Nezumi/safetensors: até quatro sequenciais.",
+    "Prévias reais PROJ somente safetensors; ausência de suporte eficiente Nezumi/MNN é informada.",
+    "Classificação de intenção do LLM pequeno ainda exige validação física.",
+    "A assinatura debug nova impede atualização sobre APK assinado com a chave anterior."
+  ]
+}

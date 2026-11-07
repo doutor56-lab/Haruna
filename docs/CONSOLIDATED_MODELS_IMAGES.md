@@ -28,7 +28,7 @@ Intenção automática: somente comandos explícitos passam pelo gate; uma gera�
 
 - MNN Haruna antigo recria/carrega o pipeline dentro de cada chamada JNI. Sem uma alteração profunda e prova de reset correto do estado, continua limitado a 1 imagem. A interface bloqueia 2–4 nesse motor. Safetensors e Nezumi usam as sessões persistentes existentes.
 - Prévia progressiva: callback real do SDK stable-diffusion.cpp conectado no adaptador safetensors, modo PREVIEW_PROJ (projeção dos latentes), sem VAE extra ou segundo modelo. Produz um PNG substituído atomicamente, limitado a 128 × 128; o buffer RGB temporário é descartado por callback. Intervalo proporcional às etapas, inclusive a cada etapa em gerações curtas. Checkbox persistente, inicialmente desativado; prévia bloqueada em lowMemory ou margem disponível abaixo de 512 MiB antes de cada imagem. Os arquivos temporários são removidos ao concluir/cancelar cada imagem. Projeção é aproximada e pode diferir da imagem final. Nezumi/MNN não expõem prévia eficiente por esse adaptador e mostram somente progresso. Custo/estabilidade no tablet ainda exigem validação física.
-- Build Android autorizado em 2026-11-07; resultado será registrado após a execução. SDK/NDK completos não estão instalados localmente. A chave de assinatura original continua ausente; não é possível garantir atualização sobre APK anterior sem ela. Não desinstalar nem limpar dados.
+- Build Android autorizado e concluído com sucesso em 2026-11-07. Assinatura v2 verificada: o certificado é diferente do APK anterior da Etapa 8. Não pode atualizar essa instalação diretamente sem a chave original, ausente neste ambiente. Não desinstalar nem limpar dados.
 - Testes de interface/controle não equivalem a inferência física. A validação no Teclast continua necessária, inclusive comportamento de classificação do LLM pequeno.
 
 ## Verificações
@@ -61,3 +61,16 @@ Testes locais de Kotlin com o controlador real e JNI/Android simulados: lote de 
 - `app/src/main/java/com/proxyslabs/haruna/image/ImageBridge.kt`
 - `app/src/main/java/com/proxyslabs/haruna/image/SafetensorsSession.kt`
 - `docs/evidence/consolidated/LOCAL_RESULTS.json`
+
+## Build Android final
+
+- Versão: `0.8.1-consolidada`, versionCode `10`; ARM64, CPU, sem Vulkan.
+- Commit compilado: `9a6ffe4c070651c096e5f83e087193600d6a613d`; implementação: `d054b0e489c7507da8a35dda172889f96ef5b680`.
+- [Actions 42328548271](https://github.com/doutor56-lab/Haruna/actions/runs/42328548271): sucesso. Kotlin, testes do controlador/JNI, testes unitários Gradle, documentos/SQL, intenção estruturada e verificações estáticas aprovados. Os testes com doubles não comprovam inferência Android.
+- [APK para download](https://github.com/doutor56-lab/Haruna/actions/runs/42328548271/artifacts/13558266843): ZIP contém somente `Haruna-Consolidada-ARM64-debug.apk` (79.570.666 bytes).
+- SHA-256 APK: `1d5f81c4c613a53b2f89aa32f808983d45d19768039128bf962aad9b6a40e22b`.
+- SHA-256 do certificado: `e0405987dd1653ae67dd3ae249b613fa765e7cd26d7695eb8b4a81411c4cc29f`; verificado por Android ApkVerifier, assinatura v2, plataforma mínima verificada 33. Diferente do certificado anterior da Etapa 8 (`7e65682b5b38c6c4e3c39b47f39320cea87ba3cad9747e47e637ed983892b030`). **Bloqueio de atualização direta: é necessária a chave original. Não desinstalar nem limpar dados.**
+- Conferidos no arquivo baixado: digest do ZIP, SHA do APK igual ao CI, assets consolidados iguais ao código, JNI `setPreviewEnabled` exportado e ausência de biblioteca Vulkan.
+- Nenhum teste físico Android realizado; requer validação no Teclast T60 AI. Os PNGs reais documentados foram gerados no host Linux.
+- Alterações adicionais para esta entrega: `.github/workflows/android-build.yml` (branch, verificações, nome do artefato); `app/build.gradle.kts` (versão); `docs/evidence/consolidated/BUILD_RESULT.json` (resultado, assinatura e limitações).
+- Este registro pós-build é somente documentação, com `[skip ci]`, sem nova execução remota. A versão estável não foi mesclada nem modificada.
