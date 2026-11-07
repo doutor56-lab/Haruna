@@ -2,12 +2,12 @@ name: Android build
 
 on:
   push:
-    branches: [main, recovery/haruna-82d3c47, luna/silero-vad, feature/nezumi-model-compat, feature/safetensors-sd15, feature/stage8-documents-vision]
+    branches: [main, recovery/haruna-82d3c47, luna/silero-vad, feature/nezumi-model-compat, feature/safetensors-sd15, feature/stage8-documents-vision, feature/consolidated-image-batches]
   pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: android-build-${{ github.head_ref || github.ref_name }}-${{ github.event_name == 'pull_request' && (github.head_ref == 'feature/safetensors-sd15' || github.head_ref == 'feature/stage8-documents-vision') && 'skip' || 'build' }}
+  group: android-build-${{ github.head_ref || github.ref_name }}-${{ github.event_name == 'pull_request' && (github.head_ref == 'feature/safetensors-sd15' || github.head_ref == 'feature/stage8-documents-vision' || github.head_ref == 'feature/consolidated-image-batches') && 'skip' || 'build' }}
   cancel-in-progress: true
 
 permissions:
@@ -19,7 +19,7 @@ env:
 jobs:
   build:
     # This experimental branch builds on push only; avoid charging a duplicate PR build.
-    if: github.event_name != 'pull_request' || (github.head_ref != 'feature/safetensors-sd15' && github.head_ref != 'feature/stage8-documents-vision')
+    if: github.event_name != 'pull_request' || (github.head_ref != 'feature/safetensors-sd15' && github.head_ref != 'feature/stage8-documents-vision' && github.head_ref != 'feature/consolidated-image-batches')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -93,6 +93,8 @@ jobs:
           python3 tests/stage8/make_fixture.py /tmp/haruna-stage8.docx
           node tests/stage8/docx_check.cjs /tmp/haruna-stage8.docx
           python3 tests/stage8/sqlite_check.py
+          node tests/image_intent_check.mjs
+          python3 tests/consolidated_static_check.py
 
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
@@ -159,14 +161,14 @@ jobs:
           print('Verified: APK contains the current Haruna UI and bridge assets.')
 
       - name: Name stage8 installation APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-Etapa8-ARM64-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-Consolidada-ARM64-debug.apk
 
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Haruna-Etapa8-ARM64-APK
-          path: app/build/outputs/apk/debug/Haruna-Etapa8-ARM64-debug.apk
+          name: Haruna-Consolidada-ARM64-APK
+          path: app/build/outputs/apk/debug/Haruna-Consolidada-ARM64-debug.apk
           if-no-files-found: error
 
 
@@ -186,7 +188,7 @@ jobs:
           test -f "$MNN_SOURCE/CMakeLists.txt"
           cp -a "$MNN_SOURCE" image-source/MNN
           git rev-parse HEAD > image-source/HARUNA_COMMIT.txt
-          sha256sum app/build/outputs/apk/debug/Haruna-Etapa8-ARM64-debug.apk > image-source/APK_SHA256.txt
+          sha256sum app/build/outputs/apk/debug/Haruna-Consolidada-ARM64-debug.apk > image-source/APK_SHA256.txt
           tar -czf HARUNA_NEZUMI_CORRESPONDING_SOURCE.tar.gz image-source
 
       - name: Upload source and technical report
@@ -201,6 +203,8 @@ jobs:
             docs/ANDROID_MULTIMOTOR.md
             docs/IMAGE_CONTROLS_ANDROID.md
             docs/ETAPA_8_DOCUMENTOS_VISAO.md
+            docs/CONSOLIDATED_MODELS_IMAGES.md
+            docs/evidence/consolidated/
             docs/evidence/nezumi/
             app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: error
