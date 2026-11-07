@@ -58,3 +58,35 @@
 #libraryView .document-library{min-width:0;max-width:100%;overflow-wrap:anywhere}
 #libraryView .document-library input[type=search]{max-width:100%;box-sizing:border-box}
 @media(orientation:landscape){.settings-category-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))}}
+
+
+/* Typography refinement limited to Settings, Library and Memory.
+   Existing font sizes are preserved outside Local Models. */
+#settingsView,#libraryView,#memoryView{line-height:1.5}
+#settingsView .page-head,#libraryView .page-head,#memoryView .page-head{min-width:0}
+#settingsView .page-head h2,#libraryView .page-head h2,#memoryView .page-head h2{font-weight:700;letter-spacing:-.018em;line-height:1.2;margin-bottom:6px}
+#settingsView .page-head p,#libraryView .page-head p,#memoryView .page-head p{line-height:1.55;max-width:64ch;overflow-wrap:anywhere}
+#settingsView .section-title,#libraryView .section-title,#memoryView .section-title{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}
+#settingsView .section-title>div,#libraryView .section-title>div,#memoryView .section-title>div{min-width:0}
+#settingsView .section-title strong,#libraryView .section-title strong,#memoryView .section-title strong{display:block;font-weight:650;letter-spacing:-.012em;line-height:1.35}
+#settingsView .section-title small,#libraryView .section-title small,#memoryView .section-title small{display:block;line-height:1.5;margin-top:4px;overflow-wrap:anywhere}
+#settingsView .settings-note,#libraryView .settings-note,#memoryView .settings-note{line-height:1.6;max-width:75ch;overflow-wrap:anywhere}
+#settingsView label,#libraryView label,#memoryView label{line-height:1.45}
+#settingsView .model-info,#libraryView .model-info,#memoryView .model-info{min-width:0;overflow-wrap:anywhere}
+#settingsView .model-info strong,#libraryView .model-info strong,#memoryView .model-info strong{line-height:1.4;font-weight:650}
+#settingsView .model-info small,#libraryView .model-info small,#memoryView .model-info small{display:block;line-height:1.5;margin-top:3px}
+#settingsView .setting-row,#libraryView .setting-row,#memoryView .setting-row{align-items:center;line-height:1.45}
+.settings-category-button strong{font-weight:650;letter-spacing:-.012em;line-height:1.35}
+.settings-category-button small{line-height:1.5;max-width:36ch;overflow-wrap:anywhere}
+.settings-category-heading strong{font-weight:700;letter-spacing:-.015em;line-height:1.35}
+#memoryView .knowledge-card strong{display:block;font-weight:650;line-height:1.35}
+#memoryView .knowledge-card small{display:block;line-height:1.5;margin-top:4px;overflow-wrap:anywhere}
+#memoryView .memory-item{line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+#libraryView .document-library h3{font-weight:650;letter-spacing:-.012em;line-height:1.35}
+#libraryView .document-library p{line-height:1.55;overflow-wrap:anywhere}
+#localModels .local-model-tabs button{font-weight:600;line-height:1.35}
+#localModels [data-ram],#localModels [data-process],#localModels [data-runtime]{line-height:1.55;overflow-wrap:anywhere}
+@media (orientation:landscape) and (max-height:650px){
+ #settingsView .page-head h2,#libraryView .page-head h2,#memoryView .page-head h2{margin-bottom:4px}
+ #settingsView .section-title,#libraryView .section-title,#memoryView .section-title{margin-bottom:8px}
+}
