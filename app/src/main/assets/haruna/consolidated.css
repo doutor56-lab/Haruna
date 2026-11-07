@@ -18,3 +18,116 @@
 .image-dimensions[open]{width:min(360px,calc(100vw - 96px));max-height:min(68dvh,calc(var(--image-composer-top,80dvh) - 20px));font-size:13px}.image-panel-overview{grid-template-columns:minmax(62px,.8fr) minmax(0,1.2fr);gap:10px}.image-panel-body{padding:12px}.image-panel-heading{padding:10px;gap:7px}.image-panel-heading strong{font-size:14px}.image-panel-heading svg{width:20px;height:20px}.image-panel-heading [data-close]{min-width:28px}.image-dimensions .image-choice{gap:3px}.image-dimensions .image-choice button{font-size:11px;min-height:36px;padding:6px 2px}.image-dimensions select{padding:8px 5px}.image-panel-footer{padding:10px}.image-dimensions [data-panel-save]{font-size:14px}.image-dimensions .image-count{gap:7px}.image-count select{width:58px}
 .status-row #think{margin-left:auto;flex:0 0 36px;width:36px;height:36px;min-height:36px;border:0;background:transparent;color:#d1a8ff;border-radius:10px}.status-row #think.active{background:#8d43e42b}.status-row #think:focus-visible{outline:2px solid #bd85ff;outline-offset:2px}
 .image-dimensions[open]{max-height:min(68dvh,calc(var(--image-composer-top,80dvh) - var(--image-panel-top,100px) - 8px))}
+
+
+/* Scoped organization for Settings, Library and Memory. No typography changes. */
+#settingsView,#libraryView,#memoryView{min-width:0;overflow-x:hidden}
+#settingsView .page-card,#libraryView .page-card,#memoryView .page-card{min-width:0;overflow-wrap:anywhere}
+#settingsView .setting-row,#memoryView .section-title{min-width:0;gap:10px}
+#memoryView .knowledge-types{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px}
+#memoryView .knowledge-card{min-width:0}
+#memoryView .knowledge-card>div{min-width:0}
+#memoryView .model-list,#memoryView .memory-items,#libraryView .model-list{min-width:0;overflow-wrap:anywhere}
+@media (orientation:landscape) and (max-height:650px){
+  #settingsView,#memoryView,#libraryView{overflow-y:auto;overscroll-behavior:contain}
+  #settingsView .page-head,#memoryView .page-head,#libraryView .page-head{margin-bottom:10px}
+  #settingsView .page-card,#memoryView .page-card,#libraryView .page-card{margin-block:10px}
+  #settingsView .theme-choice{display:flex;flex-wrap:wrap;gap:8px}
+  #settingsView .theme-choice>button{flex:1 1 140px;min-width:0}
+  #localModels .local-model-tabs{flex-wrap:wrap}
+  .image-dimensions[open]{left:max(8px,env(safe-area-inset-left));bottom:auto;top:max(8px,env(safe-area-inset-top));width:min(340px,calc(100dvw - 24px));max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);overflow-y:auto}
+  .image-dimensions .image-panel-footer{position:sticky;bottom:0}
+}
+@media (orientation:landscape) and (min-width:850px) and (min-height:480px){
+  #memoryView .knowledge-types{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #settingsView .theme-choice{display:flex;flex-wrap:wrap;gap:8px}
+  #settingsView .theme-choice>button{flex:1 1 170px}
+}
+
+
+/* Page structure: category navigation uses existing settings cards. */
+#settingsView [hidden],#memoryView [hidden],#libraryView [hidden]{display:none!important}
+.settings-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;margin:14px 0}
+.settings-category-button{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-height:76px;padding:14px 42px 14px 15px;border:1px solid #40386e;border-radius:15px;background:#151b30;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.settings-category-button small{color:#aaa8c5;line-height:1.4}
+.settings-category-button span{position:absolute;right:15px;top:50%;transform:translateY(-50%);color:#b994ff}
+.settings-category-button:focus-visible,.settings-category-heading button:focus-visible{outline:2px solid #b994ff;outline-offset:2px}
+.settings-category-heading{margin:12px 0 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.settings-category-heading button{border:1px solid #40386e;border-radius:11px;background:#151b30;color:inherit;padding:10px 12px;font:inherit}
+.settings-category-heading strong{overflow-wrap:anywhere}
+#libraryView .document-library{min-width:0;max-width:100%;overflow-wrap:anywhere}
+#libraryView .document-library input[type=search]{max-width:100%;box-sizing:border-box}
+@media(orientation:landscape){.settings-category-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))}}
+
+
+/* Typography refinement limited to Settings, Library and Memory.
+   Existing font sizes are preserved outside Local Models. */
+#settingsView,#libraryView,#memoryView{line-height:1.5}
+#settingsView .page-head,#libraryView .page-head,#memoryView .page-head{min-width:0}
+#settingsView .page-head h2,#libraryView .page-head h2,#memoryView .page-head h2{font-weight:700;letter-spacing:-.018em;line-height:1.2;margin-bottom:6px}
+#settingsView .page-head p,#libraryView .page-head p,#memoryView .page-head p{line-height:1.55;max-width:64ch;overflow-wrap:anywhere}
+#settingsView .section-title,#libraryView .section-title,#memoryView .section-title{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}
+#settingsView .section-title>div,#libraryView .section-title>div,#memoryView .section-title>div{min-width:0}
+#settingsView .section-title strong,#libraryView .section-title strong,#memoryView .section-title strong{display:block;font-weight:650;letter-spacing:-.012em;line-height:1.35}
+#settingsView .section-title small,#libraryView .section-title small,#memoryView .section-title small{display:block;line-height:1.5;margin-top:4px;overflow-wrap:anywhere}
+#settingsView .settings-note,#libraryView .settings-note,#memoryView .settings-note{line-height:1.6;max-width:75ch;overflow-wrap:anywhere}
+#settingsView label,#libraryView label,#memoryView label{line-height:1.45}
+#settingsView .model-info,#libraryView .model-info,#memoryView .model-info{min-width:0;overflow-wrap:anywhere}
+#settingsView .model-info strong,#libraryView .model-info strong,#memoryView .model-info strong{line-height:1.4;font-weight:650}
+#settingsView .model-info small,#libraryView .model-info small,#memoryView .model-info small{display:block;line-height:1.5;margin-top:3px}
+#settingsView .setting-row,#libraryView .setting-row,#memoryView .setting-row{align-items:center;line-height:1.45}
+.settings-category-button strong{font-weight:650;letter-spacing:-.012em;line-height:1.35}
+.settings-category-button small{line-height:1.5;max-width:36ch;overflow-wrap:anywhere}
+.settings-category-heading strong{font-weight:700;letter-spacing:-.015em;line-height:1.35}
+#memoryView .knowledge-card strong{display:block;font-weight:650;line-height:1.35}
+#memoryView .knowledge-card small{display:block;line-height:1.5;margin-top:4px;overflow-wrap:anywhere}
+#memoryView .memory-item{line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+#libraryView .document-library h3{font-weight:650;letter-spacing:-.012em;line-height:1.35}
+#libraryView .document-library p{line-height:1.55;overflow-wrap:anywhere}
+#localModels .local-model-tabs button{font-weight:600;line-height:1.35}
+#localModels [data-ram],#localModels [data-process],#localModels [data-runtime]{line-height:1.55;overflow-wrap:anywhere}
+@media (orientation:landscape) and (max-height:650px){
+ #settingsView .page-head h2,#libraryView .page-head h2,#memoryView .page-head h2{margin-bottom:4px}
+ #settingsView .section-title,#libraryView .section-title,#memoryView .section-title{margin-bottom:8px}
+}
+
+
+/* Document Library: align imported module with Haruna's existing card design. */
+#libraryView .document-library{box-sizing:border-box;width:100%;min-width:0;margin:14px 0 22px;padding:20px;border:1px solid rgba(151,148,202,.17);border-radius:22px;background:#101628;box-shadow:0 12px 30px rgba(0,0,0,.12)}
+#libraryView .document-library>h3{margin:0 0 8px;font-weight:700;letter-spacing:-.012em;line-height:1.35;color:inherit}
+#libraryView .document-library>p{margin:0 0 16px;line-height:1.5;color:#a3a8c0;overflow-wrap:anywhere}
+#libraryView .document-library>.document-actions{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px}
+#libraryView .document-library>.document-actions button{min-height:44px;padding:10px 16px;border:1px solid #7651dc;border-radius:13px;background:#211b3c;color:#f2edff;font:inherit;font-weight:600;cursor:pointer}
+#libraryView .document-library>input[type=search]{display:block;box-sizing:border-box;width:100%;min-width:0;min-height:48px;margin:0 0 14px;padding:12px 15px;border:1px solid #353c58;border-radius:14px;background:#141b30;color:#f2f1fc;font:inherit;line-height:1.4;outline:none;-webkit-appearance:none;appearance:none}
+#libraryView .document-library>input[type=search]::placeholder{color:#969bb5;opacity:1}
+#libraryView .document-library>input[type=search]:focus{border-color:#956bff;box-shadow:0 0 0 2px rgba(149,107,255,.18)}
+#libraryView .document-library>.model-row,#libraryView .document-library .model-row{min-width:0;overflow-wrap:anywhere}
+#libraryView .document-library>div:not(.document-actions):not(.document-search-hits)>p{margin:10px 0;color:#a3a8c0;line-height:1.5}
+#libraryView .document-library .document-search-hits{display:grid;gap:8px;min-width:0}
+#libraryView .document-library .document-search-hits button{max-width:100%;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:520px){#libraryView .document-library{padding:16px;border-radius:19px}}
+
+
+/* Main Settings keeps familiar cards; advanced model controls remain nested. */
+#settingsView .settings-category-nav{display:none!important}
+#settingsView .haruna-future-settings p{margin:8px 0;line-height:1.5}
+#settingsView .haruna-future-settings p:last-child{margin-bottom:0}
+#localModels .model-extra-settings{margin-top:16px;border-top:1px solid #343b59;padding-top:12px}
+#localModels .model-extra-settings>summary{cursor:pointer;font-weight:650;line-height:1.4;padding:10px 2px;color:inherit}
+#localModels .model-extra-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+#localModels .model-extra-tabs button{font:inherit;min-height:42px;padding:8px 12px;border:1px solid #40386e;border-radius:12px;background:#151b30;color:inherit}
+#localModels .model-extra-tabs button[aria-selected=true]{background:#5732a6;border-color:#9773ff}
+#localModels .model-extra-panel[hidden]{display:none!important}
+#localModels .model-extra-panel>.page-card{margin:10px 0;padding:14px;border:1px solid #343b59;border-radius:14px;background:#11182b;box-shadow:none}
+#localModels .model-extra-panel>section{min-width:0;overflow-wrap:anywhere}
+#localModels .model-extra-panel .model-actions{display:flex;flex-wrap:wrap;gap:8px}
+@media (orientation:landscape) and (max-height:650px){
+ .bottom-nav{grid-template-columns:repeat(4,minmax(0,1fr));padding:2px 8px max(2px,env(safe-area-inset-bottom))}
+ .bottom-nav .nav-item{min-height:40px;gap:0;border-radius:9px}
+ .bottom-nav .nav-item small{line-height:1.1}
+ .chat-view{min-height:0;overflow:hidden}
+ .chat-view .status-row{margin-top:0;padding:5px 10px}
+ .chat-view .composer{margin-top:4px;margin-bottom:3px;padding:4px}
+ .chat-view .composer textarea{min-height:34px;max-height:72px}
+ .chat-view .attach,.chat-view .send,.chat-view .stop{width:38px;height:38px;flex-basis:38px}
+}
