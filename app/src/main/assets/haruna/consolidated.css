@@ -22,14 +22,14 @@
 
 /* Reference chat layout: preserve original Haruna colors and components. */
 .topbar{position:relative}
-.haruna-voice-more{font-size:24px;line-height:1;min-width:38px}
+.haruna-voice-more{line-height:1;min-width:38px}
 .haruna-voice-menu{position:absolute;z-index:12;right:12px;top:calc(100% - 3px);width:min(290px,calc(100vw - 24px));padding:7px;border:1px solid #353b58;border-radius:16px;background:#121829;box-shadow:0 16px 35px #0009}
 .haruna-voice-menu[hidden]{display:none!important}
 .haruna-voice-menu button{display:flex;align-items:center;gap:12px;width:100%;min-height:46px;padding:9px 12px;border:0;border-radius:10px;background:transparent;color:#e8e7f4;text-align:left;font:inherit}
 .haruna-voice-menu button+button{border-top:1px solid #303650;border-radius:0}
 .haruna-voice-menu svg{width:20px;height:20px;flex:none}
 .haruna-message-actions{display:flex;align-items:center;gap:7px;margin-top:10px;padding-top:7px;border-top:1px solid #ffffff13;white-space:normal}
-.haruna-message-actions button{display:grid;place-items:center;width:35px;height:33px;border:1px solid #323b56;border-radius:11px;background:#151c2e;color:#c8c5de;font-size:21px;line-height:1;cursor:pointer}
+.haruna-message-actions button{display:grid;place-items:center;width:35px;height:33px;border:1px solid #323b56;border-radius:11px;background:#151c2e;color:#c8c5de;line-height:1;cursor:pointer}
 .haruna-message-actions button:focus-visible,.haruna-voice-menu button:focus-visible{outline:2px solid #a17cff;outline-offset:2px}
 .msg.assistant .bubble{min-width:0}
 .msg.user .bubble{background:linear-gradient(135deg,#3a285c,#39245f);border-color:#8250c2;box-shadow:none}
