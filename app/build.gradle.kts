@@ -22,8 +22,8 @@ android {
         minSdk = 33
         targetSdk = 36
         testInstrumentationRunner = "com.proxyslabs.haruna.diagnostic45.CanonicalRunner"
-        versionCode = 10
-        versionName = "0.8.1-consolidada"
+        versionCode = 11
+        versionName = "0.8.2-consolidada"
         val useVulkan = providers.gradleProperty("harunaVulkan").orElse("false").get().toBoolean()
         if(useVulkan) { applicationId = "com.proxyslabs.haruna.incremental.vulkan";versionName = "0.7-incremental-vulkan" }
         manifestPlaceholders["harunaLabel"] = if(useVulkan) "Haruna incremental GPU" else "Haruna incremental"

@@ -12,6 +12,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: write
 
 env:
   LLAMA_CPP_REVISION: 4d71b42fd87db24b8b7c808c151b713aa4459cfd
@@ -204,7 +205,16 @@ jobs:
             docs/IMAGE_CONTROLS_ANDROID.md
             docs/ETAPA_8_DOCUMENTOS_VISAO.md
             docs/CONSOLIDATED_MODELS_IMAGES.md
+            docs/IMAGE_PANEL_REFERENCE.md
             docs/evidence/consolidated/
             docs/evidence/nezumi/
             app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: error
+
+      - name: Prune old APK artifacts after successful publication
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/consolidated-image-batches' && github.event.head_commit.message == 'build: Android 0.8.2 panel and authorized APK retention'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/prune_apk_artifacts.py --self-test
+          python3 scripts/prune_apk_artifacts.py

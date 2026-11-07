@@ -10,3 +10,7 @@ Enquadramento ilustrativo em CSS (não uma prévia gerada), proporção/dimensõ
 Verificação: Chromium 360×800 e 800×1280 com bridge/PNG simulados; controles, persistência, cancelamento, ações, histórico e dimensões; limites de largura/altura do painel e ausência de overflow horizontal. Não equivale a teste físico ou inferência. Verificação estática preserva hashes do CSS original e restringe novos tamanhos de fonte ao painel.
 
 Nenhum novo build remoto iniciado: a autorização anterior foi utilizada no APK `9a6ffe4`. O APK anteriormente entregue não contém este ajuste. Gerar outro APK pelo Actions pode consumir minutos cobrados e depende de nova autorização. A limitação de assinatura original continua existente.
+
+## Build 0.8.2 autorizado
+
+Usuário autorizou novo build e remoção de versões antigas. Compilação ARM64 0.8.2 (versionCode 11). Limpeza pós-publicação mantém APK atual e quatro versões anteriores no Actions, sem apagar fontes, relatórios, Windows, modelos, releases, branches ou commits. Script testado localmente, sem executar deletes locais; resultado real será registrado após o Actions. A limpeza está limitada ao push com mensagem exata desta entrega, não a todo build futuro. Assinatura original continua indisponível; não desinstalar nem limpar dados.
