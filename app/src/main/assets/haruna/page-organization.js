@@ -5,13 +5,19 @@ const library = document.querySelector('#libraryView');
 
 if (settings) {
   const groups = [
+    ['appearance', 'Aparência', 'Tema claro, escuro ou automático'],
     ['models', 'Modelos locais', 'Modelos instalados, desempenho e motores'],
     ['images', 'Geração de imagens', 'Modelos e preferências de imagens'],
     ['vision', 'Interpretação de imagens', 'Modelos para analisar imagens'],
     ['voice', 'Voz e conversação', 'Reconhecimento, fala e conversa por voz'],
     ['privacy', 'Privacidade e armazenamento', 'Dados e processamento local'],
-    ['general', 'Geral', 'Aparência e outras preferências']
+    ['general', 'Geral', 'Funcionalidades previstas para o futuro']
   ];
+  const futureCard = document.createElement('section');
+  futureCard.className = 'page-card haruna-future-settings';
+  futureCard.dataset.settingsCategory = 'general';
+  futureCard.innerHTML = '<div class="section-title"><strong>Novidades em desenvolvimento</strong></div><p>Esta seção será destinada a novas configurações e recursos da Haruna.</p><p>Futuramente, poderão ser adicionadas opções de idioma, notificações, personalização e outras preferências.</p><p class="settings-note">Essas funcionalidades ainda não estão disponíveis.</p>';
+  settings.append(futureCard);
   const navigation = document.createElement('div');
   navigation.className = 'settings-category-nav';
   navigation.setAttribute('aria-label', 'Categorias de configurações');
@@ -29,7 +35,10 @@ if (settings) {
   settings.querySelector('.page-head')?.after(navigation);
   let selected = null;
   const categoryOf = node => {
+    if (node.dataset.settingsCategory) return node.dataset.settingsCategory;
     if (node.id === 'localModels' || node.querySelector('#modelList')) return 'models';
+    const headingText = (node.querySelector('.section-title strong,h3')?.textContent || '').toLowerCase();
+    if (/aparência|aparencia/.test(headingText)) return 'appearance';
     if (node.classList.contains('vision-settings')) return 'vision';
     if (node.classList.contains('recognition-settings') || node.classList.contains('speech-settings') || node.classList.contains('voice-settings')) return 'voice';
     if (node.dataset.modelGroup === 'images' || node.classList.contains('image-settings')) return 'images';
