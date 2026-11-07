@@ -44,7 +44,7 @@ if(api&&chat){
   if(!api.generate(request,text)){chat.update({request,state:'ERROR',error:'O motor de imagens está ocupado.'});throw Error('O motor de imagens está ocupado.')}
   window.harunaImagesBusy=true;window.harunaImageRunning=true;window.harunaImageMode=false;button.setAttribute('aria-pressed','false');
  };
- button.onclick=()=>{window.harunaImageMode=!window.harunaImageMode;button.setAttribute('aria-pressed',String(window.harunaImageMode));if(window.harunaImageMode)window.harunaOpenImagePanel?.()};
+ button.setAttribute('aria-controls','imageGenerationPanel');button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');button.onclick=()=>{window.harunaImageMode=window.harunaToggleImagePanel?window.harunaToggleImagePanel():!window.harunaImageMode;button.setAttribute('aria-pressed',String(window.harunaImageMode))};
  chat.refresh();
  let modelStatusKey='',wasImageBusy=false;
  function update(){if(document.hidden)return;try{
