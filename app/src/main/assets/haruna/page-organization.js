@@ -66,6 +66,7 @@ if (settings) {
     button.addEventListener('click', () => { selected = key; apply(); settings.scrollTop = 0; });
     cards.append(button);
   }
+  window.addEventListener('haruna-open-settings-category', event => { const category = event.detail?.category; if (groups.some(group => group[0] === category)) { selected = category; apply(); settings.scrollTop = 0; } });
   back.addEventListener('click', () => { selected = null; apply(); settings.scrollTop = 0; });
   // Only direct-child additions are observed: dynamically registered controls
   // appear in the correct category without replacing or cloning their nodes.
