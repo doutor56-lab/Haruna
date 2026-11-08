@@ -26,9 +26,17 @@ if(api&&settings){
  const previews=card.querySelector('[data-previews]')?.closest('label');
  // Keep performance above both checkboxes in the simplified preferences.
  if(performance&&options)options.prepend(performance);
+ // Keep advanced engine bindings alive, but keep the approved compact
+ // preferences limited to performance, previews and gallery autosave.
+ for(const label of [...options.querySelectorAll(':scope > label')]){
+  if(label===performance||label===previews)continue;
+  label.hidden=true;
+  label.classList.add('image-engine-only');
+ }
+ if(save&&options)options.append(save);
  const config=card.querySelector('[data-config]')?.parentElement;
  if(config)config.hidden=true;
- for(const element of [options,save,config].filter(Boolean))advanced.append(element);
+ for(const element of [options,config].filter(Boolean))advanced.append(element);
  if(modelsHeading){
   card.insertBefore(modelsHeading,guide);
   for(const element of [modelsList,addAction,cancelAction].filter(Boolean))card.insertBefore(element,guide);
