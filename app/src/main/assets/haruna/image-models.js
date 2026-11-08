@@ -14,6 +14,10 @@ if(api&&settings){
  const advancedTitle=document.createElement('summary');
  advancedTitle.textContent='Preferências de geração';
  advanced.append(advancedTitle);
+ // Advanced engine inputs remain bound and persisted, but do not occupy the
+ // simplified image-model screen. They can be surfaced in a dedicated expert UI later.
+ const engineAdvanced=card.querySelector('.image-options > details');
+ if(engineAdvanced){engineAdvanced.hidden=true;engineAdvanced.style.display='none';}
  const options=card.querySelector('.image-options');
  const redundantTitle=options?.querySelector('.image-settings-subtitle');if(redundantTitle)redundantTitle.remove();
  const performance=card.querySelector('[data-performance]')?.closest('label');
