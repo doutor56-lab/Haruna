@@ -30,6 +30,23 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.13113456" "cmake;3.31.6"
+      - name: Verify llama.cpp runtime API compatibility
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          interface = Path("third_party/llama.cpp/examples/llama.android/lib/src/main/java/com/arm/aichat/InferenceEngine.kt")
+          backend = Path("app/src/main/java/com/proxyslabs/haruna/LlamaCppBackend.kt")
+          if not interface.is_file():
+              raise SystemExit("Missing llama.cpp InferenceEngine.kt: check submodule checkout")
+          expected = set(re.findall(r"engine\\.([A-Za-z_]\\w*)\\s*\\(", backend.read_text()))
+          declared = set(re.findall(r"\\bfun\\s+([A-Za-z_]\\w*)\\s*\\(", interface.read_text()))
+          missing = sorted(expected - declared)
+          if missing:
+              print("::error title=Incompatible llama.cpp Android API::Haruna requires custom InferenceEngine methods absent from the checked-out llama.cpp submodule: " + ", ".join(missing))
+              raise SystemExit(1)
+          print("Haruna llama.cpp interface methods are present")
+          PY
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
       - name: Upload debug APK
