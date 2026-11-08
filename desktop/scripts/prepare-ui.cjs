@@ -10,4 +10,13 @@ write('app.js',s=>s.replace('function renameChat(c){const next=prompt(', 'async 
 write('learning-panel.js',s=>s.replace('next=prompt(', 'next=await window.harunaDesktopPrompt('));
 write('image-chat.js',s=>s.replace('button.onclick=()=>{try{','button.onclick=async ()=>{try{').replace("prompt('Descreva a imagem que deseja gerar:')","await window.harunaDesktopPrompt('Descreva a imagem que deseja gerar:')").replaceAll('modelo SD1.5','checkpoint SDXL').replaceAll("button('Compartilhar'", "button('Mostrar no Explorer'").replace("if(j.saveWarning){", "if(j.restoreWarning){const warning=document.createElement('small');warning.textContent=j.restoreWarning;bubble.append(warning)}if(j.saveWarning){"));
 fs.writeFileSync(path.join(dest,'image-models.js'),"import '/desktop/image-settings.js';\n");
-console.log('Copied current Haruna UI with desktop-only adapters; Android source unchanged.');
+
+// Overlay only approved visual styles from the Android UI refresh.
+// Keep desktop-specific JS bridges and image-models replacement intact.
+const overlays=['settings-workspace.css','memory-workspace.css','library-workspace.css','tablet-landscape.css','approved-pages.css'];
+for(const name of overlays)fs.copyFileSync(path.join(root,'ui-updates',name),path.join(dest,name));
+write('index.html',s=>s.replace('</head>','<link rel="stylesheet" href="approved-pages.css"></head>'));
+// drawer-toggle.js is staged for a separate event-handler compatibility check;
+// do not enable it alongside the legacy desktop menu binding.
+
+console.log('Copied Haruna UI with approved Windows visual overlays; Android source unchanged.');
