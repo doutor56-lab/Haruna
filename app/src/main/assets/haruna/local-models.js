@@ -24,18 +24,24 @@ if(settings&&host){
  }
  host.append(tabs,...panels);
  if(title?.querySelector('strong'))title.querySelector('strong').textContent='Modelos de IA';
- const voiceTargets=new Set();
+ // Keep exactly one live instance of each setting. append() MOVES nodes; it never clones them.
+ const imageSelector='.vision-settings,[data-model-group="images"],.image-settings-card';
+ const voiceSelector='.recognition-settings,.speech-settings';
  function move(){
-  for(const node of [...settings.children]){
-   if(node===host)continue;
-   if((node.classList.contains('recognition-settings')||node.classList.contains('speech-settings'))&&!voiceTargets.has(node)){
-    voiceTargets.add(node);voice.append(node);emptyVoice.hidden=true;
-   }
-   if(node.classList.contains('vision-settings')||node.dataset.modelGroup==='images'||node.classList.contains('image-settings-card')){
-    images.append(node);emptyImage.hidden=true;
-   }
+  // Dynamic settings may be inserted after startup, including inside wrapper cards.
+  // Search only outside the three destination panels to avoid moving children twice.
+  for(const node of [...settings.querySelectorAll(imageSelector)]){
+   if(host.contains(node))continue;
+   images.append(node);
   }
+  for(const node of [...settings.querySelectorAll(voiceSelector)]){
+   if(host.contains(node))continue;
+   voice.append(node);
+  }
+  emptyImage.hidden=!!images.querySelector(imageSelector);
+  emptyVoice.hidden=!!voice.querySelector(voiceSelector);
  }
+
  new MutationObserver(move).observe(settings,{childList:true});move();
  new MutationObserver(announce).observe(settings,{attributes:true,attributeFilter:['hidden']});
  announce();
