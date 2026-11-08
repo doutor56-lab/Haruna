@@ -1,0 +1,56 @@
+/* Approved Haruna redesign: Settings, Memory, Library, Image models.
+   Conversation workspace and drawer are intentionally untouched. */
+.app #settingsView,.app #memoryView,.app #libraryView{--approved-radius:16px;--approved-border:var(--theme-stroke);--approved-purple:var(--theme-accent);min-width:0}
+.app :is(#settingsView,#memoryView,#libraryView) .page-head{margin-bottom:18px}
+.app :is(#settingsView,#memoryView,#libraryView) .page-head h2{font-size:clamp(22px,2.5vw,28px);letter-spacing:-.035em;line-height:1.2}
+.app :is(#settingsView,#memoryView,#libraryView) .page-card{border:1px solid var(--approved-border);border-radius:var(--approved-radius);padding:clamp(14px,2vw,20px);margin-bottom:14px;background:var(--theme-surface);box-shadow:0 6px 22px #00000012}
+.app :is(#settingsView,#memoryView,#libraryView) .section-title{padding-bottom:12px;margin-bottom:13px;border-bottom:1px solid var(--approved-border)}
+.app :is(#settingsView,#memoryView,#libraryView) :is(button,input,select,summary){accent-color:var(--approved-purple)}
+.app :is(#settingsView,#memoryView,#libraryView) button{transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.app :is(#settingsView,#memoryView,#libraryView) button:focus-visible{outline:2px solid var(--approved-purple);outline-offset:2px}
+.app :is(#settingsView,#memoryView,#libraryView) button:active{transform:scale(.99)}
+/* Settings: retain original theme selection and local model handlers. */
+.app #settingsView .theme-choice{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.app #settingsView .theme-choice button{min-width:0;min-height:52px;border:1px solid var(--approved-border);border-radius:12px;background:var(--theme-surface-2);color:var(--theme-text);padding:9px 12px}
+.app #settingsView .theme-choice button[aria-pressed=true],.app #settingsView .theme-choice button.active{background:var(--selection);border-color:var(--approved-purple);color:var(--theme-text)}
+.app #settingsView #localModels .local-model-tabs{gap:5px;padding:5px;border-radius:14px}
+.app #settingsView #localModels .local-model-tabs button{min-height:46px;border-radius:10px;font-size:13px}
+.app #settingsView #localModels .local-model-tabs button[aria-selected=true]{background:var(--selection);border-color:var(--approved-purple);box-shadow:inset 0 0 0 1px #9068e620}
+.app #settingsView #addModel,.app #settingsView .image-settings-card [data-add],.app #settingsView .image-settings-card [data-import]{border-color:var(--approved-purple);background:var(--selection);font-weight:650}
+.app #settingsView .ram-monitor{border:1px solid var(--approved-border);border-radius:15px;background:var(--theme-surface-2);padding:16px}
+.app #settingsView .ram-metric{border:1px solid var(--approved-border);border-radius:12px;background:var(--theme-surface)}
+.app #settingsView #localModels .image-settings-card,.app #settingsView #localModels .vision-settings{border:1px solid var(--approved-border);border-radius:15px;background:var(--theme-surface-2);padding:clamp(12px,2vw,18px);margin-bottom:12px}
+.app #settingsView #localModels .image-settings-card :is(input[type=checkbox],select){accent-color:var(--approved-purple)}
+.app #settingsView #localModels .image-settings-card label{line-height:1.5}
+.app #settingsView #localModels .image-settings-card button{min-height:43px;border-radius:11px}
+.app #settingsView #localModels .vision-settings .model-actions{display:flex;gap:8px;flex-wrap:wrap}
+.app #settingsView #localModels .vision-settings .model-actions button{flex:1 1 150px;min-height:44px}
+/* Memory: three visually distinct groups; all learning and deletion controls remain. */
+.app #memoryView .page-card{position:relative;overflow:hidden}
+.app #memoryView .page-card>.section-title strong{font-size:16px}
+.app #memoryView .knowledge-import-card .knowledge-types{gap:10px}
+.app #memoryView .knowledge-card{min-height:74px;align-items:center;border-radius:13px}
+.app #memoryView .knowledge-card.active{border-color:var(--approved-purple);box-shadow:inset 3px 0 0 var(--approved-purple)}
+.app #memoryView .permanent-learning-card{border-left:3px solid var(--approved-purple)}
+.app #memoryView .saved-memories-card{border-left:3px solid var(--approved-purple)}
+.app #memoryView .memory-item,.app #memoryView .learning-review{border-radius:13px;background:var(--theme-surface-2)}
+.app #memoryView .model-empty{border-radius:13px;text-align:center;padding:18px}
+/* Library: import is the primary action; documents are compact scan-friendly rows. */
+.app #libraryView .document-library{border-radius:var(--approved-radius);padding:clamp(14px,2vw,20px)}
+.app #libraryView .document-library>.document-actions{display:flex;gap:10px;flex-wrap:wrap;padding:18px;border:1px dashed var(--approved-purple);border-radius:14px;background:var(--selection);justify-content:center}
+.app #libraryView .document-library>.document-actions button{flex:1 1 180px;max-width:360px;border-radius:12px;min-height:46px}
+.app #libraryView .document-library>input[type=search]{margin:16px 0;border-radius:12px}
+.app #libraryView .document-library .model-row{border-radius:13px;margin-bottom:8px;align-items:center}
+.app #libraryView .document-library .model-actions{align-items:center}
+.app #libraryView .document-library .model-actions button{border-radius:10px}
+.app #libraryView .document-library .document-search-hits button{border-radius:12px}
+@media(max-width:540px){
+ .app #settingsView .theme-choice{gap:6px}
+ .app #settingsView .theme-choice button{padding:8px 4px;font-size:11px;min-height:50px}
+ .app #settingsView #localModels .local-model-tabs button{font-size:12px}
+ .app #libraryView .document-library>.document-actions{padding:12px}
+ .app #libraryView .document-library>.document-actions button{max-width:none}
+}
+@media(prefers-reduced-motion:reduce){
+ .app :is(#settingsView,#memoryView,#libraryView) button{transition:none}
+}
