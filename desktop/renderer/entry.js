@@ -46,6 +46,7 @@
 
  // No browser speech recognizer/cloud fallback is enabled by the Windows shell.
  window.SpeechRecognition=undefined;window.webkitSpeechRecognition=undefined;
+ let lastLlmStatus='';
  desktop.subscribe(event=>{
   if(event.type==='desktop-error'){alert(event.message);return;}
   if(event.type==='image-rejected'){window.harunaChatImages?.update({request:event.request,state:'ERROR',error:event.error});return;}
@@ -53,7 +54,10 @@
   // The desktop snapshot changes on model load/unload and during generation,
   // even when the accompanying event is model_import or a streamed token.
   // Keep the Android chat status view synchronized with that snapshot.
-  if(event.type!=='status')window.dispatchEvent(new CustomEvent('haruna-native-status-changed'));
+  const llm=desktop.snapshot()?.llm||{};
+  const signature=[llm.state,llm.modelLoaded,llm.modelName,llm.error].join('|');
+  if(event.type!=='status'&&signature!==lastLlmStatus)window.dispatchEvent(new CustomEvent('haruna-native-status-changed'));
+  lastLlmStatus=signature;
  });
  addEventListener('DOMContentLoaded',()=>{
   mountScaleControl();
