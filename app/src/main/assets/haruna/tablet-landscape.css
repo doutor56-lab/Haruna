@@ -71,3 +71,20 @@
   margin:0!important;
  }
 }
+
+/* The image dialog is bounded to the current chat workspace, even when open
+   in the browser top layer. Other pages never display chat-only controls. */
+@media (orientation:landscape) and (min-width:800px) and (min-height:350px){
+ .app:has(#chatView[hidden]) .image-dimensions[open]{display:none!important}
+ .app .drawer #closeMenu{display:inline-flex!important}
+ .app .page-view{max-width:none!important}
+ .app .bottom-nav{min-width:0}
+}
+@media (max-width:799px), (orientation:portrait){
+ .app .drawer{max-width:calc(100vw - 36px)}
+ .app .image-dimensions[open]{
+  left:12px!important;right:auto!important;
+  width:min(360px,calc(100vw - 24px))!important;
+  max-height:min(70dvh,calc(100dvh - 24px))!important;
+ }
+}
