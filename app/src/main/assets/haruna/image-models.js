@@ -12,7 +12,7 @@ if(api&&settings){
  const advanced=document.createElement('details');
  advanced.className='image-settings-advanced';
  const advancedTitle=document.createElement('summary');
- advancedTitle.textContent='Preferências de geração';
+ advancedTitle.textContent='Preferências de geração';advanced.open=true;
  advanced.append(advancedTitle);
  // Advanced engine inputs remain bound and persisted, but do not occupy the
  // simplified image-model screen. They can be surfaced in a dedicated expert UI later.
@@ -24,10 +24,10 @@ if(api&&settings){
  const save=card.querySelector('[data-save]')?.closest('label');
  const previews=card.querySelector('[data-previews]')?.closest('label');
  // Keep performance above both checkboxes in the simplified preferences.
- if(performance&&previews)previews.before(performance);
+ if(performance&&options)options.prepend(performance);
  const config=card.querySelector('[data-config]')?.parentElement;
  if(config)config.hidden=true;
- for(const element of [options,performance,save,config].filter(Boolean))advanced.append(element);
+ for(const element of [options,save,config].filter(Boolean))advanced.append(element);
  if(modelsHeading){
   card.insertBefore(modelsHeading,guide);
   for(const element of [modelsList,addAction,cancelAction].filter(Boolean))card.insertBefore(element,guide);
