@@ -286,7 +286,7 @@ window.harunaChatVoice={
 };
 if(!chats.length)fresh();else if(!chats.some(c=>c.id===activeId))activeId=chats[0].id;persist();renderKnowledge();render();showView('chat');maybeShowOnboarding();
 // Hand off chat events only after all handlers and persisted state are ready.
-window.__HARUNA_CHAT_READY__=true;
+window.__HARUNA_CHAT_READY__=true;window.dispatchEvent(new Event('haruna-chat-ready'));
 essentialReady=true;render();
 // Observe only the existing overlay's visibility; do not alter its flow or appearance.
 if(onboarding){const introObserver=new MutationObserver(()=>{if(onboarding.hidden)render()});introObserver.observe(onboarding,{attributes:true,attributeFilter:['hidden']})}
