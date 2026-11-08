@@ -56,6 +56,25 @@
   (appearance||settings).append(card);
  }
 
+ // Make startup failures visible instead of leaving an empty chat screen.
+ // This does not replace missing modules with simulated functionality.
+ let startupFailure='';
+ addEventListener('error',event=>{if(!window.__HARUNA_CHAT_READY__)startupFailure=String(event.message||'Falha ao carregar um módulo.').slice(0,180);});
+ addEventListener('unhandledrejection',event=>{if(!window.__HARUNA_CHAT_READY__)startupFailure=String(event.reason?.message||event.reason||'Inicialização interrompida.').slice(0,180);});
+ addEventListener('load',()=>setTimeout(()=>{
+  const chatReady=window.__HARUNA_CHAT_READY__===true;
+  const hasImageButton=!!document.querySelector('#generateImage');
+  const hasImageSettings=!!document.querySelector('.desktop-image-settings');
+  if(chatReady&&hasImageButton&&hasImageSettings)return;
+  const messages=document.querySelector('#messages');
+  if(!messages||messages.querySelector('.desktop-startup-warning'))return;
+  const warning=document.createElement('p');warning.className='desktop-startup-warning';
+  warning.setAttribute('role','alert');
+  warning.textContent=!chatReady?'O chat não terminou de iniciar. Reinicie a Haruna e confira a versão instalada.': 'A interface de imagens não carregou completamente. Reinicie a Haruna e confira a versão instalada.';
+  if(startupFailure){const detail=document.createElement('small');detail.textContent='Detalhe técnico: '+startupFailure;warning.append(detail);}
+  messages.append(warning);
+ },1500));
+
  // No browser speech recognizer/cloud fallback is enabled by the Windows shell.
  window.SpeechRecognition=undefined;window.webkitSpeechRecognition=undefined;
  let lastLlmStatus='';
