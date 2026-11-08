@@ -78,7 +78,7 @@
 /* Image: approved single-level preference stack. Keep engine-only inputs
    hidden by their existing controller rather than removing their bindings. */
 .app #settingsView .image-settings-card .image-settings-advanced{display:block;padding:14px;border:1px solid var(--approved-border);border-radius:14px;background:var(--theme-surface-2)}
-.app #settingsView .image-settings-card .image-settings-advanced>summary{font-size:15px;font-weight:700;cursor:pointer}
+.app #settingsView .image-settings-card .image-preferences-heading{font-size:15px;font-weight:700;margin:0 0 12px;line-height:1.4}
 .app #settingsView .image-settings-card .image-options{display:grid;gap:12px;min-width:0}
 .app #settingsView .image-settings-card .image-options>label{margin:0!important}
 .app #settingsView .image-settings-card .image-options [data-performance]{min-width:150px}
@@ -91,3 +91,15 @@
  .app #settingsView .haruna-voice-model-card .model-actions button{flex:1 1 120px}
  .app #settingsView .image-settings-card .image-settings-advanced{padding:12px}
 }
+
+/* Preserve hidden semantics and avoid empty spacer rows after JS moves. */
+.app #settingsView #localModels [hidden],
+.app #settingsView #localModels [hidden] *{display:none!important}
+.app #settingsView .image-settings-card .image-options>p[hidden]{display:none!important}
+.app #settingsView .image-settings-card .image-options>details[hidden]{display:none!important}
+.app #settingsView .image-settings-card .image-settings-advanced .model-actions[hidden]{display:none!important}
+.app #settingsView #localModels .haruna-voice-heading + .section-title{display:none}
+.app #settingsView #localModels .haruna-voice-model-card .haruna-voice-heading{margin-top:0}
+.app #settingsView .image-settings-card [data-models] .setting-row{display:flex;flex-wrap:wrap;gap:10px;padding:12px;border:1px solid var(--approved-border);border-radius:12px;background:var(--theme-surface);margin-block:8px}
+.app #settingsView .image-settings-card [data-models] .setting-row .model-actions{display:flex;flex-wrap:wrap;gap:7px;width:100%}
+.app #settingsView .image-settings-card [data-models] .setting-row .model-actions button{flex:1 1 100px;min-width:0}
