@@ -4,7 +4,7 @@ let cache=ipcRenderer.sendSync('haruna:snapshot');
 const listeners=new Set();
 ipcRenderer.on('haruna:update',(_,data)=>{cache=data.snapshot;for(const fn of listeners)fn(data.event||{type:'status'});});
 const sync=(op,...args)=>ipcRenderer.sendSync('haruna:small',{op,args});
-function command(op,...args){ipcRenderer.invoke('haruna:command',{op,args}).catch(e=>{for(const fn of listeners)fn({type:'desktop-error',message:e.message.replace(/^Error invoking remote method[^:]*:\s*/, '')});});}
+function command(op,...args){ipcRenderer.invoke('haruna:command',{op,args}).catch(e=>{if(op==='chat'||op==='image')return;for(const fn of listeners)fn({type:'desktop-error',message:e.message.replace(/^Error invoking remote method[^:]*:\s*/, '')});});}
 contextBridge.exposeInMainWorld('HarunaDesktop',{subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);},snapshot:()=>cache,devices:()=>ipcRenderer.invoke('haruna:devices'),configure:p=>sync('configure',p),preset:(r,q,o)=>sync('preset',r,q,o),cancelImage:id=>command('cancelImage',id)});
 contextBridge.exposeInMainWorld('HarunaAndroid',{
  isAvailable:()=>true,getStatus:()=>JSON.stringify(cache.llm),listModels:()=>JSON.stringify({models:cache.models}),
