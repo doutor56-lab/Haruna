@@ -206,3 +206,28 @@
  .app .chat-view .messages{padding-left:12px;padding-right:12px}
  .app .chat-view .composer{margin-left:10px;margin-right:10px}
 }
+
+/* Settings, memory and library share the same compact component vocabulary. */
+.app #settingsView .page-card,.app #memoryView .page-card,.app #libraryView .page-card{box-shadow:none}
+.app #settingsView .page-card .section-title,.app #memoryView .page-card .section-title{padding-bottom:10px;border-bottom:1px solid var(--theme-stroke)}
+.app #settingsView .setting-row:last-child,.app #memoryView .setting-row:last-child{border-bottom:0}
+.app #settingsView .image-settings-card .image-settings-intro{margin:0 0 8px;color:var(--theme-muted)}
+.app #settingsView .image-settings-card .image-settings-subtitle{border-top:0;padding-top:0}
+.app #settingsView .image-settings-card .image-settings-advanced{margin-top:12px}
+.app #settingsView .image-settings-card .image-settings-guide{margin-top:8px}
+.app #settingsView .recognition-settings .speech-actions button{min-width:0}
+.app #memoryView .knowledge-import-card .knowledge-types{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.app #memoryView .knowledge-import-card .knowledge-card{min-width:0;text-align:left;background:var(--theme-surface-2);border:1px solid var(--theme-stroke);padding:12px}
+.app #memoryView .knowledge-import-card .knowledge-card.active{border-color:var(--theme-accent);background:var(--selection)}
+.app #memoryView .knowledge-import-card .knowledge-card strong{color:var(--theme-text)}
+.app #memoryView .knowledge-import-card .knowledge-card small{color:var(--theme-muted)}
+.app #memoryView .saved-memories-card .memory-items{min-width:0}
+.app #memoryView .saved-memories-card .memory-items>*{overflow-wrap:anywhere}
+.app #memoryView .permanent-learning-card .model-list>*{overflow-wrap:anywhere}
+.app #libraryView .page-head{margin-bottom:12px}
+.app #libraryView .page-card,.app #libraryView .model-list>*{min-width:0}
+.app #libraryView .page-card button{min-height:40px}
+@media(max-width:480px){
+ .app #memoryView .knowledge-import-card .knowledge-types{grid-template-columns:minmax(0,1fr)}
+ .app #memoryView .knowledge-import-card .knowledge-card{padding:12px}
+}
