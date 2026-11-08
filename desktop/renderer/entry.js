@@ -4,6 +4,46 @@
  window.harunaDesktopPrompt=(question,value='')=>new Promise(resolve=>{
   const d=document.createElement('dialog');d.className='desktop-prompt';const title=document.createElement('strong');title.textContent=question;const field=document.createElement('textarea');field.value=value;field.rows=value.includes('\n')?10:3;const actions=document.createElement('div');actions.className='model-actions';const cancel=document.createElement('button'),ok=document.createElement('button');cancel.textContent='Cancelar';ok.textContent='Confirmar';actions.append(cancel,ok);d.append(title,field,actions);document.body.append(d);let done=false;const finish=v=>{if(done)return;done=true;d.close();d.remove();resolve(v);};cancel.onclick=()=>finish(null);ok.onclick=()=>finish(field.value);d.addEventListener('cancel',e=>{e.preventDefault();finish(null)});field.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='Enter')finish(field.value)});d.showModal();field.focus();field.select();
  });
+
+// Windows-only UI scale. Chromium CSS zoom reflows the layout instead of
+// stretching a fixed-size screenshot; responsive CSS remains active.
+ const SCALE_KEY='haruna.windows.interfaceScale';
+ const clampScale=value=>{const n=Number(value);return Number.isFinite(n)&&n>=75&&n<=150&&n%5===0?n:100;};
+ const applyScale=value=>{
+  const scale=clampScale(value);
+  document.documentElement.style.zoom=scale+'%';
+  try{localStorage.setItem(SCALE_KEY,String(scale));}catch{}
+  return scale;
+ };
+ let initialScale=100;
+ try{initialScale=clampScale(localStorage.getItem(SCALE_KEY)??100);}catch{}
+ applyScale(initialScale);
+ function mountScaleControl(){
+  const settings=document.querySelector('#settingsView');
+  if(!settings||settings.querySelector('#desktopInterfaceScale'))return;
+  const appearance=settings.querySelector('.theme-choice')?.closest('.page-card');
+  const card=document.createElement('div');
+  card.id='desktopInterfaceScale';
+  card.className='desktop-interface-scale';
+  const heading=document.createElement('div');
+  heading.className='desktop-scale-heading';
+  const title=document.createElement('label');title.htmlFor='desktopScaleRange';title.textContent='Escala da interface';
+  const value=document.createElement('output');value.htmlFor='desktopScaleRange';
+  heading.append(title,value);
+  const range=document.createElement('input');
+  range.id='desktopScaleRange';range.type='range';range.min='75';range.max='150';range.step='5';
+  range.value=String(initialScale);
+  const description=document.createElement('small');
+  description.textContent='75% compacta · 100% padrão · 150% ampliada. Salvo neste computador.';
+  const reset=document.createElement('button');reset.type='button';reset.textContent='Restaurar 100%';
+  const update=scale=>{const next=applyScale(scale);range.value=String(next);value.textContent=next+'%';};
+  range.addEventListener('input',()=>update(range.value));
+  reset.addEventListener('click',()=>update(100));
+  update(initialScale);
+  card.append(heading,range,description,reset);
+  (appearance||settings).append(card);
+ }
+
  // No browser speech recognizer/cloud fallback is enabled by the Windows shell.
  window.SpeechRecognition=undefined;window.webkitSpeechRecognition=undefined;
  desktop.subscribe(event=>{
@@ -13,6 +53,7 @@
   if(event.type==='status')window.dispatchEvent(new CustomEvent('haruna-native-status-changed'));
  });
  addEventListener('DOMContentLoaded',()=>{
+  mountScaleControl();
   const settings=document.querySelector('#settingsView');const note=document.createElement('p');note.className='settings-note desktop-note';note.textContent='Windows • modelos referenciados no local escolhido, sem duplicar os pesos. Remover da lista preserva o arquivo original. Voz nativa Android e seu DBG não são executados nesta edição.';settings?.append(note);
   document.querySelectorAll('.recommended-model').forEach(b=>{b.onclick=()=>alert('Nesta versão Windows, use Adicionar modelo GGUF para importar o arquivo local.');});
  });
