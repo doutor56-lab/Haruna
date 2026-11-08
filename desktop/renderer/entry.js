@@ -64,7 +64,7 @@
  addEventListener('load',()=>setTimeout(()=>{
   const chatReady=window.__HARUNA_CHAT_READY__===true;
   const hasImageButton=!!document.querySelector('#generateImage');
-  const hasImageSettings=!!document.querySelector('.desktop-image-settings');
+  const hasImageSettings=!!document.querySelector('.image-settings-card');
   if(chatReady&&hasImageButton&&hasImageSettings)return;
   const messages=document.querySelector('#messages');
   if(!messages||messages.querySelector('.desktop-startup-warning'))return;
