@@ -67,20 +67,17 @@ if(settings&&host){
   }
   emptyImage.hidden=!!images.querySelector(imageSelector);
   emptyVoice.hidden=!!voice.querySelector(voiceSelector);
-  // Keep voice model controls in one destination; no duplicate navigation shortcuts.
-  for(const button of [...models.querySelectorAll('button')]){
-   if(/modelos de (reconhecimento|voz)\s*\((stt|tts)\)/i.test(button.textContent||''))button.remove();
-  }
-  // Remove only explanatory voice help; preserve installation, voice selection and tests.
-  for(const card of voice.querySelectorAll('.recognition-settings')){
-   for(const detail of card.querySelectorAll('details')){
-    if(/como funciona o reconhecimento de voz/i.test(detail.querySelector('summary')?.textContent||''))detail.remove();
-   }
-  }
+  // Keep original navigation and help controls intact. Presentation is handled
+  // by CSS; deleting controls by their translated labels is unsafe.
+
  }
 
- new MutationObserver(move).observe(settings,{childList:true});move();activateTab(0);
- new MutationObserver(announce).observe(settings,{attributes:true,attributeFilter:['hidden']});
+ const relocationObserver=new MutationObserver(move);
+ relocationObserver.observe(settings,{childList:true});move();activateTab(0);
+ window.addEventListener('pagehide',()=>relocationObserver.disconnect(),{once:true});
+ const visibilityObserver=new MutationObserver(announce);
+ visibilityObserver.observe(settings,{attributes:true,attributeFilter:['hidden']});
+ window.addEventListener('pagehide',()=>visibilityObserver.disconnect(),{once:true});
  announce();
 
  const fmt=n=>Number.isFinite(n)?(n/1073741824).toFixed(2)+' GiB':'N/D';
