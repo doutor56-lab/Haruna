@@ -52,7 +52,7 @@ if(settings&&host){
   }
  }
 
- new MutationObserver(move).observe(settings,{childList:true});move();
+ new MutationObserver(move).observe(settings,{childList:true});move();activateTab(0);
  new MutationObserver(announce).observe(settings,{attributes:true,attributeFilter:['hidden']});
  announce();
 
