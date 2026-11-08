@@ -76,3 +76,32 @@
 .image-settings-card details{border:1px solid #29314b;border-radius:12px;padding:10px;margin:10px 0}
 .image-settings-card details summary{color:#c8b9ff;cursor:pointer}
 .image-settings-card [data-chat-only-dimensions]{display:none!important}
+
+
+/* Shared compact presentation for settings; no model or engine behavior changes. */
+#settingsView{padding-bottom:24px}
+#settingsView .page-head{margin-bottom:16px}
+#settingsView .page-card .section-title strong{color:#f0effa}
+#settingsView .page-card .section-title small{display:block;margin-top:4px}
+#settingsView .page-card .setting-row strong{overflow-wrap:anywhere}
+#settingsView .page-card .settings-note{margin:8px 0}
+#settingsView .page-card .model-list{min-width:0}
+#settingsView .page-card .model-list>*{max-width:100%}
+#settingsView .page-card .speech-field{display:block;margin:10px 0}
+#settingsView .page-card .speech-field select{width:100%;margin-top:6px}
+#settingsView .recognition-settings [data-stt-models] .setting-row{background:#141c2e;border:1px solid #303a58;border-radius:12px;padding:10px;margin:8px 0}
+#settingsView .recognition-settings [data-progress]{color:#aab6d0}
+#settingsView .recognition-settings .speech-actions{display:flex;flex-wrap:wrap;gap:8px}
+#settingsView .recognition-settings .speech-actions button{flex:1 1 140px}
+#settingsView .image-settings-guide,#settingsView .settings-guide{border:1px solid #303a58;border-radius:12px;padding:10px 12px;margin:10px 0;background:#121a2b}
+#settingsView .image-settings-guide summary,#settingsView .settings-guide summary{cursor:pointer;color:#c8b9ff;font-weight:600}
+#settingsView .image-settings-guide[open] summary,#settingsView .settings-guide[open] summary{margin-bottom:8px}
+#settingsView .image-settings-card [data-state]{color:#aab6d0}
+#settingsView .image-settings-card [data-progress],#settingsView .recognition-settings [data-progress-bar]{width:100%}
+#settingsView .image-settings-card [data-models] .model-actions{align-items:center}
+#settingsView .page-card .danger{border-color:#704051}
+@media(max-width:480px){
+ #settingsView .page-card{padding:13px;border-radius:16px}
+ #settingsView .model-actions button{flex:1 1 auto}
+ #settingsView .image-settings-card [data-models] .model-actions button{flex:1 1 42%}
+}
