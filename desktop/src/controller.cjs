@@ -31,6 +31,7 @@ class Controller{
  async unload(){this.abort?.abort();if(this.server)this.server.expectedExit=true;await stop(this.server);this.server=null;this.port=null;this.loaded=null;this.llm={...this.llm,modelLoaded:false,state:'not_loaded',modelName:null,error:null};this.emit();}
  async load(id,{imageOwner=null}={}){if(this.maintenance||(this.image.busy&&this.job!==imageOwner)||this.request)throw Error('O runtime está ocupado.');this.maintenance=true;try{
   await this.unload();this.llm={...this.llm,state:'loading',modelLoaded:false};this.emit();const m=this.model(id,'llm');await inspectGguf(m.file);
+  if(!fs.existsSync(this.exe('llm')))throw Error('Motor llama.cpp não encontrado. Instale o runtime Windows antes de carregar o GGUF.');
   const port=await new Promise((resolve,reject)=>{const s=net.createServer();s.once('error',reject);s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});
   const key=crypto.randomBytes(32).toString('hex');this.apiKey=key;
   this.server=this.launch(this.exe('llm'),['--model',m.file,'--host','127.0.0.1','--port',String(port),'--api-key',key,'--ctx-size','8192','--threads','2','--threads-batch','6','--n-gpu-layers','0','--parallel','1','--no-webui']);
