@@ -22,6 +22,9 @@ if(api&&settings){
  const redundantTitle=options?.querySelector('.image-settings-subtitle');if(redundantTitle)redundantTitle.remove();
  const performance=card.querySelector('[data-performance]')?.closest('label');
  const save=card.querySelector('[data-save]')?.closest('label');
+ const previews=card.querySelector('[data-previews]')?.closest('label');
+ // Keep performance above both checkboxes in the simplified preferences.
+ if(performance&&previews)previews.before(performance);
  const config=card.querySelector('[data-config]')?.parentElement;
  if(config)config.hidden=true;
  for(const element of [options,performance,save,config].filter(Boolean))advanced.append(element);
