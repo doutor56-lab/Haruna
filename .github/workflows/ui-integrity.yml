@@ -16,3 +16,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Validate WebView assets and UI structure
         run: python3 scripts/validate_ui_integrity.py
+      - name: Check JavaScript syntax
+        run: |
+          find app/src/main/assets/haruna -type f -name '*.js' -print0 | xargs -0 -r -n 1 node --check
