@@ -22,7 +22,7 @@ async function start(){
  ipcMain.handle('haruna:devices',async event=>{trusted(event);try{return{devices:await controller.devices()};}catch(e){return{devices:[],error:e.message};}});
  ipcMain.handle('haruna:command',async(event,{op,args=[]}={})=>{trusted(event);try{switch(op){
   case'pickSdxl':return await pick('image');case'pickGguf':return await pick('llm');case'load':return await controller.load(args[0]);case'remove':return await controller.remove(args[0]);
-  case'unload':if(controller.image.busy)throw Error('Aguarde a imagem terminar.');return await controller.unload();
+  case'unload':if(controller.image.busy||controller.maintenance||controller.request)throw Error('Aguarde a operação atual ou cancele a resposta antes de descarregar o GGUF.');return await controller.unload();
   case'chat':return controller.generate(args[0]);case'cancelChat':return controller.cancelChat(args[0]);
   case'image':if(!controller.startImage(...args))throw Error('O motor está ocupado.');return true;case'cancelImage':return controller.cancelImage(args[0]);
   case'openImage':{const file=safeImage(args[0]);return args[1]?shell.showItemInFolder(file):shell.openPath(file);}
