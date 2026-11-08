@@ -110,3 +110,33 @@
 .app #settingsView .image-settings-card .image-options>label:not(.image-engine-only){display:flex!important;align-items:center;gap:9px;flex-wrap:wrap;min-height:42px}
 .app #settingsView .image-settings-card .image-options>label:not(.image-engine-only) input[type=checkbox]{width:18px;height:18px;flex:none}
 .app #settingsView .image-settings-card .image-options>label:not(.image-engine-only) select{margin-inline-start:auto;max-width:100%}
+
+/* Reference-image fidelity pass: approved pages only; chat and drawer untouched.
+   Keep the existing functional controls and content visible. */
+.app :is(#settingsView,#memoryView,#libraryView){--approved-card-gap:12px}
+.app :is(#settingsView,#memoryView,#libraryView) .page-head{margin-bottom:12px}
+.app :is(#settingsView,#memoryView,#libraryView) .page-head h2{font-size:clamp(21px,2.3vw,25px);font-weight:750;letter-spacing:-.03em}
+.app :is(#settingsView,#memoryView,#libraryView) .page-card{margin-bottom:var(--approved-card-gap);border-radius:14px;box-shadow:none}
+.app :is(#settingsView,#memoryView,#libraryView) .section-title{padding-bottom:10px;margin-bottom:11px}
+.app #settingsView .theme-choice button{display:flex;align-items:center;justify-content:center;gap:7px;font-weight:600}
+.app #settingsView .theme-choice button :is(.ui-icon,i){flex:none}
+.app #settingsView #localModels .local-model-tabs{background:var(--theme-surface-2);border:1px solid var(--approved-border)}
+.app #settingsView #localModels .local-model-tabs button[aria-selected=true]{background:var(--selection);border-color:var(--approved-purple);color:var(--theme-text);box-shadow:0 0 0 1px color-mix(in srgb,var(--approved-purple) 25%,transparent) inset}
+.app #settingsView #localModels .local-model-tabs button[aria-selected=false]{color:var(--theme-muted)}
+.app #settingsView #modelList .model-row,.app #settingsView #localModels .setting-row{border-radius:12px}
+.app #settingsView #addModel{width:100%;min-height:46px;border-radius:11px}
+.app #settingsView .image-settings-card .image-preferences-heading{margin-bottom:10px}
+.app #settingsView .image-settings-card .image-options{gap:7px}
+.app #settingsView .image-settings-card .image-options>label:not(.image-engine-only){min-height:36px}
+.app #settingsView .image-settings-card .image-options>label:has([data-performance]){min-height:44px;justify-content:space-between}
+.app #settingsView .image-settings-card .image-options [data-performance]{min-width:0;width:min(55%,230px)}
+.app #memoryView .page-card{border-radius:14px}
+.app #memoryView .knowledge-card{background:var(--theme-surface-2)}
+.app #memoryView .permanent-learning-card,.app #memoryView .saved-memories-card{border-left:1px solid var(--approved-border)}
+.app #libraryView .document-library>.document-actions{border-style:dashed;background:color-mix(in srgb,var(--selection) 55%,var(--theme-surface));min-height:90px;align-items:center}
+.app #libraryView .document-library .model-row{padding:11px 12px;gap:9px}
+@media(max-width:540px){
+ .app :is(#settingsView,#memoryView,#libraryView) .page-card{padding:13px}
+ .app #settingsView .theme-choice button{gap:5px}
+ .app #settingsView .image-settings-card .image-options [data-performance]{width:min(58%,210px)}
+}
