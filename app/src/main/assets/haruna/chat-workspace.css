@@ -115,3 +115,35 @@
 @media(max-width:350px){
  .app .chat-view .image-card .image-results{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Voice controls and transient states: visual polish without changing call lifecycle. */
+.app .chat-view .composer{position:relative}
+.app .chat-view .haruna-voice-menu{max-width:calc(100vw - 24px);max-height:min(55dvh,360px);overflow-y:auto;border:1px solid var(--theme-stroke);background:var(--theme-surface);color:var(--theme-text);box-shadow:0 14px 36px var(--theme-shadow)}
+.app .chat-view .haruna-voice-menu button{color:var(--theme-text);min-height:44px;white-space:normal;overflow-wrap:anywhere}
+.app .chat-view .haruna-voice-menu button+button{border-top-color:var(--theme-stroke)}
+.app .chat-view .haruna-voice-menu button:hover,.app .chat-view .haruna-voice-menu button:focus-visible{background:var(--selection)}
+.app .chat-view .voice-composer-wave{min-width:0;overflow:hidden;background:var(--theme-surface);border-radius:10px}
+.app .chat-view .voice-composer-wave:not(.active){display:none}
+.app .chat-view .status-row .status-dot{flex:none}
+.app .chat-view .memory-toast{max-width:calc(100% - 24px);overflow-wrap:anywhere;text-align:center}
+.app .chat-view .empty{max-width:min(320px,90%);padding:12px;line-height:1.5}
+.app .chat-view .empty strong{font-size:18px;letter-spacing:-.02em}
+.app .chat-view [role=status],.app .chat-view [role=alert]{overflow-wrap:anywhere}
+.app .chat-view .image-card .image-job-state{line-height:1.5}
+.app .chat-view .image-card progress{height:8px;accent-color:var(--theme-accent)}
+/* Image options stay anchored to the composer; scrolling and controls remain usable. */
+.image-dimensions[open]{max-width:calc(100vw - 24px);overflow-x:hidden;overscroll-behavior:contain;border-color:var(--theme-stroke);background:var(--theme-surface);color:var(--theme-text)}
+.image-dimensions .image-panel-heading,.image-dimensions .image-panel-footer{background:var(--theme-surface);border-color:var(--theme-stroke)}
+.image-dimensions .image-panel-body{min-width:0}
+.image-dimensions .image-panel-body input,.image-dimensions .image-panel-body select{min-width:0;max-width:100%}
+.image-dimensions button:focus-visible,.image-dimensions input:focus-visible,.image-dimensions textarea:focus-visible{outline:2px solid var(--theme-accent);outline-offset:2px}
+.image-dimensions [data-error]:not(:empty){overflow-wrap:anywhere}
+@media(max-width:480px){
+ .app .chat-view .haruna-voice-menu{right:0;max-width:calc(100vw - 20px)}
+ .app .chat-view .empty{padding:8px}
+ .image-dimensions[open]{width:min(360px,calc(100vw - 24px));max-height:min(68dvh,calc(var(--image-composer-top,80dvh) - var(--image-panel-top,100px) - 8px))}
+}
+@media(orientation:landscape) and (max-height:550px){
+ .app .chat-view .haruna-voice-menu{max-height:48dvh}
+ .image-dimensions[open]{max-height:55dvh}
+}
