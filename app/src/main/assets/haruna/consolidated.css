@@ -34,21 +34,6 @@
 .msg.assistant .bubble{min-width:0}
 .msg.user .bubble{background:linear-gradient(135deg,#3a285c,#39245f);border-color:#8250c2;box-shadow:none}
 #generateImage{flex-shrink:0}
-@media(orientation:landscape) and (min-width:800px) and (min-height:350px){
- .app:has(#chatView:not([hidden])) .drawer{position:absolute;inset:72px auto 65px 0;width:clamp(245px,27vw,350px);transform:none;z-index:2;border:1px solid #252d45;border-radius:18px;padding:14px;background:#0e1423;box-shadow:none;transition:none}
- .app:has(#chatView:not([hidden])) .drawer #closeMenu{display:none}
- .app:has(#chatView:not([hidden])) .scrim{display:none!important}
- .app:has(#chatView:not([hidden])) #chatView{margin-left:clamp(253px,calc(27vw + 8px),358px);min-width:0}
- .topbar{padding-top:6px;padding-bottom:6px}
- .chat-view .messages{padding-top:8px;padding-bottom:8px;gap:10px}
- .chat-view .status-row{padding:4px 10px;margin-top:0}
- .chat-view .composer{padding:4px 6px;margin-bottom:3px}
- .chat-view .footer-note{display:none}
- .bottom-nav{grid-template-columns:repeat(4,minmax(0,1fr));padding-top:2px;padding-bottom:2px}
- .bottom-nav .nav-item{min-height:42px;gap:0}
- .bottom-nav .nav-item small{line-height:1.1}
- .msg{max-width:92%}
-}
 @media(max-width:420px){
  .haruna-message-actions button{width:32px;height:32px}
  .composer{gap:5px}
