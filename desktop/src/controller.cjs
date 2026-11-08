@@ -35,7 +35,7 @@ class Controller{
   const key=crypto.randomBytes(32).toString('hex');this.apiKey=key;
   this.server=this.launch(this.exe('llm'),['--model',m.file,'--host','127.0.0.1','--port',String(port),'--api-key',key,'--ctx-size','8192','--threads','2','--threads-batch','6','--n-gpu-layers','0','--parallel','1','--no-webui']);
   this.server.child.stdout.resume();this.server.child.stderr.resume();let exited=false;const owned=this.server;
-  const observeExit=()=>{exited=true;if(this.server===owned&&!owned.expectedExit){this.server=null;this.port=null;this.loaded=null;this.llm={...this.llm,modelLoaded:false,state:'error',error:'O processo LLM encerrou. Carregue o modelo novamente.'};this.emit();}};owned.done.then(observeExit,observeExit);
+  const observeExit=()=>{exited=true;if(this.server===owned&&!owned.expectedExit){this.abort?.abort();this.server=null;this.port=null;this.loaded=null;this.llm={...this.llm,modelLoaded:false,state:'error',error:'O processo LLM encerrou. Carregue o modelo novamente.'};this.emit();}};owned.done.then(observeExit,observeExit);
   for(let i=0;i<600;i++){if(this.closed||exited)throw Error('O modelo não pôde ser carregado pelo llama.cpp.');try{const r=await fetch(`http://127.0.0.1:${port}/health`,{headers:{Authorization:`Bearer ${key}`},signal:AbortSignal.timeout(1500)});if(r.ok){this.port=port;this.loaded=id;this.llm={...this.llm,modelLoaded:true,state:'active',modelName:m.name,error:null};this.emit({type:'model_import',phase:'ready',name:m.name});return;}}catch{}await wait(200);}
   throw Error('Tempo de carregamento excedido.');
  }catch(e){await this.unload();this.llm={...this.llm,state:'error',error:e.message};this.emit({type:'model_import',phase:'error',error:e.message});throw e;}finally{this.maintenance=false;}}
