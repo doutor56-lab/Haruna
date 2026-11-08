@@ -38,6 +38,14 @@ if(settings&&host){
    if(host.contains(node))continue;
    voice.append(node);
   }
+  // Native visual-model controls may arrive after startup. Hide only the
+  // introductory description, never model state, installation or import actions.
+  for(const card of images.querySelectorAll('.vision-settings')){
+   for(const paragraph of card.querySelectorAll('p')){
+    const value=(paragraph.textContent||'').trim();
+    if(/^SmolVLM-500M\s*[·-]\s*CPU\s*[·-]/i.test(value))paragraph.hidden=true;
+   }
+  }
   emptyImage.hidden=!!images.querySelector(imageSelector);
   emptyVoice.hidden=!!voice.querySelector(voiceSelector);
   // Keep voice model controls in one destination; no duplicate navigation shortcuts.
