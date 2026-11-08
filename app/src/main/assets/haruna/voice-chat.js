@@ -194,7 +194,8 @@ voiceMore.className='ghost haruna-voice-more';
 voiceMore.setAttribute('aria-label','Mais opções de voz');
 voiceMore.setAttribute('aria-expanded','false');
 voiceMore.textContent='⋮';
-document.querySelector('.topbar .actions')?.append(voiceMore);
+// Keep the voice menu available from the call button without a redundant header action.
+// The call button exposes this menu on long press or context menu.
 document.querySelector('.topbar')?.append(voiceMenu);
 const toggleVoiceMenu=(open)=>{voiceMenu.hidden=!open;voiceMore.setAttribute('aria-expanded',String(open))};
 voiceMore.onclick=()=>toggleVoiceMenu(voiceMenu.hidden);
