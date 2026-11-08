@@ -53,7 +53,7 @@ class Controller{
   if(!response.ok)throw Error('O llama.cpp recusou a geração.');let pending='',seenFinal=false;const decoder=new TextDecoder();
   for await(const chunk of response.body){if(this.closed||this.request!==id)break;pending+=decoder.decode(chunk,{stream:true});if(pending.length>262144)throw Error('Stream nativo inválido.');const lines=pending.split('\n');pending=lines.pop();for(const line of lines){if(!line.startsWith('data:'))continue;const data=line.slice(5).trim();if(!data)continue;if(data==='[DONE]'){seenFinal=true;continue;}const event=JSON.parse(data);if(event.choices?.[0]?.finish_reason)seenFinal=true;const text=event.choices?.[0]?.delta?.content;if(typeof text==='string'&&text)send(text);}}
   if(!seenFinal&&!abort.signal.aborted)throw Error('O runtime encerrou a resposta sem finalização.');
-  send('',abort.signal.aborted?{type:'error',code:'cancelled',message:'Geração cancelada.'}:{type:'completed'});
+  send('',this.runtimeCrashed?{type:'error',code:'runtime_crashed',message:'O motor GGUF encerrou inesperadamente. Carregue o modelo novamente.'}:abort.signal.aborted?{type:'error',code:'cancelled',message:'Geração cancelada.'}:{type:'completed'});
  }catch(e){const crashed=this.runtimeCrashed;send('',{type:'error',code:crashed?'runtime_crashed':abort.signal.aborted?'cancelled':'generation_failed',message:crashed?'O motor GGUF encerrou inesperadamente. Carregue o modelo novamente.':abort.signal.aborted?'Geração cancelada.':e.message});}
  finally{if(this.request===id){this.request=null;this.abort=null;this.llm.state=this.llm.modelLoaded?'active':this.llm.error?'error':'not_loaded';this.emit();}}
  }
