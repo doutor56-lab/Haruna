@@ -13,3 +13,15 @@
 .desktop-interface-scale button{align-self:flex-start;min-height:36px;padding:7px 12px;border-radius:9px}
 
 .desktop-storage-warning{position:fixed;z-index:99999;inset:auto 16px 16px auto;max-width:min(440px,calc(100vw - 32px));padding:16px;border:1px solid currentColor;border-radius:12px;background:var(--theme-surface,#25252d);color:var(--theme-text,#fff);box-shadow:0 8px 30px #0006;line-height:1.5}.desktop-storage-warning button{display:block;margin-top:12px;padding:7px 14px;border-radius:8px}
+
+/* Compact Windows runtime controls inside the unchanged Android image page. */
+.desktop-vulkan-settings{display:flex;flex-direction:column;gap:10px;margin-block:14px;padding:14px;border:1px solid var(--theme-stroke,#303348);border-radius:14px;background:var(--theme-surface-2,#15172b);color:inherit}
+.desktop-vulkan-settings>strong{font-size:15px}
+.desktop-vulkan-settings label{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;font-size:13px}
+.desktop-vulkan-settings select,.desktop-vulkan-settings input[type=number]{min-width:120px;max-width:210px;width:48%;box-sizing:border-box;background:var(--theme-surface,#111526);color:inherit;border:1px solid var(--theme-stroke,#303348);border-radius:10px;padding:9px;font:inherit}
+.desktop-vulkan-settings .desktop-vulkan-check{justify-content:flex-start}
+.desktop-vulkan-settings input[type=checkbox]{width:18px;height:18px;accent-color:var(--theme-accent,#8b73ee)}
+.desktop-vulkan-settings .model-actions{justify-content:flex-start}
+.desktop-vulkan-settings .model-actions button{min-height:40px}
+.desktop-vulkan-settings .settings-note{margin:0;white-space:normal;overflow-wrap:anywhere}
+.desktop-vulkan-settings small{color:var(--theme-muted,#999);line-height:1.45}
