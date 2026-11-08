@@ -1,5 +1,5 @@
 // SD1.5 jobs use the same conversation and persistence as text; no remote requests.
-const api=window.HarunaImages,chat=window.harunaChatImages;
+const api=window.HarunaImages;
 const uuid=/^[0-9a-f-]{36}$/;
 let stoppingRequest=null;
 function requestStop(id){stoppingRequest=id;api?.cancelGeneration(id);const label=document.querySelector(`[data-image-job="${id}"] .image-job-state`);if(label)label.textContent='Interrompendo…'}
@@ -27,7 +27,9 @@ window.harunaRenderImageCard=(bubble,message)=>{
  }
  if(j.error){const error=document.createElement('small');error.textContent=j.error;bubble.append(error)}
 };
-if(api&&chat){
+function mountImageChat(){
+ const chat=window.harunaChatImages;
+ if(!api||!chat||document.getElementById('generateImage'))return false;
  const button=document.createElement('button');button.id='generateImage';button.className='attach image-generate';button.type='button';button.title='Gerar imagem';button.setAttribute('aria-label','Gerar imagem');
  // Same line icon weight, size and button style as the existing composer controls.
  button.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/></svg>';
@@ -60,4 +62,7 @@ if(api&&chat){
   }
  }catch{/* The next status poll can recover a temporarily unavailable bridge. */}}
  const timer=setInterval(update,700);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});update();
+ return true;
 }
+if(window.__HARUNA_CHAT_READY__)mountImageChat();
+else window.addEventListener('haruna-chat-ready',mountImageChat,{once:true});
