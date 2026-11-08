@@ -14,7 +14,7 @@ class Controller{
   for(const f of fs.readdirSync(this.outputs))if(f.startsWith('.work-'))fs.rmSync(path.join(this.outputs,f),{recursive:true,force:true});
  }
  save(){atomicJson(this.file,{models:this.models,primary:this.primary,selected:this.selected,settings:this.settings});}
- list(kind){return this.models.filter(m=>m.kind===kind).map(m=>({id:m.id,path:m.id,name:m.name,bytes:m.bytes,primary:m.id===this.primary,active:m.id===this.loaded,engineAvailable:fs.existsSync(this.exe('image',this.settings.backend)),state:fs.existsSync(m.file)?'INSTALLED':'MISSING'}));}
+ list(kind){return this.models.filter(m=>m.kind===kind).map(m=>({id:m.id,path:m.id,name:m.name,bytes:m.bytes,primary:m.id===this.primary,active:m.id===this.loaded,engineAvailable:fs.existsSync(this.exe(kind==='llm'?'llm':'image',this.settings.backend)),state:fs.existsSync(m.file)?'INSTALLED':'MISSING'}));}
  snapshot(){return{llm:this.llm,models:this.list('llm'),images:{...this.image,models:this.list('image'),selected:this.selected,loaded:null,engine:'stable-diffusion.cpp • SDXL',engineAvailable:fs.existsSync(this.exe('image',this.settings.backend)),generationAvailable:fs.existsSync(this.exe('image',this.settings.backend)),imageEngineBusy:!!this.image.busy,nativeProgress:this.progress||[0,0,0],...this.settings},version:'0.1.0-windows-sdxl'};}
  emit(event){this.publish(this.snapshot(),event);}
  model(id,kind){const m=this.models.find(m=>m.id===id&&m.kind===kind);if(!m)throw Error('Modelo não encontrado.');if(!fs.existsSync(m.file))throw Error('O arquivo foi movido ou removido. Importe-o novamente.');return m;}
