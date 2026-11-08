@@ -40,6 +40,16 @@ if(settings&&host){
   }
   emptyImage.hidden=!!images.querySelector(imageSelector);
   emptyVoice.hidden=!!voice.querySelector(voiceSelector);
+  // Keep voice model controls in one destination; no duplicate navigation shortcuts.
+  for(const button of [...models.querySelectorAll('button')]){
+   if(/modelos de (reconhecimento|voz)\s*\((stt|tts)\)/i.test(button.textContent||''))button.remove();
+  }
+  // Remove only explanatory voice help; preserve installation, voice selection and tests.
+  for(const card of voice.querySelectorAll('.recognition-settings')){
+   for(const detail of card.querySelectorAll('details')){
+    if(/como funciona o reconhecimento de voz/i.test(detail.querySelector('summary')?.textContent||''))detail.remove();
+   }
+  }
  }
 
  new MutationObserver(move).observe(settings,{childList:true});move();
