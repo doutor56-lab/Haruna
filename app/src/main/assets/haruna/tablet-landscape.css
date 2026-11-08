@@ -21,3 +21,53 @@
  .app #settingsView .page-card,.app #memoryView .page-card,.app #libraryView .page-card{max-width:100%}
  .app #settingsView .page-head,.app #memoryView .page-head,.app #libraryView .page-head{max-width:100%}
 }
+
+/* Full-width landscape workspace. The drawer reserves space only while open. */
+@media (orientation:landscape) and (min-width:800px) and (min-height:350px){
+ html,body{width:100%;max-width:none;margin:0;overflow:hidden}
+ body>.app,.app{width:100%;max-width:none!important;margin:0!important;min-width:0}
+ .app{--haruna-sidebar-width:0px}
+ .app:has(.drawer.open){--haruna-sidebar-width:clamp(200px,22vw,240px)}
+ .app>.topbar,.app>#chatView,.app>.bottom-nav,.app>.page-view{
+  margin-left:var(--haruna-sidebar-width)!important;
+  width:calc(100% - var(--haruna-sidebar-width))!important;
+  max-width:none!important;
+  min-width:0;
+  box-sizing:border-box;
+  transition:margin-left .2s ease,width .2s ease;
+ }
+ .app>.topbar{padding-inline:clamp(12px,1.6vw,24px)}
+ .app:has(#chatView:not([hidden])) .drawer,
+ .app .drawer{
+  position:absolute;inset:0 auto 0 0;
+  width:clamp(200px,22vw,240px);max-width:none;
+  padding:14px 10px;
+  transform:translateX(-105%);
+  z-index:20;
+  border-radius:0 14px 14px 0;
+  box-shadow:0 8px 30px #0004;
+  transition:transform .2s ease;
+ }
+ .app:has(#chatView:not([hidden])) .drawer.open,.app .drawer.open{transform:translateX(0)}
+ .app .scrim,.app:has(#chatView:not([hidden])) .scrim{display:none!important}
+ .app .drawer .drawer-head{gap:4px}
+ .app .drawer .drawer-head-actions{gap:0}
+ .app .drawer .chat-row{min-width:0}
+ .app .drawer .chat-item{min-width:0}
+ .app .drawer .search input{min-width:0}
+ .app #chatView .status-row,.app #chatView .composer{
+  width:calc(100% - 28px);max-width:none;margin-left:14px;margin-right:14px;
+ }
+ .app #chatView .messages{width:100%;max-width:none;padding-inline:clamp(16px,2.5vw,38px)}
+ .app #chatView .msg{max-width:min(92%,860px)}
+ .app .bottom-nav{width:calc(100% - var(--haruna-sidebar-width))!important;max-width:none;border-radius:0}
+ .app .page-view{padding-inline:clamp(16px,3vw,42px)}
+ .image-dimensions[open]{
+  position:fixed!important;
+  left:calc(var(--haruna-sidebar-width,0px) + 14px)!important;
+  right:auto!important;
+  width:min(390px,calc(100vw - var(--haruna-sidebar-width,0px) - 28px))!important;
+  max-width:calc(100vw - var(--haruna-sidebar-width,0px) - 28px)!important;
+  margin:0!important;
+ }
+}
