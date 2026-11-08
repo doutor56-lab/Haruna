@@ -21,7 +21,14 @@ write('app.js',s=>s
  .replace("localStorage.setItem(CHATS_KEY,JSON.stringify(chats))}});", "try{localStorage.setItem(CHATS_KEY,JSON.stringify(chats))}catch(error){window.harunaDesktopStorageWarning?.(error)}}});")
 );
 write('learning-panel.js',s=>s.replace('next=prompt(', 'next=await window.harunaDesktopPrompt('));
-write('image-chat.js',s=>s.replace('button.onclick=()=>{try{','button.onclick=async ()=>{try{').replace("prompt('Descreva a imagem que deseja gerar:')","await window.harunaDesktopPrompt('Descreva a imagem que deseja gerar:')").replaceAll('modelo SD1.5','checkpoint SDXL').replaceAll("button('Compartilhar'", "button('Mostrar no Explorer'").replace("if(j.saveWarning){", "if(j.restoreWarning){const warning=document.createElement('small');warning.textContent=j.restoreWarning;bubble.append(warning)}if(j.saveWarning){"));
+// Desktop uses the same image composer and dimensions panel as the known-good Android UI.
+write('image-chat.js',s=>{
+ const oldPrompt="const text=original??(chat.state().draft.trim()||prompt('Descreva a imagem que deseja gerar:')||'').trim();if(!text)return;";
+ if(!s.includes(oldPrompt))throw Error('Image prompt UI anchor not found');
+ return s.replace(oldPrompt,"const text=String(original??chat.state().draft).trim();if(!text)throw Error('Escreva a descrição no campo de mensagem para gerar a imagem.');")
+  .replaceAll('modelo SD1.5','checkpoint SDXL')
+  .replace('Compartilhar\x27,()=>api?.open','Mostrar no Explorer\x27,()=>api?.open');
+});
 // The image module can evaluate before the chat's dependency graph finishes.
 // Mount it after chat initialization, without changing Android sources.
 write('app.js',s=>{
@@ -36,14 +43,19 @@ write('image-chat.js',s=>{
  if(!/\}\s*$/.test(s))throw Error('Image bridge closing block not found.');
  return s.replace(/\}\s*$/,"return true;\n}\nif(window.__HARUNA_CHAT_READY__)mountImageChat();\nelse window.addEventListener('haruna-chat-ready',mountImageChat,{once:true});\n");
 });
-fs.writeFileSync(path.join(dest,'image-models.js'),"import '/desktop/image-settings.js';\n");
-
-// Overlay only approved visual styles from the Android UI refresh.
-// Keep desktop-specific JS bridges and image-models replacement intact.
-const overlays=['settings-workspace.css','memory-workspace.css','library-workspace.css','tablet-landscape.css','approved-pages.css'];
-for(const name of overlays)fs.copyFileSync(path.join(root,'ui-updates',name),path.join(dest,name));
-write('index.html',s=>s.replace('</head>','<link rel="stylesheet" href="approved-pages.css"></head>'));
-// drawer-toggle.js is staged for a separate event-handler compatibility check;
-// do not enable it alongside the legacy desktop menu binding.
-
-console.log('Copied Haruna UI with approved Windows visual overlays; Android source unchanged.');
+// Keep all approved styles, image controls, and navigation from the functional
+// Android revision. Only labels and platform bridges differ in the desktop copy.
+write('image-models.js',s=>s
+ .replace('Importe um pacote ZIP SD1.5 MNN Haruna ou Nezumi SD1.5 (Anything V5 / CyberRealistic). Ou importe um checkpoint SD1.5 completo .safetensors (experimental, CPU). SDXL Base/Illustrious completo também pode ser importado (experimental; CPU, pesos em disco, CLIP-L + CLIP-G + VAE). SD2, LoRA e componentes separados não são suportados. Para SD1.5 convencional, prefira cerca de 20 etapas; cinco servem como teste rápido.',
+ 'No Windows, importe um checkpoint SDXL/Illustrious completo em .safetensors. Use CPU para compatibilidade ou Vulkan com driver e memória suficientes. Pacotes Android MNN, LoRA isolado e arquivos SD1.5 não são suportados neste motor.')
+ .replace('Excluir este modelo de imagens do dispositivo?','Remover este checkpoint da lista? O arquivo original será preservado.')
+ .replace('Excluir este modelo de imagens','Remover este checkpoint da lista')
+ .replace('Motor nativo indisponível. Instalação não implica que o modelo possa ser carregado.','Motor Windows CPU/Vulkan indisponível. A seleção não garante carregamento.'));
+write('image-controls.js',s=>s.replace('pode ser lenta no tablet','pode ser lenta no computador'));
+write('local-models.js',s=>s.replace('Dados do Android','Monitoramento do Windows indisponível nesta versão'));
+write('index.html',s=>{
+ const anchor='</body>';
+ if(!s.includes(anchor))throw Error('Desktop image backend anchor not found');
+ return s.replace(anchor,'<script type="module" src="/desktop/vulkan-settings.js"></script>'+anchor);
+});
+console.log('Copied the known-good Android UI for Windows with CPU/Vulkan platform adapters; Android remains unchanged.');
