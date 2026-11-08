@@ -4,11 +4,12 @@ const PRESETS=Object.freeze({
  '9:16':[[720,1280],[864,1536]],'3:4':[[768,1024],[960,1280]],
  '7:9':[[896,1152],[1008,1296]],'2:3':[[832,1248],[960,1440]]
 });
-const DEFAULTS=Object.freeze({width:1024,height:1024,steps:28,cfg:5,clipSkip:2,sampler:'euler',scheduler:'discrete',seed:-1,negativePrompt:'',backend:'cpu',lowMemory:true,vramBudget:2,autoSave:true});
+const DEFAULTS=Object.freeze({width:1024,height:1024,steps:28,cfg:5,clipSkip:2,sampler:'euler',scheduler:'discrete',seed:-1,negativePrompt:'',backend:'cpu',lowMemory:true,vramBudget:2,autoSave:true,batchCount:1});
 function validate(input={}){
  const p={...DEFAULTS,...input};
  for(const k of ['width','height'])if(!Number.isInteger(p[k])||p[k]<256||p[k]>2048||p[k]%8)throw Error('Largura e altura devem ser múltiplos de 8, entre 256 e 2048.');
  if(p.width*p.height>4194304)throw Error('A resolução excede 4 megapixels.');
+ if(!Number.isInteger(p.batchCount)||p.batchCount<1||p.batchCount>4)throw Error('Gere de uma a quatro imagens por lote.');
  if(!Number.isInteger(p.steps)||p.steps<1||p.steps>100)throw Error('Use entre 1 e 100 etapas.');
  if(!Number.isFinite(p.cfg)||p.cfg<1||p.cfg>20)throw Error('CFG deve estar entre 1 e 20.');
  if(!Number.isInteger(p.clipSkip)||p.clipSkip<1||p.clipSkip>12)throw Error('Clip skip inválido.');
