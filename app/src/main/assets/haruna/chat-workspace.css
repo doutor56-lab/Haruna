@@ -83,3 +83,35 @@
 @media(prefers-reduced-motion:reduce){
  .app .drawer{transition:none}
 }
+
+/* Composer attachments and generated image results. Keep native image actions intact. */
+.app .chat-view .attachment-tray:not([hidden]){display:flex;gap:8px;padding:8px 12px;scroll-snap-type:x proximity}
+.app .chat-view .attachment-card{flex:0 0 auto;min-width:0;width:min(310px,80vw);max-width:100%;scroll-snap-align:start;align-items:center}
+.app .chat-view .attachment-info{min-width:0;overflow:hidden}
+.app .chat-view .attachment-info strong,.app .chat-view .attachment-info small{text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.app .chat-view .attachment-actions{flex:none;flex-wrap:wrap;justify-content:flex-end}
+.app .chat-view .attachment-actions button{min-height:36px;min-width:36px;touch-action:manipulation}
+.app .chat-view .composer .image-generate{display:grid;place-items:center;min-width:36px;min-height:40px;border-radius:10px}
+.app .chat-view .composer .image-generate[aria-pressed=true]{background:var(--selection);color:var(--theme-accent-soft)}
+.app .chat-view .composer .voice-input{min-width:36px;min-height:40px}
+.app .chat-view .msg:has(.image-card){min-width:0;max-width:min(96%,760px);width:auto}
+.app .chat-view .image-card{min-width:0;width:100%;max-width:100%;overflow:hidden}
+.app .chat-view .image-card .image-job-state{overflow-wrap:anywhere}
+.app .chat-view .image-card progress{width:100%;max-width:100%}
+.app .chat-view .image-card .image-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.app .chat-view .image-card .image-results[data-count="1"]{grid-template-columns:minmax(0,1fr)}
+.app .chat-view .image-card .image-results>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;min-width:0;align-content:start}
+.app .chat-view .image-card .image-results img{grid-column:1/-1;width:100%;height:auto;max-height:440px;object-fit:contain;margin:0;border-radius:12px;background:var(--theme-surface-2)}
+.app .chat-view .image-card .image-results button{min-width:0;min-height:38px;padding:7px 3px;font-size:12px;white-space:normal;overflow-wrap:anywhere}
+.app .chat-view .image-card .model-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start}
+.app .chat-view .image-card .model-actions button{min-height:40px}
+.app .chat-view .image-card button:focus-visible,.app .chat-view .attachment-actions button:focus-visible{outline:2px solid var(--theme-accent);outline-offset:2px}
+@media(max-width:480px){
+ .app .chat-view .attachment-tray:not([hidden]){padding:6px 10px}
+ .app .chat-view .attachment-card{width:min(280px,85vw);padding:8px}
+ .app .chat-view .image-card .image-results{gap:8px}
+ .app .chat-view .image-card .image-results button{font-size:11px}
+}
+@media(max-width:350px){
+ .app .chat-view .image-card .image-results{grid-template-columns:minmax(0,1fr)}
+}
