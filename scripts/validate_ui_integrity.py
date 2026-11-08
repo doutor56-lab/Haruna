@@ -46,7 +46,7 @@ def main():
     for asset in page.styles:
         path = ROOT / asset
         if path.is_file() and path.suffix == ".css":
-            css = re.sub(r"/\\*.*?\\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
+            css = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
             if css.count("{") != css.count("}"):
                 failures.append(f"Unbalanced CSS blocks: {asset}")
     for message in failures:
