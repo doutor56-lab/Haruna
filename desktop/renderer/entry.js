@@ -5,7 +5,19 @@
   const d=document.createElement('dialog');d.className='desktop-prompt';const title=document.createElement('strong');title.textContent=question;const field=document.createElement('textarea');field.value=value;field.rows=value.includes('\n')?10:3;const actions=document.createElement('div');actions.className='model-actions';const cancel=document.createElement('button'),ok=document.createElement('button');cancel.textContent='Cancelar';ok.textContent='Confirmar';actions.append(cancel,ok);d.append(title,field,actions);document.body.append(d);let done=false;const finish=v=>{if(done)return;done=true;d.close();d.remove();resolve(v);};cancel.onclick=()=>finish(null);ok.onclick=()=>finish(field.value);d.addEventListener('cancel',e=>{e.preventDefault();finish(null)});field.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='Enter')finish(field.value)});d.showModal();field.focus();field.select();
  });
 
-// Windows-only UI scale. Chromium CSS zoom reflows the layout instead of
+// Warn once if conversation persistence fails (for example, storage quota).
+ let storageWarningShown=false;
+ window.harunaDesktopStorageWarning=()=>{
+  if(storageWarningShown)return;
+  storageWarningShown=true;
+  const note=document.createElement('div');
+  note.className='desktop-storage-warning';note.setAttribute('role','alert');
+  note.textContent='Armazenamento de conversas cheio ou indisponível. Esta conversa pode não ser recuperada após fechar a Haruna. Libere espaço e copie mensagens importantes.';
+  const close=document.createElement('button');close.type='button';close.textContent='Entendi';
+  close.onclick=()=>note.remove();note.append(close);
+  (document.body||document.documentElement).append(note);
+ };
+ // Windows-only UI scale. Chromium CSS zoom reflows the layout instead of
 // stretching a fixed-size screenshot; responsive CSS remains active.
  const SCALE_KEY='haruna.windows.interfaceScale';
  const clampScale=value=>{const n=Number(value);return Number.isFinite(n)&&n>=75&&n<=150&&n%5===0?n:100;};
