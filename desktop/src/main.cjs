@@ -42,20 +42,43 @@ async function start(){
  if(smoke){await runSmoke();await controller.shutdown();app.exit(0);}
  app.on('activate',()=>{window?.show();});
 }
-async function runSmoke(){const output=smokeRoot;fs.mkdirSync(output,{recursive:true});await new Promise(r=>setTimeout(r,1200));
- const flags=await probe(controller.exe('image','cpu'),['--help']);for(const f of ['--prompt-file','--negative-prompt-file','--clip-skip','--vae-tiling','--params-backend','--backend'])if(!flags.includes(f))throw Error('Missing SDXL CLI flag: '+f);
+async function runSmoke(){
+ const output=smokeRoot;fs.mkdirSync(output,{recursive:true});
+ const flags=await probe(controller.exe('image','cpu'),['--help']);
+ for(const f of ['--prompt-file','--negative-prompt-file','--clip-skip','--vae-tiling','--params-backend','--backend'])
+  if(!flags.includes(f))throw Error('Missing SDXL CLI flag: '+f);
  await probe(controller.exe('llm'),['--version']);
- const state=await window.webContents.executeJavaScript(`({title:document.querySelector('h1').textContent,images:!!window.HarunaImages,chat:!!window.harunaChatImages,chatReady:window.__HARUNA_CHAT_READY__===true,imageButton:!!document.querySelector('#generateImage'),imageSettings:!!document.querySelector('.desktop-image-settings'),node:typeof require})`);if(state.title!=='Haruna'||!state.images||!state.chat||!state.chatReady||!state.imageButton||!state.imageSettings||state.node!=='undefined')throw Error('Desktop bootstrap failed: '+JSON.stringify(state));
- await window.webContents.executeJavaScript(`localStorage.setItem('haruna_onboarding_v1','done');document.querySelector('#onboarding').hidden=true;document.querySelector('#imageDimensions').click()`);
- const view=await window.webContents.executeJavaScript(`document.querySelector('#imageDimensionDialog').open`);if(!view)throw Error('Resolution dialog failed');
- await window.webContents.executeJavaScript(`document.querySelector('[data-ratio="3:5"]').click();document.querySelector('[data-quality="L"]').click();`);
- const dimensions=await window.webContents.executeJavaScript(`({width:Number(document.querySelector('[name=width]').value),height:Number(document.querySelector('[name=height]').value)})`);if(dimensions.width!==840||dimensions.height!==1400)throw Error('Preset 840x1400 failed');
- await window.webContents.executeJavaScript(`document.querySelector('#imageDimensionDialog form').requestSubmit()`);if(controller.settings.width!==840||controller.settings.height!==1400)throw Error('Dimension persistence failed');
- const reloaded=new Promise(resolve=>window.webContents.once('did-finish-load',resolve));window.webContents.reload();await reloaded;await new Promise(r=>setTimeout(r,700));
- await window.webContents.executeJavaScript(`document.querySelector('#imageDimensions').click();document.querySelector('[data-orientation=landscape]').click()`);
- const landscape=await window.webContents.executeJavaScript(`({width:Number(document.querySelector('[name=width]').value),height:Number(document.querySelector('[name=height]').value)})`);if(landscape.width!==1400||landscape.height!==840)throw Error('Saved L preset changed after reopening');
- await window.webContents.executeJavaScript(`document.querySelector('[data-orientation=portrait]').click()`);
- const bitmap=nativeImage.createFromBitmap(Buffer.alloc(864*1408*4,128),{width:864,height:1408});const nativeFile=path.join(output,'crop-fixture.png'),croppedFile=path.join(output,'crop-840x1400.png');await fsp.writeFile(nativeFile,bitmap.toPNG());await finalizePng(nativeFile,croppedFile,{width:840,height:1400});const cropped=nativeImage.createFromPath(croppedFile).getSize();if(cropped.width!==840||cropped.height!==1400)throw Error('Exact output crop failed');
- await fsp.writeFile(path.join(output,'dimensions.png'),(await window.webContents.capturePage()).toPNG());atomicJson(path.join(output,'WINDOWS_SMOKE.json'),{...state,windows:process.platform,arch:process.arch,sdCliHelp:true,llamaVersion:true,dimensionsPreset:dimensions,exactOutputCrop:cropped,realImageGenerated:false,modelInference:'Not executed; requires user checkpoint and GPU validation.'});
+ if(!fs.existsSync(controller.exe('image','vulkan')))throw Error('Pinned Vulkan runtime not present in packaged application.');
+ const inspect=()=>window.webContents.executeJavaScript("({title:document.querySelector('h1')?.textContent,images:!!window.HarunaImages,chat:!!window.harunaChatImages,chatReady:window.__HARUNA_CHAT_READY__===true,imageButton:!!document.querySelector('#generateImage'),imageSettings:!!document.querySelector('.image-settings-card'),imagePanel:!!document.querySelector('#imageGenerationPanel'),vulkanSelector:!!document.querySelector('#desktopVulkanSettings select'),node:typeof require})");
+ let state;
+ for(let i=0;i<40;i++){
+  state=await inspect();
+  if(state.chatReady&&state.imageButton&&state.imageSettings&&state.imagePanel&&state.vulkanSelector)break;
+  await new Promise(r=>setTimeout(r,150));
+ }
+ if(state.title!=='Haruna'||!state.images||!state.chat||!state.chatReady||!state.imageButton||!state.imageSettings||!state.imagePanel||!state.vulkanSelector||state.node!=='undefined')
+  throw Error('Android UI to Windows bootstrap failed: '+JSON.stringify(state));
+ await window.webContents.executeJavaScript("localStorage.setItem('haruna_onboarding_v1','done');document.querySelector('#onboarding').hidden=true;document.querySelector('#generateImage').click()");
+ const view=await window.webContents.executeJavaScript("document.querySelector('#imageGenerationPanel').open");
+ if(!view)throw Error('Android image generation panel did not open');
+ await window.webContents.executeJavaScript("(()=>{const panel=document.querySelector('#imageGenerationPanel');const ratio=panel.querySelector('[data-ratio-select]');ratio.value='3:5';ratio.dispatchEvent(new Event('change',{bubbles:true}));const quality=panel.querySelector('[data-quality-select]');quality.value='M';quality.dispatchEvent(new Event('change',{bubbles:true}));})()");
+ const dimensions=await window.webContents.executeJavaScript("({width:Number(document.querySelector('#imageGenerationPanel [name=width]').value),height:Number(document.querySelector('#imageGenerationPanel [name=height]').value)})");
+ if(dimensions.width!==768||dimensions.height!==1280)throw Error('Android image ratio preset 768x1280 failed');
+ await window.webContents.executeJavaScript("document.querySelector('#imageGenerationPanel form').requestSubmit()");
+ if(controller.settings.width!==768||controller.settings.height!==1280)throw Error('Android image dimensions did not persist in Windows controller');
+ const reloaded=new Promise(resolve=>window.webContents.once('did-finish-load',resolve));
+ window.webContents.reload();await reloaded;
+ for(let i=0;i<40;i++){state=await inspect();if(state.chatReady&&state.imagePanel&&state.vulkanSelector)break;await new Promise(r=>setTimeout(r,150));}
+ if(!state.chatReady||!state.imagePanel||!state.vulkanSelector)throw Error('Desktop UI failed to restore after reload');
+ await window.webContents.executeJavaScript("window.harunaOpenImagePanel();document.querySelector('#imageGenerationPanel [data-orientation=landscape]').click()");
+ const landscape=await window.webContents.executeJavaScript("({width:Number(document.querySelector('#imageGenerationPanel [name=width]').value),height:Number(document.querySelector('#imageGenerationPanel [name=height]').value)})");
+ if(landscape.width!==1280||landscape.height!==768)throw Error('Android image resolution changed after Windows reload');
+ const bitmap=nativeImage.createFromBitmap(Buffer.alloc(864*1408*4,128),{width:864,height:1408});
+ const nativeFile=path.join(output,'crop-fixture.png'),croppedFile=path.join(output,'crop-840x1400.png');
+ await fsp.writeFile(nativeFile,bitmap.toPNG());await finalizePng(nativeFile,croppedFile,{width:840,height:1400});
+ const cropped=nativeImage.createFromPath(croppedFile).getSize();
+ if(cropped.width!==840||cropped.height!==1400)throw Error('Exact output crop failed');
+ await fsp.writeFile(path.join(output,'dimensions.png'),(await window.webContents.capturePage()).toPNG());
+ atomicJson(path.join(output,'WINDOWS_SMOKE.json'),{...state,windows:process.platform,arch:process.arch,sdCliHelp:true,llamaVersion:true,vulkanRuntimePresent:true,dimensionsPreset:dimensions,landscapePreset:landscape,exactOutputCrop:cropped,realImageGenerated:false,modelInference:'Not executed; actual checkpoint and GPU validation required.'});
 }
 app.on('before-quit',event=>{if(closing||!controller)return;event.preventDefault();closing=true;controller.shutdown().finally(()=>app.quit());});app.on('window-all-closed',()=>app.quit());
