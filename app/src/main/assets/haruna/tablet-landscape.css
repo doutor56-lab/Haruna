@@ -88,3 +88,23 @@
   max-height:min(70dvh,calc(100dvh - 24px))!important;
  }
 }
+
+/* Keep the conversation trigger reachable above chat content in every layout. */
+.app>.topbar{position:relative;z-index:11}
+.app #menu{position:relative;z-index:1;pointer-events:auto;touch-action:manipulation;cursor:pointer;flex:none}
+.app #drawer{visibility:visible;pointer-events:none}
+.app #drawer.open{pointer-events:auto}
+.app #scrim[hidden]{display:none!important}
+@media (max-width:799px), (orientation:portrait){
+ .app #drawer{
+  position:absolute;top:0;bottom:0;left:0;right:auto;
+  width:min(86vw,360px);max-width:calc(100vw - 36px);
+  transform:translateX(-105%);z-index:30;
+  transition:transform .2s ease;
+ }
+ .app #drawer.open{transform:translateX(0)}
+ .app #scrim:not([hidden]){display:block!important;z-index:29}
+}
+@media (orientation:landscape) and (min-width:800px) and (min-height:350px){
+ .app #drawer.open{pointer-events:auto}
+}
