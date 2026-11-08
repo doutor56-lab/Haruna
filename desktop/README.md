@@ -1,6 +1,6 @@
 # Haruna Windows — GGUF + SDXL offline
 
-Branch `feature/windows-sdxl`, base Android/Nezumi `5023e8e0ae0ce62b8c8a9b4f1b461077ef2881d0`.
+Base Android funcional: APK do GitHub Actions run `42504813611` (`2c3a4bc38f55797a65bdf4a1b7ae366d80b7eaee`), com correções isoladas de barra lateral e margem de RAM na branch `fix/android-sidebar-remove-3gb-cap-42504813611`. Port Windows: branch `port/windows-from-working-42504813611`. Motor Windows CPU/Vulkan, modelos GGUF e arquitetura Electron foram transportados de `integration/windows-ui-20261108`.
 Nenhum arquivo Android é alterado. A edição Windows copia a interface atual para
 o pacote e aplica somente adaptações de plataforma nessa cópia.
 
@@ -9,16 +9,15 @@ o pacote e aplica somente adaptações de plataforma nessa cópia.
 1. Baixar o artefato **Haruna-Windows-SDXL-EXE**, extrair o único `.exe` e abrir.
    É portable x64 para Windows 10/11. Não há instalador de modelos nem login.
    O executável não é assinado comercialmente; Windows pode exibir SmartScreen.
-2. Configurações → Geração de imagens → importar checkpoint **SDXL completo
+2. Configurações → Modelos de IA → aba **Imagem** → importar checkpoint **SDXL completo
    `.safetensors`**, incluindo UNet, CLIP-L, CLIP-G e VAE. Selecionar o modelo.
    LoRA sozinho, MNN Android e GGUF de conversa não são checkpoints SDXL.
-3. Escrever a descrição no chat e clicar no ícone de imagem. A imagem e seus
-   controles usam a conversa existente. A descrição negativa fica nas configurações.
-4. Clique no botão de tamanho junto ao compositor ou em **Dimensões da imagem**
-   nas configurações. Retrato/paisagem, 3:5, 1:1, 9:16, 3:4, 7:9 e 2:3;
+3. No chat, clicar no ícone de imagem para abrir o painel da interface Android; ajustar as dimensões, escrever a descrição e enviar. A imagem e seus controles usam a conversa existente. As opções avançadas ficam no painel de imagem.
+4. No painel do ícone de imagem, ajustar retrato/paisagem, 3:5, 1:1, 9:16,
+   3:4, 7:9, 2:3 e 16:9;
    presets M/L e largura/altura independentes entre 256 e 2048, múltiplos de 8.
    Todas as opções estão disponíveis, sem quotas/assinatura.
-5. Importe GGUF em Configurações para conversar. Seleção/principal persistem,
+5. Importe GGUF em Configurações → Modelos de IA → **Linguagem** para conversar. Seleção/principal persistem,
    mas não há autoload cego ao abrir o programa.
 
 Arquivos de modelo são referenciados no local escolhido, sem duplicar gigabytes.
@@ -45,7 +44,7 @@ residentes intencionalmente nem troca de buffers entre motores.
 
 Vega 11 é normalmente integrada; a memória gráfica pode ser compartilhada com
 os 12 GB de RAM. O programa não assume 4 GB dedicados. CPU é o padrão seguro;
-Vulkan pode ser solicitado e detectado em Configurações. Depende do driver AMD.
+Vulkan pode ser selecionado em Configurações → Modelos de IA → Imagem → **Motor de imagens no Windows**. Depende do driver AMD.
 
 Pouca memória vem ativado: VAE em tiles; CPU solicita parâmetros em disco,
 Vulkan solicita auto-fit e orçamento de 2 GiB. Isso usa controles existentes do
@@ -116,7 +115,7 @@ python scripts/fetch-runtimes.py
 npm run dist:win
 ```
 
-Workflow `.github/workflows/windows-sdxl.yml`: testa lógica/state/persistência com
+Workflow `.github/workflows/windows-sdxl.yml` (branch `port/windows-from-working-42504813611`): testa lógica/state/persistência com
 processos explicitamente fake, baixa runtimes verificados, empacota EXE e abre
 **o app empacotado no Windows** para testar interface de dimensões e CLI real
 `--help`/`--version`. A fixture PNG usada no teste de corte não é imagem SDXL.
@@ -127,3 +126,11 @@ Na validação do PC, começar com CPU/pouca memória e 768×768, depois testar
 Vulkan e os tamanhos desejados. Confirmar no Gerenciador de Tarefas:
 llama-server encerra → sd-cli inicia → sd-cli encerra → llama-server retorna.
 Se não houver GGUF ativo inicialmente, não há reload automático de outro modelo.
+
+## Estado da migração
+
+A interface é copiada diretamente da revisão Android funcional na preparação do pacote. As adaptações Windows são feitas apenas na cópia em `desktop/ui`: não alteram o APK. A aba Imagem mantém o painel original e adiciona controles Windows CPU/Vulkan. O formato do motor Windows é SDXL completo `.safetensors`, não os pacotes MNN Android.
+
+A seleção Vulkan usa o binário Windows previamente fixado e verificado por SHA-256. **Selecionar Vulkan não é teste de geração real nem comprova compatibilidade com a Vega 11.** O LLM GGUF permanece na CPU nesta edição.
+
+A biblioteca nativa de PDF/DOCX, o motor Android de voz e geração MNN não são executados no Windows. Não há modelos baixados automaticamente. Em caso de falha no runner Windows do GitHub Actions antes de iniciar as etapas, não existe executável validado: confira o estado do fluxo antes de instalar.
