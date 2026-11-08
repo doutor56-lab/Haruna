@@ -15,7 +15,20 @@ class Controller{
  }
  save(){atomicJson(this.file,{models:this.models,primary:this.primary,selected:this.selected,settings:this.settings});}
  list(kind){return this.models.filter(m=>m.kind===kind).map(m=>({id:m.id,path:m.id,name:m.name,bytes:m.bytes,primary:m.id===this.primary,active:m.id===this.loaded,engineAvailable:fs.existsSync(this.exe(kind==='llm'?'llm':'image',this.settings.backend)),state:fs.existsSync(m.file)?'INSTALLED':'MISSING'}));}
- snapshot(){return{llm:this.llm,models:this.list('llm'),images:{...this.image,models:this.list('image'),selected:this.selected,loaded:null,engine:'stable-diffusion.cpp • SDXL',engineAvailable:fs.existsSync(this.exe('image',this.settings.backend)),generationAvailable:fs.existsSync(this.exe('image',this.settings.backend)),imageEngineBusy:!!this.image.busy,nativeProgress:this.progress||[0,0,0],...this.settings},version:'0.1.0-windows-sdxl'};}
+ snapshot(){
+  const native=config.nativeSize(this.settings);
+  const executable=fs.existsSync(this.exe('image',this.settings.backend));
+  return {llm:this.llm,models:this.list('llm'),images:{
+   ...this.image,models:this.list('image'),selected:this.selected,loaded:null,
+   engine:'stable-diffusion.cpp • SDXL • '+this.settings.backend.toUpperCase(),
+   engineKind:'safetensors',engineAvailable:executable,generationAvailable:executable,
+   imageEngineBusy:!!this.image.busy,nativeProgress:this.progress||[0,0,0],
+   nativeGrid:32,nativeWidth:native.width,nativeHeight:native.height,
+   maxSteps:100,maxBatch:1,previewSupported:false,showPreviews:false,
+   performanceSupported:false,performance:'balanced',
+   ...this.settings,resolution:this.settings.width
+  },version:'0.2.0-windows-from-android'};
+ }
  emit(event){this.publish(this.snapshot(),event);}
  model(id,kind){const m=this.models.find(m=>m.id===id&&m.kind===kind);if(!m)throw Error('Modelo não encontrado.');if(!fs.existsSync(m.file))throw Error('O arquivo foi movido ou removido. Importe-o novamente.');return m;}
  exe(kind,backend='cpu'){const name=kind==='llm'?'llama-server.exe':'sd-cli.exe';return path.join(this.runtimes,kind==='llm'?'llama':backend,name);}
@@ -24,7 +37,7 @@ class Controller{
   if(!m){m={id:crypto.randomUUID(),kind,file:absolute,name:path.basename(file).replace(/\.(safetensors|gguf)$/i,'').slice(0,100),...info};delete m.metadata;this.models.push(m);}else Object.assign(m,info);
   if(kind==='image'&&!this.selected)this.selected=m.id;if(kind==='llm'&&!this.primary)this.primary=m.id;this.save();this.emit({type:'model_import',phase:kind==='llm'?'importing':'completed',name:m.name});return m;
  }finally{this.maintenance=false;this.emit();}}
- configure(p){if(this.image.busy||this.maintenance)throw Error('Aguarde a operação atual.');this.settings=config.validate(p);this.save();this.emit();}
+ configure(p){if(this.image.busy||this.maintenance)throw Error('Aguarde a operação atual.');this.settings=config.validate({...this.settings,...p});this.save();this.emit();}
  select(id){this.model(id,'image');if(this.image.busy||this.maintenance)throw Error('Aguarde a geração atual.');this.selected=id;this.save();this.emit();}
  setPrimary(id){this.model(id,'llm');this.primary=id;this.save();this.emit();}
  async remove(id){if(this.image.busy||this.maintenance||this.request)throw Error('Aguarde a operação atual.');if(this.loaded===id)await this.unload();this.models=this.models.filter(m=>m.id!==id);if(this.primary===id)this.primary=null;if(this.selected===id)this.selected=null;this.save();this.emit();}
