@@ -51,6 +51,8 @@ write('image-models.js',s=>s
  'No Windows, importe um checkpoint SDXL/Illustrious completo em .safetensors. Use CPU para compatibilidade ou Vulkan com driver e memória suficientes. Pacotes Android MNN, LoRA isolado e arquivos SD1.5 não são suportados neste motor.')
  .replace('Excluir este modelo de imagens do dispositivo?','Remover este checkpoint da lista? O arquivo original será preservado.')
  .replace('Excluir este modelo de imagens','Remover este checkpoint da lista')
+ // Windows loads the SDXL checkpoint only when a generation starts.
+ .replace(']]){const b=document.createElement(\'button\');b.type=\'button\';b.textContent=label;', ']]){if(window.HarunaDesktop&&(label===\'Carregar\'||label===\'Descarregar\'))continue;const b=document.createElement(\'button\');b.type=\'button\';b.textContent=label;')
  .replace('Motor nativo indisponível. Instalação não implica que o modelo possa ser carregado.','Motor Windows CPU/Vulkan indisponível. A seleção não garante carregamento.'));
 write('image-controls.js',s=>s.replace('pode ser lenta no tablet','pode ser lenta no computador'));
 write('local-models.js',s=>s.replace('Dados do Android','Monitoramento do Windows indisponível nesta versão'));
