@@ -1,0 +1,37 @@
+name: Haruna Web Preview (GitHub Pages)
+on:
+  push:
+    branches:
+      - refactor/haruna-ui-integracao-20261108
+    paths:
+      - 'app/src/main/assets/haruna/**'
+      - 'web-preview/**'
+      - '.github/workflows/haruna-web-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: haruna-web-preview-pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout Android UI
+        uses: actions/checkout@v4
+      - name: Prepare web-only interface
+        run: python3 web-preview/build.py
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload static preview
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Publish preview
+        id: deployment
+        uses: actions/deploy-pages@v4
