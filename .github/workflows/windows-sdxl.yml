@@ -1,7 +1,7 @@
 name: Haruna Windows SDXL
 on:
   push:
-    branches: [feature/windows-sdxl]
+    branches: [feature/windows-sdxl, port/windows-from-working-42504813611]
     paths: ['desktop/**', 'app/src/main/assets/haruna/**', '.github/workflows/windows-sdxl.yml']
   workflow_dispatch:
 permissions:
