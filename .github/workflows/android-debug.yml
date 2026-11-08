@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - refactor/haruna-ui-integracao-20261108
+      - design/haruna-paginas-aprovadas-20261108
   workflow_dispatch:
 
 jobs:
