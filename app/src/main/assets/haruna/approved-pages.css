@@ -54,3 +54,40 @@
 @media(prefers-reduced-motion:reduce){
  .app :is(#settingsView,#memoryView,#libraryView) button{transition:none}
 }
+
+/* Voice model settings: one visual language for STT and TTS, retaining
+   all native model selectors, install/remove actions and call preferences. */
+.app #settingsView #haruna-local-model-panel-2{display:grid;gap:14px;min-width:0}
+.app #settingsView #haruna-local-model-panel-2[hidden]{display:none!important}
+.app #settingsView #haruna-local-model-panel-2>.model-actions:empty{display:none}
+.app #settingsView .haruna-voice-model-card{min-width:0;margin:0;padding:clamp(14px,2vw,20px);border:1px solid var(--approved-border);border-radius:16px;background:var(--theme-surface-2);box-shadow:0 5px 18px #00000012}
+.app #settingsView .haruna-voice-heading{display:flex;align-items:center;gap:12px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--approved-border)}
+.app #settingsView .haruna-voice-heading strong{font-size:16px;letter-spacing:-.025em}
+.app #settingsView .haruna-voice-symbol{width:42px;height:42px;display:grid;place-items:center;flex:none;border-radius:12px;background:var(--selection);color:var(--approved-purple);font-size:24px}
+.app #settingsView .haruna-voice-model-card .setting-row,
+.app #settingsView .haruna-voice-model-card .stt-model-row{min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px;border:1px solid var(--approved-border);border-radius:12px;background:var(--theme-surface)}
+.app #settingsView .haruna-voice-model-card :is(.model-info,.stt-model-row .model-info){flex:1 1 180px;min-width:0;overflow-wrap:anywhere}
+.app #settingsView .haruna-voice-model-card :is(.model-actions,.speech-actions){display:flex;flex-wrap:wrap;gap:8px;max-width:100%}
+.app #settingsView .haruna-voice-model-card :is(.model-actions,.speech-actions) button{min-height:44px;min-width:90px;flex:1 1 auto;border-radius:11px}
+.app #settingsView .haruna-voice-model-card button{border-radius:11px;min-height:42px}
+.app #settingsView .haruna-voice-model-card :is(select,input:not([type=checkbox])){max-width:100%;min-width:0;border-radius:10px}
+.app #settingsView .haruna-voice-model-card :is(input[type=range],input[type=checkbox]){accent-color:var(--approved-purple)}
+.app #settingsView .haruna-voice-model-card :is(details,fieldset){border-color:var(--approved-border);border-radius:12px}
+.app #settingsView .haruna-voice-model-card :is([role=status],.status,.model-empty){color:var(--theme-muted);font-size:13px;line-height:1.5}
+.app #settingsView .haruna-voice-model-card :is(button,input,select):focus-visible{outline:2px solid var(--approved-purple);outline-offset:2px}
+/* Image: approved single-level preference stack. Keep engine-only inputs
+   hidden by their existing controller rather than removing their bindings. */
+.app #settingsView .image-settings-card .image-settings-advanced{display:block;padding:14px;border:1px solid var(--approved-border);border-radius:14px;background:var(--theme-surface-2)}
+.app #settingsView .image-settings-card .image-settings-advanced>summary{font-size:15px;font-weight:700;cursor:pointer}
+.app #settingsView .image-settings-card .image-options{display:grid;gap:12px;min-width:0}
+.app #settingsView .image-settings-card .image-options>label{margin:0!important}
+.app #settingsView .image-settings-card .image-options [data-performance]{min-width:150px}
+.app #settingsView .image-settings-card .image-settings-advanced>label{display:block;margin-top:12px!important}
+.app #settingsView .image-settings-card .image-settings-advanced [data-chat-only-dimensions],
+.app #settingsView .image-settings-card .image-settings-advanced .image-options>details[hidden]{display:none!important}
+.app #settingsView .image-settings-card .model-actions button{min-height:44px}
+@media(max-width:520px){
+ .app #settingsView .haruna-voice-model-card{padding:12px}
+ .app #settingsView .haruna-voice-model-card .model-actions button{flex:1 1 120px}
+ .app #settingsView .image-settings-card .image-settings-advanced{padding:12px}
+}
