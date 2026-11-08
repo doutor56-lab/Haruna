@@ -103,3 +103,10 @@
 .app #settingsView .image-settings-card [data-models] .setting-row{display:flex;flex-wrap:wrap;gap:10px;padding:12px;border:1px solid var(--approved-border);border-radius:12px;background:var(--theme-surface);margin-block:8px}
 .app #settingsView .image-settings-card [data-models] .setting-row .model-actions{display:flex;flex-wrap:wrap;gap:7px;width:100%}
 .app #settingsView .image-settings-card [data-models] .setting-row .model-actions button{flex:1 1 100px;min-width:0}
+
+/* Critical audit: engine-only controls keep their DOM bindings but never
+   leak into the simplified three-option image preferences. */
+.app #settingsView .image-settings-card .image-options>.image-engine-only{display:none!important}
+.app #settingsView .image-settings-card .image-options>label:not(.image-engine-only){display:flex!important;align-items:center;gap:9px;flex-wrap:wrap;min-height:42px}
+.app #settingsView .image-settings-card .image-options>label:not(.image-engine-only) input[type=checkbox]{width:18px;height:18px;flex:none}
+.app #settingsView .image-settings-card .image-options>label:not(.image-engine-only) select{margin-inline-start:auto;max-width:100%}
