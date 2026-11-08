@@ -1,0 +1,45 @@
+/* Chat workspace — layout-only layer. Existing IDs, events and native bridges stay intact. */
+.app:has(#chatView:not([hidden])){min-width:0}
+.app .chat-view{min-width:0;min-height:0;grid-template-rows:auto minmax(0,1fr) auto auto auto auto}
+.app .chat-view .status-row{display:flex;align-items:center;gap:8px;min-height:42px;padding:6px 12px;border-radius:12px;min-width:0}
+.app .chat-view .status-row #brain{flex:0 1 auto;min-width:0;font-weight:600}
+.app .chat-view .status-row #reasoningMode{flex:none}
+.app .chat-view .status-row #modelName{margin-left:auto;flex:0 1 34%;min-width:0;text-align:right}
+.app .chat-view .status-row #think{flex:none;margin-left:0}
+.app .chat-view .messages{min-height:0;min-width:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;gap:16px;padding:20px clamp(12px,3vw,24px)}
+.app .chat-view .msg{max-width:min(90%,760px);min-width:0;align-items:flex-end}
+.app .chat-view .msg .bubble{min-width:0;max-width:100%;line-height:1.55;overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap}
+.app .chat-view .msg .bubble pre{white-space:pre;overflow-x:auto;max-width:100%}
+.app .chat-view .msg .bubble img,.app .chat-view .msg .bubble video{max-width:100%;height:auto}
+.app .chat-view .msg .bubble a{overflow-wrap:anywhere}
+.app .chat-view .msg.user .bubble{border-radius:17px 17px 5px 17px}
+.app .chat-view .msg.assistant .bubble{border-radius:17px 17px 17px 5px}
+.app .chat-view .avatar{flex:none}
+.app .chat-view .attachment-tray{min-width:0;max-width:100%;scrollbar-width:thin}
+.app .chat-view .attachment-card{max-width:calc(100vw - 40px)}
+.app .chat-view .composer{display:flex;align-items:flex-end;min-width:0;max-width:100%;gap:6px;padding:6px;border-radius:18px}
+.app .chat-view .composer textarea{flex:1 1 0;min-width:0;min-height:42px;max-height:min(32dvh,180px);padding:11px 5px 9px;line-height:1.45;overflow-y:auto}
+.app .chat-view .composer button{flex-shrink:0;touch-action:manipulation}
+.app .chat-view .composer button:focus-visible,.app .chat-view .status-row button:focus-visible,.app .chat-view .haruna-message-actions button:focus-visible{outline:2px solid var(--theme-accent);outline-offset:2px}
+.app .chat-view .composer button:disabled{opacity:.45;cursor:not-allowed}
+.app .chat-view .haruna-message-actions{flex-wrap:wrap;white-space:normal}
+.app .chat-view .memory-toast[hidden],.app .chat-view .attachment-tray[hidden],.app .chat-view .composer [hidden]{display:none!important}
+@media(max-width:480px){
+ .app .chat-view .messages{padding:14px 12px;gap:13px;scrollbar-gutter:auto}
+ .app .chat-view .msg{max-width:96%;gap:6px}
+ .app .chat-view .avatar{width:26px;height:26px;flex-basis:26px;border-radius:9px}
+ .app .chat-view .msg .bubble{font-size:14px;padding:10px 12px}
+ .app .chat-view .status-row{margin:3px 10px 0;gap:6px;padding:5px 9px}
+ .app .chat-view .status-row #modelName{max-width:28%}
+ .app .chat-view .composer{margin:0 10px;padding:5px;gap:4px}
+ .app .chat-view .composer .attach,.app .chat-view .composer .send,.app .chat-view .composer .stop{width:40px;height:40px;flex-basis:40px}
+ .app .chat-view .composer textarea{min-height:40px}
+}
+@media(orientation:landscape) and (max-height:550px){
+ .app .chat-view .messages{padding-top:8px;padding-bottom:8px;gap:9px}
+ .app .chat-view .status-row{min-height:34px;padding-top:2px;padding-bottom:2px}
+ .app .chat-view .composer textarea{max-height:72px}
+}
+@media(prefers-reduced-motion:reduce){
+ .app .chat-view .composer button{transition:none}
+}
