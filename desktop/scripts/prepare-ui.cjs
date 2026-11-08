@@ -46,6 +46,7 @@ write('image-chat.js',s=>{
 // Keep all approved styles, image controls, and navigation from the functional
 // Android revision. Only labels and platform bridges differ in the desktop copy.
 write('image-models.js',s=>s
+ .replace('function update(){if(document.hidden)return;try{','function update(){if(document.hidden && !window.HarunaDesktop)return;try{')
  .replace('Importe um pacote ZIP SD1.5 MNN Haruna ou Nezumi SD1.5 (Anything V5 / CyberRealistic). Ou importe um checkpoint SD1.5 completo .safetensors (experimental, CPU). SDXL Base/Illustrious completo também pode ser importado (experimental; CPU, pesos em disco, CLIP-L + CLIP-G + VAE). SD2, LoRA e componentes separados não são suportados. Para SD1.5 convencional, prefira cerca de 20 etapas; cinco servem como teste rápido.',
  'No Windows, importe um checkpoint SDXL/Illustrious completo em .safetensors. Use CPU para compatibilidade ou Vulkan com driver e memória suficientes. Pacotes Android MNN, LoRA isolado e arquivos SD1.5 não são suportados neste motor.')
  .replace('Excluir este modelo de imagens do dispositivo?','Remover este checkpoint da lista? O arquivo original será preservado.')
