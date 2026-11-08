@@ -180,3 +180,29 @@
 @media(prefers-reduced-motion:reduce){
  .app .page-view .page-card button{transition:none}
 }
+
+/* Design pass 2: chat is the primary surface. Reuse existing theme tokens. */
+.app .topbar{border-bottom:1px solid var(--theme-stroke);box-shadow:none}
+.app .brand{min-width:0}
+.app .brand h1{letter-spacing:-.035em}
+.app .chat-view .status-row{background:transparent;border-color:var(--theme-stroke);box-shadow:none;min-width:0;overflow:hidden}
+.app .chat-view .status-row #brain,.app .chat-view .status-row #modelName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app .chat-view .messages{scrollbar-width:thin;gap:14px}
+.app .chat-view .bubble{box-shadow:none;border-color:var(--theme-stroke);overflow-wrap:anywhere}
+.app .chat-view .assistant .bubble{background:var(--theme-surface)}
+.app .chat-view .user .bubble{border-color:transparent}
+.app .chat-view .composer{background:var(--theme-surface);border:1px solid var(--theme-stroke);box-shadow:0 5px 20px var(--theme-shadow);min-width:0}
+.app .chat-view .composer:focus-within{border-color:var(--theme-accent)}
+.app .chat-view .composer textarea{min-width:0}
+.app .chat-view .composer .attach,.app .chat-view .composer .voice-input{border-radius:10px}
+.app .chat-view .footer-note{opacity:.6}
+.app .drawer{background:var(--theme-surface);color:var(--theme-text)}
+.app .drawer .search{background:var(--control-bg);border-color:var(--theme-stroke)}
+.app .drawer .chat-list{min-width:0}
+.app .bottom-nav .nav-item.active{background:var(--selection);color:var(--theme-accent-soft)}
+.app .bottom-nav .nav-item.active:after{box-shadow:none}
+@media(max-width:480px){
+ .app .chat-view .status-row{margin-left:12px;margin-right:12px;padding:7px 9px}
+ .app .chat-view .messages{padding-left:12px;padding-right:12px}
+ .app .chat-view .composer{margin-left:10px;margin-right:10px}
+}
