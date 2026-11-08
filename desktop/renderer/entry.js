@@ -50,7 +50,10 @@
   if(event.type==='desktop-error'){alert(event.message);return;}
   if(event.type==='image-rejected'){window.harunaChatImages?.update({request:event.request,state:'ERROR',error:event.error});return;}
   window.harunaAndroidOnEvent?.(event);
-  if(event.type==='status')window.dispatchEvent(new CustomEvent('haruna-native-status-changed'));
+  // The desktop snapshot changes on model load/unload and during generation,
+  // even when the accompanying event is model_import or a streamed token.
+  // Keep the Android chat status view synchronized with that snapshot.
+  if(event.type!=='status')window.dispatchEvent(new CustomEvent('haruna-native-status-changed'));
  });
  addEventListener('DOMContentLoaded',()=>{
   mountScaleControl();
