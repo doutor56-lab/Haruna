@@ -120,3 +120,15 @@
  #settingsView .page-card .model-actions{gap:7px}
  #settingsView .page-card .model-actions button{min-width:0}
 }
+
+/* Minimal settings hierarchy: primary actions first, advanced details on demand. */
+#settingsView .image-settings-card .image-settings-subtitle:first-of-type{margin-top:8px}
+#settingsView .image-settings-card .image-settings-advanced{margin:14px 0 10px;background:var(--theme-surface-2);border:1px solid var(--theme-stroke);border-radius:14px;padding:12px}
+#settingsView .image-settings-card .image-settings-advanced>summary{color:var(--theme-text);font-weight:650;cursor:pointer}
+#settingsView .image-settings-card .image-settings-advanced[open]>summary{padding-bottom:12px;border-bottom:1px solid var(--theme-stroke);margin-bottom:10px}
+#settingsView .image-settings-card .image-settings-advanced .image-settings-subtitle{display:none}
+#settingsView .image-settings-card .image-settings-guide{background:transparent}
+#settingsView .image-settings-card [data-models]:empty{min-height:0}
+#settingsView .image-settings-card .model-actions{margin:6px 0}
+#settingsView .recognition-settings .speech-field{color:var(--theme-text)}
+#settingsView .page-card progress{max-width:100%}
