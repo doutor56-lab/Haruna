@@ -14,6 +14,12 @@ write('model-library.js',s=>s
  .replace('Excluir ${m.name}?','Remover ${m.name} da lista? O arquivo original será preservado.')
  .replace('Nenhum modelo instalado ainda.','Nenhum modelo GGUF importado ainda.')
 );
+// LocalStorage can reach its quota during long streamed chats. Keep the
+// conversation usable and warn instead of aborting message rendering.
+write('app.js',s=>s
+ .replace("localStorage.setItem(CHATS_KEY,JSON.stringify(chats));localStorage.setItem(MEMORY_KEY,JSON.stringify(memories.slice(-200)));", "try{localStorage.setItem(CHATS_KEY,JSON.stringify(chats));localStorage.setItem(MEMORY_KEY,JSON.stringify(memories.slice(-200)))}catch(error){window.harunaDesktopStorageWarning?.(error)}")
+ .replace("localStorage.setItem(CHATS_KEY,JSON.stringify(chats))}});", "try{localStorage.setItem(CHATS_KEY,JSON.stringify(chats))}catch(error){window.harunaDesktopStorageWarning?.(error)}}});")
+);
 write('learning-panel.js',s=>s.replace('next=prompt(', 'next=await window.harunaDesktopPrompt('));
 write('image-chat.js',s=>s.replace('button.onclick=()=>{try{','button.onclick=async ()=>{try{').replace("prompt('Descreva a imagem que deseja gerar:')","await window.harunaDesktopPrompt('Descreva a imagem que deseja gerar:')").replaceAll('modelo SD1.5','checkpoint SDXL').replaceAll("button('Compartilhar'", "button('Mostrar no Explorer'").replace("if(j.saveWarning){", "if(j.restoreWarning){const warning=document.createElement('small');warning.textContent=j.restoreWarning;bubble.append(warning)}if(j.saveWarning){"));
 fs.writeFileSync(path.join(dest,'image-models.js'),"import '/desktop/image-settings.js';\n");
