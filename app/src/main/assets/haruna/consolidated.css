@@ -18,3 +18,216 @@
 .image-dimensions[open]{width:min(360px,calc(100vw - 96px));max-height:min(68dvh,calc(var(--image-composer-top,80dvh) - 20px));font-size:13px}.image-panel-overview{grid-template-columns:minmax(62px,.8fr) minmax(0,1.2fr);gap:10px}.image-panel-body{padding:12px}.image-panel-heading{padding:10px;gap:7px}.image-panel-heading strong{font-size:14px}.image-panel-heading svg{width:20px;height:20px}.image-panel-heading [data-close]{min-width:28px}.image-dimensions .image-choice{gap:3px}.image-dimensions .image-choice button{font-size:11px;min-height:36px;padding:6px 2px}.image-dimensions select{padding:8px 5px}.image-panel-footer{padding:10px}.image-dimensions [data-panel-save]{font-size:14px}.image-dimensions .image-count{gap:7px}.image-count select{width:58px}
 .status-row #think{margin-left:auto;flex:0 0 36px;width:36px;height:36px;min-height:36px;border:0;background:transparent;color:#d1a8ff;border-radius:10px}.status-row #think.active{background:#8d43e42b}.status-row #think:focus-visible{outline:2px solid #bd85ff;outline-offset:2px}
 .image-dimensions[open]{max-height:min(68dvh,calc(var(--image-composer-top,80dvh) - var(--image-panel-top,100px) - 8px))}
+
+
+/* Reference chat layout: preserve original Haruna colors and components. */
+.topbar{position:relative}
+.haruna-voice-more{line-height:1;min-width:38px}
+.haruna-voice-menu{position:absolute;z-index:12;right:12px;top:calc(100% - 3px);width:min(290px,calc(100vw - 24px));padding:7px;border:1px solid #353b58;border-radius:16px;background:#121829;box-shadow:0 16px 35px #0009}
+.haruna-voice-menu[hidden]{display:none!important}
+.haruna-voice-menu button{display:flex;align-items:center;gap:12px;width:100%;min-height:46px;padding:9px 12px;border:0;border-radius:10px;background:transparent;color:#e8e7f4;text-align:left;font:inherit}
+.haruna-voice-menu button+button{border-top:1px solid #303650;border-radius:0}
+.haruna-voice-menu svg{width:20px;height:20px;flex:none}
+.haruna-message-actions{display:flex;align-items:center;gap:7px;margin-top:10px;padding-top:7px;border-top:1px solid #ffffff13;white-space:normal}
+.haruna-message-actions button{display:grid;place-items:center;width:35px;height:33px;border:1px solid #323b56;border-radius:11px;background:#151c2e;color:#c8c5de;line-height:1;cursor:pointer}
+.haruna-message-actions button:focus-visible,.haruna-voice-menu button:focus-visible{outline:2px solid #a17cff;outline-offset:2px}
+.msg.assistant .bubble{min-width:0}
+.msg.user .bubble{background:linear-gradient(135deg,#3a285c,#39245f);border-color:#8250c2;box-shadow:none}
+#generateImage{flex-shrink:0}
+@media(orientation:landscape) and (min-width:800px) and (min-height:350px){
+ .app:has(#chatView:not([hidden])) .drawer{position:absolute;inset:72px auto 65px 0;width:clamp(245px,27vw,350px);transform:none;z-index:2;border:1px solid #252d45;border-radius:18px;padding:14px;background:#0e1423;box-shadow:none;transition:none}
+ .app:has(#chatView:not([hidden])) .drawer #closeMenu{display:none}
+ .app:has(#chatView:not([hidden])) .scrim{display:none!important}
+ .app:has(#chatView:not([hidden])) #chatView{margin-left:clamp(253px,calc(27vw + 8px),358px);min-width:0}
+ .topbar{padding-top:6px;padding-bottom:6px}
+ .chat-view .messages{padding-top:8px;padding-bottom:8px;gap:10px}
+ .chat-view .status-row{padding:4px 10px;margin-top:0}
+ .chat-view .composer{padding:4px 6px;margin-bottom:3px}
+ .chat-view .footer-note{display:none}
+ .bottom-nav{grid-template-columns:repeat(4,minmax(0,1fr));padding-top:2px;padding-bottom:2px}
+ .bottom-nav .nav-item{min-height:42px;gap:0}
+ .bottom-nav .nav-item small{line-height:1.1}
+ .msg{max-width:92%}
+}
+@media(max-width:420px){
+ .haruna-message-actions button{width:32px;height:32px}
+ .composer{gap:5px}
+ #generateImage{width:38px;flex-basis:38px}
+}
+
+
+/* Settings polish: consistent spacing, hierarchy and compact model management. */
+#settingsView .page-card{border:1px solid var(--theme-stroke);border-radius:20px;background:var(--theme-surface);padding:16px;margin-bottom:14px;box-shadow:0 8px 24px rgba(0,0,0,.10)}
+#settingsView .section-title{margin-bottom:10px}
+#settingsView .section-title small,#settingsView .settings-note{color:var(--theme-muted);line-height:1.5}
+#settingsView .setting-row{gap:10px;padding:11px 0;border-color:var(--theme-stroke)}
+#settingsView button,#settingsView select,#settingsView input,#settingsView textarea{max-width:100%;box-sizing:border-box}
+#settingsView .model-actions{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
+#settingsView .model-actions button{min-height:36px;padding:7px 11px;border-radius:11px}
+#settingsView .page-card p{line-height:1.55;overflow-wrap:anywhere}
+.image-settings-card .image-settings-intro{color:var(--theme-muted);margin:4px 0 10px}
+.image-settings-card .image-settings-help{color:var(--theme-muted);margin:6px 0 14px}
+.image-settings-card .image-settings-subtitle{font-size:13px;font-weight:700;color:var(--theme-text);margin:15px 0 8px;padding-top:10px;border-top:1px solid var(--theme-stroke)}
+.image-settings-card .image-settings-help{font-size:11px}
+.image-settings-card .image-settings-intro,.image-settings-card label,.image-settings-card [data-preview-support],.image-settings-card [data-native-info]{font-size:12px}
+.image-settings-card [data-models] .setting-row{background:var(--theme-surface-2);border:1px solid var(--theme-stroke);border-radius:13px;padding:12px;margin:8px 0}
+.image-settings-card [data-models] .setting-row span{font-size:12px;color:var(--theme-text)}
+.image-settings-card [data-models] .model-actions button{min-height:32px;padding:6px 10px}
+.image-settings-card details{border:1px solid var(--theme-stroke);border-radius:12px;padding:10px;margin:10px 0}
+.image-settings-card details summary{color:var(--theme-accent-soft);cursor:pointer}
+.image-settings-card [data-chat-only-dimensions]{display:none!important}
+
+
+/* Shared compact presentation for settings; no model or engine behavior changes. */
+#settingsView{padding-bottom:24px}
+#settingsView .page-head{margin-bottom:16px}
+#settingsView .page-card .section-title strong{color:var(--theme-text)}
+#settingsView .page-card .section-title small{display:block;margin-top:4px}
+#settingsView .page-card .setting-row strong{overflow-wrap:anywhere}
+#settingsView .page-card .settings-note{margin:8px 0}
+#settingsView .page-card .model-list{min-width:0}
+#settingsView .page-card .model-list>*{max-width:100%}
+#settingsView .page-card .speech-field{display:block;margin:10px 0}
+#settingsView .page-card .speech-field select{width:100%;margin-top:6px}
+#settingsView .recognition-settings [data-stt-models] .setting-row{background:var(--theme-surface-2);border:1px solid var(--theme-stroke);border-radius:12px;padding:10px;margin:8px 0}
+#settingsView .recognition-settings [data-progress]{color:var(--theme-muted)}
+#settingsView .recognition-settings .speech-actions{display:flex;flex-wrap:wrap;gap:8px}
+#settingsView .recognition-settings .speech-actions button{flex:1 1 140px}
+#settingsView .image-settings-guide,#settingsView .settings-guide{border:1px solid var(--theme-stroke);border-radius:12px;padding:10px 12px;margin:10px 0;background:var(--theme-surface-2)}
+#settingsView .image-settings-guide summary,#settingsView .settings-guide summary{cursor:pointer;color:var(--theme-accent-soft);font-weight:600}
+#settingsView .image-settings-guide[open] summary,#settingsView .settings-guide[open] summary{margin-bottom:8px}
+#settingsView .image-settings-card [data-state]{color:var(--theme-muted)}
+#settingsView .image-settings-card [data-progress],#settingsView .recognition-settings [data-progress-bar]{width:100%}
+#settingsView .image-settings-card [data-models] .model-actions{align-items:center}
+#settingsView .page-card .danger{border-color:var(--danger)}
+@media(max-width:480px){
+ #settingsView .page-card{padding:13px;border-radius:16px}
+ #settingsView .model-actions button{flex:1 1 auto}
+ #settingsView .image-settings-card [data-models] .model-actions button{flex:1 1 42%}
+}
+
+/* Keep controls consistent across dark/light themes and small screens. */
+#settingsView .page-card{color:var(--theme-text)}
+#settingsView .page-card button:not(.danger){color:var(--theme-text);border-color:var(--theme-stroke)}
+#settingsView .page-card select,#settingsView .page-card input,#settingsView .page-card textarea{color:var(--theme-text);background:var(--control-bg);border-color:var(--theme-stroke)}
+#settingsView .page-card .setting-row span{color:var(--theme-muted)}
+#settingsView .page-card .section-title strong{line-height:1.35}
+#settingsView .page-card .section-title small{line-height:1.5}
+#settingsView .page-card .model-actions button{white-space:normal;overflow-wrap:anywhere;text-align:center}
+#settingsView .page-card details summary{line-height:1.5}
+#settingsView .page-card [hidden]{display:none!important}
+@media(max-width:480px){
+ #settingsView .page-card .model-actions{gap:7px}
+ #settingsView .page-card .model-actions button{min-width:0}
+}
+
+/* Minimal settings hierarchy: primary actions first, advanced details on demand. */
+#settingsView .image-settings-card .image-settings-subtitle:first-of-type{margin-top:8px}
+#settingsView .image-settings-card .image-settings-advanced{margin:14px 0 10px;background:var(--theme-surface-2);border:1px solid var(--theme-stroke);border-radius:14px;padding:12px}
+#settingsView .image-settings-card .image-settings-advanced>summary{color:var(--theme-text);font-weight:650;cursor:pointer}
+#settingsView .image-settings-card .image-settings-advanced[open]>summary{padding-bottom:12px;border-bottom:1px solid var(--theme-stroke);margin-bottom:10px}
+#settingsView .image-settings-card .image-settings-advanced .image-settings-subtitle{display:none}
+#settingsView .image-settings-card .image-settings-guide{background:transparent}
+#settingsView .image-settings-card [data-models]:empty{min-height:0}
+#settingsView .image-settings-card .model-actions{margin:6px 0}
+#settingsView .recognition-settings .speech-field{color:var(--theme-text)}
+#settingsView .page-card progress{max-width:100%}
+
+/* Haruna visual refresh: a single token-driven design language across views. */
+:root{--haruna-radius:18px;--haruna-radius-sm:12px;--haruna-space:14px;--haruna-line:var(--theme-stroke);--haruna-card:var(--theme-surface);--haruna-subtle:var(--theme-surface-2)}
+.app{color:var(--theme-text)}
+.app .page-view{min-width:0}
+.app .page-view .page-head{margin:2px 0 18px}
+.app .page-view .page-head h2{color:var(--theme-text);letter-spacing:-.025em;line-height:1.2}
+.app .page-view .page-head p{color:var(--theme-muted);line-height:1.5;margin-top:5px}
+.app .page-view .page-card{background:var(--haruna-card);color:var(--theme-text);border:1px solid var(--haruna-line);border-radius:var(--haruna-radius);padding:16px;margin-bottom:14px;box-shadow:0 5px 18px var(--theme-shadow);min-width:0}
+.app .page-view .page-card .section-title{margin-bottom:12px}
+.app .page-view .page-card .section-title strong{color:var(--theme-text);letter-spacing:-.01em;line-height:1.35}
+.app .page-view .page-card .section-title small{color:var(--theme-muted);line-height:1.45;display:block;margin-top:4px}
+.app .page-view .page-card .settings-note{color:var(--theme-muted);line-height:1.5}
+.app .page-view .page-card .setting-row{border-color:var(--haruna-line)}
+.app .page-view .page-card button{border-radius:var(--haruna-radius-sm);transition:background-color .15s ease,border-color .15s ease,transform .15s ease}
+.app .page-view .page-card button:active:not(:disabled){transform:scale(.985)}
+.app .page-view .page-card button:focus-visible,.app .page-view .page-card summary:focus-visible{outline:2px solid var(--theme-accent);outline-offset:3px}
+.app .page-view .page-card select,.app .page-view .page-card textarea,.app .page-view .page-card input:not([type=checkbox]):not([type=radio]):not([type=range]){max-width:100%;min-width:0;box-sizing:border-box;border-radius:var(--haruna-radius-sm);background:var(--control-bg);color:var(--theme-text);border-color:var(--haruna-line)}
+.app .page-view .page-card .model-list,.app .page-view .page-card .memory-items{min-width:0}
+.app .page-view .page-card .model-list>*{overflow-wrap:anywhere}
+.app .page-view .page-card .model-actions{display:flex;gap:8px;flex-wrap:wrap}
+.app .page-view .page-card .model-actions button{min-height:40px;max-width:100%;white-space:normal}
+.app .page-view .settings-guide{border:1px solid var(--haruna-line);border-radius:var(--haruna-radius-sm);background:var(--haruna-subtle);padding:11px 12px;margin:12px 0}
+.app .page-view .settings-guide summary{color:var(--theme-accent-soft);cursor:pointer;font-weight:600}
+.app .page-view .settings-guide[open] summary{margin-bottom:9px}
+.app .page-view .knowledge-types{gap:10px}
+.app .page-view .knowledge-card{border-radius:var(--haruna-radius-sm);border-color:var(--haruna-line);min-width:0}
+.app .page-view .knowledge-card small{color:var(--theme-muted);line-height:1.4}
+.app .page-view .theme-choice{gap:8px}
+.app .page-view .theme-choice button{min-width:0}
+.app .page-view .import-progress{border-radius:var(--haruna-radius-sm)}
+.app .page-view [hidden]{display:none!important}
+.app .bottom-nav{background:var(--theme-surface);border-color:var(--theme-stroke)}
+.app .bottom-nav .nav-item{border-radius:12px}
+.app .bottom-nav .nav-item small{letter-spacing:.005em}
+.app .topbar{border-color:var(--theme-stroke)}
+.app .chat-view .composer{border-color:var(--theme-stroke)}
+.app .chat-view .footer-note{color:var(--theme-muted)}
+@media(max-width:480px){
+ .app .page-view .page-card{padding:14px;border-radius:16px}
+ .app .page-view .knowledge-types{grid-template-columns:minmax(0,1fr)}
+ .app .page-view .theme-choice{flex-wrap:wrap}
+ .app .page-view .theme-choice button{flex:1 1 95px}
+ .app .page-view .page-card .model-actions button{flex:1 1 130px}
+}
+@media(prefers-reduced-motion:reduce){
+ .app .page-view .page-card button{transition:none}
+}
+
+/* Design pass 2: chat is the primary surface. Reuse existing theme tokens. */
+.app .topbar{border-bottom:1px solid var(--theme-stroke);box-shadow:none}
+.app .brand{min-width:0}
+.app .brand h1{letter-spacing:-.035em}
+.app .chat-view .status-row{background:transparent;border-color:var(--theme-stroke);box-shadow:none;min-width:0;overflow:hidden}
+.app .chat-view .status-row #brain,.app .chat-view .status-row #modelName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app .chat-view .messages{scrollbar-width:thin;gap:14px}
+.app .chat-view .bubble{box-shadow:none;border-color:var(--theme-stroke);overflow-wrap:anywhere}
+.app .chat-view .assistant .bubble{background:var(--theme-surface)}
+.app .chat-view .user .bubble{border-color:transparent}
+.app .chat-view .composer{background:var(--theme-surface);border:1px solid var(--theme-stroke);box-shadow:0 5px 20px var(--theme-shadow);min-width:0}
+.app .chat-view .composer:focus-within{border-color:var(--theme-accent)}
+.app .chat-view .composer textarea{min-width:0}
+.app .chat-view .composer .attach,.app .chat-view .composer .voice-input{border-radius:10px}
+.app .chat-view .footer-note{opacity:.6}
+.app .drawer{background:var(--theme-surface);color:var(--theme-text)}
+.app .drawer .search{background:var(--control-bg);border-color:var(--theme-stroke)}
+.app .drawer .chat-list{min-width:0}
+.app .bottom-nav .nav-item.active{background:var(--selection);color:var(--theme-accent-soft)}
+.app .bottom-nav .nav-item.active:after{box-shadow:none}
+@media(max-width:480px){
+ .app .chat-view .status-row{margin-left:12px;margin-right:12px;padding:7px 9px}
+ .app .chat-view .messages{padding-left:12px;padding-right:12px}
+ .app .chat-view .composer{margin-left:10px;margin-right:10px}
+}
+
+/* Settings, memory and library share the same compact component vocabulary. */
+.app #settingsView .page-card,.app #memoryView .page-card,.app #libraryView .page-card{box-shadow:none}
+.app #settingsView .page-card .section-title,.app #memoryView .page-card .section-title{padding-bottom:10px;border-bottom:1px solid var(--theme-stroke)}
+.app #settingsView .setting-row:last-child,.app #memoryView .setting-row:last-child{border-bottom:0}
+.app #settingsView .image-settings-card .image-settings-intro{margin:0 0 8px;color:var(--theme-muted)}
+.app #settingsView .image-settings-card .image-settings-subtitle{border-top:0;padding-top:0}
+.app #settingsView .image-settings-card .image-settings-advanced{margin-top:12px}
+.app #settingsView .image-settings-card .image-settings-guide{margin-top:8px}
+.app #settingsView .recognition-settings .speech-actions button{min-width:0}
+.app #memoryView .knowledge-import-card .knowledge-types{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.app #memoryView .knowledge-import-card .knowledge-card{min-width:0;text-align:left;background:var(--theme-surface-2);border:1px solid var(--theme-stroke);padding:12px}
+.app #memoryView .knowledge-import-card .knowledge-card.active{border-color:var(--theme-accent);background:var(--selection)}
+.app #memoryView .knowledge-import-card .knowledge-card strong{color:var(--theme-text)}
+.app #memoryView .knowledge-import-card .knowledge-card small{color:var(--theme-muted)}
+.app #memoryView .saved-memories-card .memory-items{min-width:0}
+.app #memoryView .saved-memories-card .memory-items>*{overflow-wrap:anywhere}
+.app #memoryView .permanent-learning-card .model-list>*{overflow-wrap:anywhere}
+.app #libraryView .page-head{margin-bottom:12px}
+.app #libraryView .page-card,.app #libraryView .model-list>*{min-width:0}
+.app #libraryView .page-card button{min-height:40px}
+@media(max-width:480px){
+ .app #memoryView .knowledge-import-card .knowledge-types{grid-template-columns:minmax(0,1fr)}
+ .app #memoryView .knowledge-import-card .knowledge-card{padding:12px}
+}

@@ -17,8 +17,10 @@ const phone=document.createElement('button');phone.type='button';phone.className
 const dictation=document.createElement('div');dictation.className='speech-player dictation-control';dictation.style.display='none';dictation.hidden=true;
 const dictationLabel=document.createElement('span'),finish=document.createElement('button'),cancel=document.createElement('button');finish.type=cancel.type='button';finish.textContent='Concluir';cancel.textContent='Cancelar';dictation.append(dictationLabel,finish,cancel);composer?.before(dictation);
 const settings=document.createElement('div');settings.className='page-card recognition-settings';
-settings.innerHTML='<div class="section-title"><div><strong>Escrita e conversa por voz</strong><small>Reconhecimento local • português • áudio no dispositivo</small></div></div><div class="setting-row"><span>Reconhecimento</span><strong data-state>Não instalado</strong></div><div data-stt-models class="model-list"></div><label class="speech-field">Modelo para baixar<select data-download-model aria-label="Modelo STT para baixar"><option value="whisper-tiny-int8">Whisper Tiny</option><option value="whisper-base-int8">Whisper Base</option><option value="whisper-small-int8">Whisper Small</option></select></label><p class="settings-note" data-progress aria-live="polite"></p><progress data-progress-bar max="100" hidden></progress><p class="settings-note">O ditado preenche o rascunho para revisão. A chamada conversa por turnos e envia suas falas ao chat. O microfone pausa durante a resposta. Cada fala pode ter até 20 segundos; uma pausa encerra o trecho.</p><div class="model-actions speech-actions"><button data-download>Baixar reconhecimento</button><button data-import>Importar modelo do dispositivo</button><button data-cancel hidden>Cancelar instalação</button><button data-remove class="danger" hidden>Remover reconhecimento</button></div>';
-document.querySelector('#settingsView')?.appendChild(settings);
+settings.innerHTML='<div class="section-title"><div><strong>Escrita e conversa por voz</strong><small>Reconhecimento local • português • áudio no dispositivo</small></div></div><div class="setting-row"><span>Reconhecimento</span><strong data-state>Não instalado</strong></div><div data-stt-models class="model-list"></div><label class="speech-field">Modelo para baixar<select data-download-model aria-label="Modelo STT para baixar"><option value="whisper-tiny-int8">Whisper Tiny</option><option value="whisper-base-int8">Whisper Base</option><option value="whisper-small-int8">Whisper Small</option></select></label><p class="settings-note" data-progress aria-live="polite"></p><progress data-progress-bar max="100" hidden></progress><details class="settings-guide"><summary>Como funciona o reconhecimento de voz</summary><p class="settings-note">O ditado preenche o rascunho para revisão. A chamada conversa por turnos e envia suas falas ao chat. O microfone pausa durante a resposta. Cada fala pode ter até 20 segundos; uma pausa encerra o trecho.</p></details><div class="model-actions speech-actions"><button data-download>Baixar reconhecimento</button><button data-import>Importar modelo do dispositivo</button><button data-cancel hidden>Cancelar instalação</button><button data-remove class="danger" hidden>Remover reconhecimento</button></div>';
+const settingsView=document.querySelector('#settingsView');
+const privacyCard=[...(settingsView?.querySelectorAll(':scope > .page-card')||[])].find(el=>el.querySelector('.section-title strong')?.textContent.trim()==='Privacidade e armazenamento');
+if(settingsView){if(privacyCard)settingsView.insertBefore(settings,privacyCard);else settingsView.appendChild(settings)}
 const q=s=>settings.querySelector(s);
 function current(){const s=chat()?.state();if(!s)throw new Error('O chat ainda está iniciando.');return s}
 function refresh(){try{update(parse(native()?.getStatus()||'{}'))}catch(error){q('[data-progress]').textContent=error.message}}
@@ -181,6 +183,29 @@ document.addEventListener('visibilitychange',()=>{document.documentElement.class
 window.addEventListener('haruna-call-stop',endVoice);
 window.addEventListener('pagehide',endVoice);
 document.addEventListener('click',e=>{const button=e.target.closest('button');if(button?.classList.contains('nav-item')&&button.dataset.view!=='chat'&&localCall)localCall.view.minimize();if(button?.id==='attach')endVoice()},true);
-const shortcuts=document.createElement('div');shortcuts.className='voice-shortcuts';shortcuts.innerHTML=`<button type="button" data-call>${voiceIcon('phone')}Chamada de voz</button><button type="button" data-voice-config>${voiceIcon('settings')}Configurar voz</button>`;composer?.before(shortcuts);shortcuts.querySelector('[data-call]').onclick=()=>phone.click();shortcuts.querySelector('[data-voice-config]').onclick=openVoiceSettings;
+// The phone remains the primary call action; voice options live in a discreet menu.
+const voiceMenu=document.createElement('div');
+voiceMenu.className='haruna-voice-menu';
+voiceMenu.hidden=true;
+voiceMenu.innerHTML=`<button type="button" data-call>${voiceIcon('phone')}Iniciar conversa por voz</button><button type="button" data-voice-config>${voiceIcon('settings')}Configurar voz</button>`;
+const voiceMore=document.createElement('button');
+voiceMore.type='button';
+voiceMore.className='ghost haruna-voice-more';
+voiceMore.setAttribute('aria-label','Mais opções de voz');
+voiceMore.setAttribute('aria-expanded','false');
+voiceMore.textContent='⋮';
+document.querySelector('.topbar .actions')?.append(voiceMore);
+document.querySelector('.topbar')?.append(voiceMenu);
+const toggleVoiceMenu=(open)=>{voiceMenu.hidden=!open;voiceMore.setAttribute('aria-expanded',String(open))};
+voiceMore.onclick=()=>toggleVoiceMenu(voiceMenu.hidden);
+voiceMenu.querySelector('[data-call]').onclick=()=>{toggleVoiceMenu(false);phone.click()};
+voiceMenu.querySelector('[data-voice-config]').onclick=()=>{toggleVoiceMenu(false);openVoiceSettings()};
+phone.addEventListener('contextmenu',event=>{event.preventDefault();toggleVoiceMenu(true)});
+let voiceHold=null,held=false;
+phone.addEventListener('pointerdown',event=>{if(event.pointerType==='mouse')return;held=false;clearTimeout(voiceHold);voiceHold=setTimeout(()=>{held=true;toggleVoiceMenu(true)},550)});
+for(const type of ['pointerup','pointercancel','pointerleave'])phone.addEventListener(type,()=>clearTimeout(voiceHold));
+phone.addEventListener('click',event=>{if(!held)return;event.stopImmediatePropagation();held=false},true);
+document.addEventListener('click',event=>{if(!voiceMenu.hidden&&!voiceMenu.contains(event.target)&&event.target!==voiceMore&&event.target!==phone)toggleVoiceMenu(false)});
+
 refresh();
 
