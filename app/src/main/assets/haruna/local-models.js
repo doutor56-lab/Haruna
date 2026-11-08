@@ -46,6 +46,25 @@ if(settings&&host){
     if(/^SmolVLM-500M\s*[·-]\s*CPU\s*[·-]/i.test(value))paragraph.hidden=true;
    }
   }
+  // Reuse the original native voice widgets; decorate them without duplicating
+  // controls or replacing their event handlers.
+  for(const card of voice.querySelectorAll('.recognition-settings,.speech-settings')){
+   card.classList.add('haruna-voice-model-card');
+   const isStt=card.matches('.recognition-settings');
+   card.dataset.voiceKind=isStt?'stt':'tts';
+   if(!card.querySelector(':scope > .haruna-voice-heading')){
+    const heading=document.createElement('div');
+    heading.className='haruna-voice-heading';
+    const symbol=document.createElement('span');
+    symbol.className='haruna-voice-symbol';
+    symbol.setAttribute('aria-hidden','true');
+    symbol.textContent=isStt?'♩':'♫';
+    const label=document.createElement('strong');
+    label.textContent=isStt?'Reconhecimento de voz':'Síntese de voz';
+    heading.append(symbol,label);
+    card.prepend(heading);
+   }
+  }
   emptyImage.hidden=!!images.querySelector(imageSelector);
   emptyVoice.hidden=!!voice.querySelector(voiceSelector);
   // Keep voice model controls in one destination; no duplicate navigation shortcuts.
