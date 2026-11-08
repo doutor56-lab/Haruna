@@ -132,3 +132,51 @@
 #settingsView .image-settings-card .model-actions{margin:6px 0}
 #settingsView .recognition-settings .speech-field{color:var(--theme-text)}
 #settingsView .page-card progress{max-width:100%}
+
+/* Haruna visual refresh: a single token-driven design language across views. */
+:root{--haruna-radius:18px;--haruna-radius-sm:12px;--haruna-space:14px;--haruna-line:var(--theme-stroke);--haruna-card:var(--theme-surface);--haruna-subtle:var(--theme-surface-2)}
+.app{color:var(--theme-text)}
+.app .page-view{min-width:0}
+.app .page-view .page-head{margin:2px 0 18px}
+.app .page-view .page-head h2{color:var(--theme-text);letter-spacing:-.025em;line-height:1.2}
+.app .page-view .page-head p{color:var(--theme-muted);line-height:1.5;margin-top:5px}
+.app .page-view .page-card{background:var(--haruna-card);color:var(--theme-text);border:1px solid var(--haruna-line);border-radius:var(--haruna-radius);padding:16px;margin-bottom:14px;box-shadow:0 5px 18px var(--theme-shadow);min-width:0}
+.app .page-view .page-card .section-title{margin-bottom:12px}
+.app .page-view .page-card .section-title strong{color:var(--theme-text);letter-spacing:-.01em;line-height:1.35}
+.app .page-view .page-card .section-title small{color:var(--theme-muted);line-height:1.45;display:block;margin-top:4px}
+.app .page-view .page-card .settings-note{color:var(--theme-muted);line-height:1.5}
+.app .page-view .page-card .setting-row{border-color:var(--haruna-line)}
+.app .page-view .page-card button{border-radius:var(--haruna-radius-sm);transition:background-color .15s ease,border-color .15s ease,transform .15s ease}
+.app .page-view .page-card button:active:not(:disabled){transform:scale(.985)}
+.app .page-view .page-card button:focus-visible,.app .page-view .page-card summary:focus-visible{outline:2px solid var(--theme-accent);outline-offset:3px}
+.app .page-view .page-card select,.app .page-view .page-card textarea,.app .page-view .page-card input:not([type=checkbox]):not([type=radio]):not([type=range]){max-width:100%;min-width:0;box-sizing:border-box;border-radius:var(--haruna-radius-sm);background:var(--control-bg);color:var(--theme-text);border-color:var(--haruna-line)}
+.app .page-view .page-card .model-list,.app .page-view .page-card .memory-items{min-width:0}
+.app .page-view .page-card .model-list>*{overflow-wrap:anywhere}
+.app .page-view .page-card .model-actions{display:flex;gap:8px;flex-wrap:wrap}
+.app .page-view .page-card .model-actions button{min-height:40px;max-width:100%;white-space:normal}
+.app .page-view .settings-guide{border:1px solid var(--haruna-line);border-radius:var(--haruna-radius-sm);background:var(--haruna-subtle);padding:11px 12px;margin:12px 0}
+.app .page-view .settings-guide summary{color:var(--theme-accent-soft);cursor:pointer;font-weight:600}
+.app .page-view .settings-guide[open] summary{margin-bottom:9px}
+.app .page-view .knowledge-types{gap:10px}
+.app .page-view .knowledge-card{border-radius:var(--haruna-radius-sm);border-color:var(--haruna-line);min-width:0}
+.app .page-view .knowledge-card small{color:var(--theme-muted);line-height:1.4}
+.app .page-view .theme-choice{gap:8px}
+.app .page-view .theme-choice button{min-width:0}
+.app .page-view .import-progress{border-radius:var(--haruna-radius-sm)}
+.app .page-view [hidden]{display:none!important}
+.app .bottom-nav{background:var(--theme-surface);border-color:var(--theme-stroke)}
+.app .bottom-nav .nav-item{border-radius:12px}
+.app .bottom-nav .nav-item small{letter-spacing:.005em}
+.app .topbar{border-color:var(--theme-stroke)}
+.app .chat-view .composer{border-color:var(--theme-stroke)}
+.app .chat-view .footer-note{color:var(--theme-muted)}
+@media(max-width:480px){
+ .app .page-view .page-card{padding:14px;border-radius:16px}
+ .app .page-view .knowledge-types{grid-template-columns:minmax(0,1fr)}
+ .app .page-view .theme-choice{flex-wrap:wrap}
+ .app .page-view .theme-choice button{flex:1 1 95px}
+ .app .page-view .page-card .model-actions button{flex:1 1 130px}
+}
+@media(prefers-reduced-motion:reduce){
+ .app .page-view .page-card button{transition:none}
+}
