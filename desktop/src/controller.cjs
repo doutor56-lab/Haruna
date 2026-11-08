@@ -22,7 +22,7 @@ class Controller{
  async register(file,kind){if(this.maintenance||this.image.busy||this.request)throw Error('Aguarde a operação atual.');this.maintenance=true;try{
   const info=await(kind==='image'?inspectSdxl(file):inspectGguf(file));const absolute=path.resolve(file);let m=this.models.find(m=>m.file===absolute&&m.kind===kind);
   if(!m){m={id:crypto.randomUUID(),kind,file:absolute,name:path.basename(file).replace(/\.(safetensors|gguf)$/i,'').slice(0,100),...info};delete m.metadata;this.models.push(m);}else Object.assign(m,info);
-  if(kind==='image'&&!this.selected)this.selected=m.id;if(kind==='llm'&&!this.primary)this.primary=m.id;this.save();this.emit({type:'model_import',phase:'completed',name:m.name});return m;
+  if(kind==='image'&&!this.selected)this.selected=m.id;if(kind==='llm'&&!this.primary)this.primary=m.id;this.save();this.emit({type:'model_import',phase:kind==='llm'?'importing':'completed',name:m.name});return m;
  }finally{this.maintenance=false;this.emit();}}
  configure(p){if(this.image.busy||this.maintenance)throw Error('Aguarde a operação atual.');this.settings=config.validate(p);this.save();this.emit();}
  select(id){this.model(id,'image');if(this.image.busy||this.maintenance)throw Error('Aguarde a geração atual.');this.selected=id;this.save();this.emit();}
