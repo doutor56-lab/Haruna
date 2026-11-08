@@ -35,14 +35,14 @@ class Controller{
   const key=crypto.randomBytes(32).toString('hex');this.apiKey=key;
   this.server=this.launch(this.exe('llm'),['--model',m.file,'--host','127.0.0.1','--port',String(port),'--api-key',key,'--ctx-size','8192','--threads','2','--threads-batch','6','--n-gpu-layers','0','--parallel','1','--no-webui']);
   this.server.child.stdout.resume();this.server.child.stderr.resume();let exited=false;const owned=this.server;
-  const observeExit=()=>{exited=true;if(this.server===owned&&!owned.expectedExit){this.abort?.abort();this.server=null;this.port=null;this.loaded=null;this.llm={...this.llm,modelLoaded:false,state:'error',error:'O processo LLM encerrou. Carregue o modelo novamente.'};this.emit();}};owned.done.then(observeExit,observeExit);
+  const observeExit=()=>{exited=true;if(this.server===owned&&!owned.expectedExit){this.runtimeCrashed=true;this.abort?.abort();this.server=null;this.port=null;this.loaded=null;this.llm={...this.llm,modelLoaded:false,state:'error',error:'O processo LLM encerrou. Carregue o modelo novamente.'};this.emit();}};owned.done.then(observeExit,observeExit);
   for(let i=0;i<600;i++){if(this.closed||exited)throw Error('O modelo não pôde ser carregado pelo llama.cpp.');try{const r=await fetch(`http://127.0.0.1:${port}/health`,{headers:{Authorization:`Bearer ${key}`},signal:AbortSignal.timeout(1500)});if(r.ok){this.port=port;this.loaded=id;this.llm={...this.llm,modelLoaded:true,state:'active',modelName:m.name,error:null};this.emit({type:'model_import',phase:'ready',name:m.name});return;}}catch{}await wait(200);}
   throw Error('Tempo de carregamento excedido.');
  }catch(e){await this.unload();this.llm={...this.llm,state:'error',error:e.message};this.emit({type:'model_import',phase:'error',error:e.message});throw e;}finally{this.maintenance=false;}}
  generate(payload){if(this.closed||this.maintenance||this.image.busy||this.request||!this.port||!this.llm.modelLoaded)throw Error('Carregue um GGUF e aguarde a operação atual.');if(!payload||typeof payload.requestId!=='string'||!payload.requestId.trim()||payload.requestId.length>120||!Array.isArray(payload.messages)||payload.messages.length>128)throw Error('Solicitação inválida.');
   const messages=payload.messages.map(m=>{if(!['user','assistant','system'].includes(m.role)||typeof m.content!=='string'||m.content.length>60000)throw Error('Mensagem inválida.');return{role:m.role,content:m.content};});
   if(messages.reduce((n,m)=>n+m.content.length,0)>200000)throw Error('Contexto muito grande.');
-  const id=payload.requestId,abort=new AbortController();this.abort=abort;this.request=id;this.llm.state='generating';this.emit();
+  const id=payload.requestId,abort=new AbortController();this.runtimeCrashed=false;this.abort=abort;this.request=id;this.llm.state='generating';this.emit();
   this.runChat(id,messages,payload.options||{},abort).catch(()=>{});return true;
  }
  async runChat(id,messages,options,abort){let seq=0;const send=(delta,final)=>this.emit({type:'stream',requestId:id,sequence:++seq,delta,...(final?{final}:{})});try{
@@ -54,7 +54,7 @@ class Controller{
   for await(const chunk of response.body){if(this.closed||this.request!==id)break;pending+=decoder.decode(chunk,{stream:true});if(pending.length>262144)throw Error('Stream nativo inválido.');const lines=pending.split('\n');pending=lines.pop();for(const line of lines){if(!line.startsWith('data:'))continue;const data=line.slice(5).trim();if(!data)continue;if(data==='[DONE]'){seenFinal=true;continue;}const event=JSON.parse(data);if(event.choices?.[0]?.finish_reason)seenFinal=true;const text=event.choices?.[0]?.delta?.content;if(typeof text==='string'&&text)send(text);}}
   if(!seenFinal&&!abort.signal.aborted)throw Error('O runtime encerrou a resposta sem finalização.');
   send('',abort.signal.aborted?{type:'error',code:'cancelled',message:'Geração cancelada.'}:{type:'completed'});
- }catch(e){send('',{type:'error',code:abort.signal.aborted?'cancelled':'generation_failed',message:abort.signal.aborted?'Geração cancelada.':e.message});}
+ }catch(e){const crashed=this.runtimeCrashed;send('',{type:'error',code:crashed?'runtime_crashed':abort.signal.aborted?'cancelled':'generation_failed',message:crashed?'O motor GGUF encerrou inesperadamente. Carregue o modelo novamente.':abort.signal.aborted?'Geração cancelada.':e.message});}
  finally{if(this.request===id){this.request=null;this.abort=null;this.llm.state=this.llm.modelLoaded?'active':this.llm.error?'error':'not_loaded';this.emit();}}
  }
  cancelChat(id){if(this.request===id)this.abort?.abort();}
