@@ -22,6 +22,20 @@ write('app.js',s=>s
 );
 write('learning-panel.js',s=>s.replace('next=prompt(', 'next=await window.harunaDesktopPrompt('));
 write('image-chat.js',s=>s.replace('button.onclick=()=>{try{','button.onclick=async ()=>{try{').replace("prompt('Descreva a imagem que deseja gerar:')","await window.harunaDesktopPrompt('Descreva a imagem que deseja gerar:')").replaceAll('modelo SD1.5','checkpoint SDXL').replaceAll("button('Compartilhar'", "button('Mostrar no Explorer'").replace("if(j.saveWarning){", "if(j.restoreWarning){const warning=document.createElement('small');warning.textContent=j.restoreWarning;bubble.append(warning)}if(j.saveWarning){"));
+// The image module can evaluate before the chat's dependency graph finishes.
+// Mount it after chat initialization, without changing Android sources.
+write('app.js',s=>{
+ const anchor='window.__HARUNA_CHAT_READY__=true;';
+ if(!s.includes(anchor))throw Error('Haruna chat-ready anchor not found.');
+ return s.replace(anchor,anchor+"window.dispatchEvent(new Event('haruna-chat-ready'));");
+});
+write('image-chat.js',s=>{
+ const replace=(oldText,newText)=>{if(!s.includes(oldText))throw Error('Image bridge anchor not found: '+oldText);s=s.replace(oldText,newText);};
+ replace('const api=window.HarunaImages,chat=window.harunaChatImages;','const api=window.HarunaImages;');
+ replace('if(api&&chat){',"function mountImageChat(){const chat=window.harunaChatImages;if(!api||!chat||document.getElementById('generateImage'))return false;");
+ if(!/\}\s*$/.test(s))throw Error('Image bridge closing block not found.');
+ return s.replace(/\}\s*$/,"return true;\n}\nif(window.__HARUNA_CHAT_READY__)mountImageChat();\nelse window.addEventListener('haruna-chat-ready',mountImageChat,{once:true});\n");
+});
 fs.writeFileSync(path.join(dest,'image-models.js'),"import '/desktop/image-settings.js';\n");
 
 // Overlay only approved visual styles from the Android UI refresh.
