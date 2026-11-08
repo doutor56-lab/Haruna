@@ -43,3 +43,43 @@
 @media(prefers-reduced-motion:reduce){
  .app .chat-view .composer button{transition:none}
 }
+
+/* Conversation history: a compact, readable navigation surface. */
+.app .drawer{min-width:0;max-width:100vw;overflow:hidden;gap:10px}
+.app .drawer .drawer-head{min-width:0;gap:8px}
+.app .drawer .drawer-head>div:first-child{min-width:0}
+.app .drawer .drawer-head strong{font-size:17px;letter-spacing:-.02em}
+.app .drawer .drawer-head-actions{flex:none}
+.app .drawer .drawer-head-actions button,.app .drawer .chat-selection-bar button{min-height:40px}
+.app .drawer .search{min-width:0;flex:none;border-radius:12px}
+.app .drawer .search:focus-within{border-color:var(--theme-accent)}
+.app .drawer .search input{min-width:0;font:inherit}
+.app .drawer .chat-list{min-width:0;overflow-x:hidden;overscroll-behavior:contain}
+.app .drawer .chat-row{min-width:0;align-items:center;gap:3px;margin:2px 0;border:1px solid transparent}
+.app .drawer .chat-row.pinned{border-color:var(--theme-stroke)}
+.app .drawer .chat-item{min-width:0;min-height:58px;padding:9px 10px;gap:8px}
+.app .drawer .chat-item-copy{min-width:0}
+.app .drawer .chat-item-copy strong{font-size:13px;line-height:1.4}
+.app .drawer .chat-item-copy small{font-size:11px;line-height:1.4}
+.app .drawer .chat-quick-actions{flex:none;gap:1px;padding-right:4px}
+.app .drawer .chat-mini{display:grid;place-items:center;width:32px;height:40px;min-width:32px;border-radius:9px;touch-action:manipulation}
+.app .drawer .chat-mini:hover,.app .drawer .chat-mini:focus-visible{background:var(--selection);color:var(--theme-text)}
+.app .drawer button:focus-visible{outline:2px solid var(--theme-accent);outline-offset:2px}
+.app .drawer .chat-selection-bar{min-width:0;flex-wrap:wrap;gap:4px}
+.app .drawer .chat-selection-bar strong{min-width:75px}
+.app .drawer .chat-delete-bar{flex:none}
+.app .drawer .drawer-foot{margin-top:auto;min-width:0}
+.app .drawer .drawer-foot>div{min-width:0}
+.app .drawer .drawer-foot small{overflow-wrap:anywhere}
+.app .chat-view .haruna-message-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.app .chat-view .haruna-message-actions button{min-width:36px;min-height:36px;touch-action:manipulation}
+@media(max-width:480px){
+ .app .drawer{width:min(92vw,360px);padding-left:12px;padding-right:12px}
+ .app .drawer .chat-row{gap:2px}
+ .app .drawer .chat-item{padding:8px;min-height:54px}
+ .app .drawer .chat-quick-actions{gap:0;padding-right:2px}
+ .app .drawer .chat-mini{width:30px;min-width:30px}
+}
+@media(prefers-reduced-motion:reduce){
+ .app .drawer{transition:none}
+}
