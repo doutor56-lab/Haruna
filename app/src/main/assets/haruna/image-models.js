@@ -9,10 +9,11 @@ if(api&&settings){
  const addAction=card.querySelector('[data-add]')?.parentElement;
  const cancelAction=card.querySelector('[data-cancel]')?.parentElement;
  const guide=card.querySelector('.image-settings-guide');
- const advanced=document.createElement('details');
+ const advanced=document.createElement('section');
  advanced.className='image-settings-advanced';
- const advancedTitle=document.createElement('summary');
- advancedTitle.textContent='Preferências de geração';advanced.open=true;
+ const advancedTitle=document.createElement('h3');
+ advancedTitle.className='image-preferences-heading';
+ advancedTitle.textContent='Preferências de geração';
  advanced.append(advancedTitle);
  // Advanced engine inputs remain bound and persisted, but do not occupy the
  // simplified image-model screen. They can be surfaced in a dedicated expert UI later.
