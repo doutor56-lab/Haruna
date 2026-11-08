@@ -1,0 +1,3 @@
+.haruna-web-preview-banner{position:fixed;top:0;left:0;right:0;z-index:99999;padding:7px 12px;text-align:center;color:#f5efff;background:#4b327f;border-bottom:1px solid #a991e2;font:600 12px/1.3 system-ui,sans-serif;pointer-events:none;box-sizing:border-box}
+body{padding-top:29px}
+.haruna-web-preview-banner~.app{min-height:calc(100dvh - 29px)}
