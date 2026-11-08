@@ -92,3 +92,16 @@
 .app #settingsView #localModels .ram-monitor [data-runtime]{margin:8px 0 0}
 .app #settingsView #localModels .local-model-tabs button{font-size:13px}
 @media(max-width:390px){.app #settingsView #localModels .ram-monitor{padding:12px}.app #settingsView #localModels .ram-metric{padding:10px}.app #settingsView #localModels .ram-metric strong{font-size:20px}}
+
+/* Voice workspace: preserve native controls, reduce unnecessary visual noise. */
+.app #settingsView #haruna-local-model-panel-2{min-width:0;display:grid;gap:14px}
+.app #settingsView #haruna-local-model-panel-2>.recognition-settings,
+.app #settingsView #haruna-local-model-panel-2>.speech-settings{margin:0;min-width:0}
+.app #settingsView #haruna-local-model-panel-2 .section-title{margin-bottom:12px}
+.app #settingsView #haruna-local-model-panel-2 .section-title strong{font-size:15px}
+.app #settingsView #haruna-local-model-panel-2 .settings-note,
+.app #settingsView #haruna-local-model-panel-2 .speech-help{font-size:12px;line-height:1.5;color:var(--theme-muted)}
+.app #settingsView #haruna-local-model-panel-2 select,
+.app #settingsView #haruna-local-model-panel-2 input:not([type=checkbox]):not([type=range]){max-width:100%;min-width:0}
+.app #settingsView #haruna-local-model-panel-2 .speech-actions{gap:8px}
+.app #settingsView #haruna-local-model-panel-2 .speech-actions button{flex:1 1 160px;min-height:42px}
