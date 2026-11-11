@@ -160,3 +160,18 @@ html.voice-background .voice-call-reference .call-orbit::after{animation:none!im
  .voice-call-reference .call-controls{min-height:0;padding:4px 6px;margin-top:6px;border-radius:18px;gap:4px}
 }
 .voice-call-reference .call-controls:not(:has(button:not([hidden]))){background:transparent;border-color:transparent}
+
+/* User reference orb: isolated, bounded 2D canvas; CSS sphere remains the fallback. */
+.voice-call-reference .voice-call-orb.orb-canvas-ready{background:transparent!important;box-shadow:none!important}
+.voice-call-reference .orb-canvas-ready::before,.voice-call-reference .orb-canvas-ready::after{display:none}
+.voice-orb-paint{position:absolute;left:-12%;top:-12%;width:124%;height:124%;max-width:none;pointer-events:none}
+.voice-call-reference .call-orbit:has(.orb-canvas-ready)::before,
+.voice-call-reference .call-orbit:has(.orb-canvas-ready)::after{display:none}
+/* The supplied reference is used as an orb, not as a second demo screen. */
+.voice-call-reference .call-copy h2,
+.voice-call-reference .call-copy [data-phase],
+.voice-call-reference .call-copy .call-thinking{display:none}
+.voice-call-reference .call-copy:not(:has([data-transcript]:not(:empty))){display:none}
+@media(orientation:landscape) and (min-width:640px){
+ .voice-call-reference:not(:has([data-transcript]:not(:empty))) .call-controls{grid-row:4 / span 2;align-self:center}
+}

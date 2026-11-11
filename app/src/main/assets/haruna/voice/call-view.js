@@ -1,3 +1,4 @@
+import {VoiceOrb} from './orb.js';
 // Stage 6 authorized reference: lightweight SVG controls, one call, one in-app miniplayer.
 const paths={back:'M15 5l-7 7 7 7',close:'M6 6l12 12M18 6L6 18',mic:'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0V5ZM5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8',pause:'M8 5v14M16 5v14',play:'m8 5 11 7-11 7Z',stop:'M6 6h12v12H6Z',skip:'m5 5 10 7-10 7ZM19 5v14',keyboard:'M3 6h18v12H3ZM6 10h1m3 0h1m3 0h1m3 0h1M6 14h1m3 0h7',settings:'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z',phone:'M7 3l3 5-2 2a15 15 0 0 0 6 6l2-2 5 3-2 4C10 22 2 14 3 5Z'};
 export function voiceIcon(name){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.mic}"/></svg>`}
@@ -11,7 +12,7 @@ export class CallView {
   this.wave=document.createElement('span');this.wave.className='voice-composer-wave';this.wave.setAttribute('aria-hidden','true');this.wave.innerHTML='<i></i><i></i><i></i><i></i><i></i><i></i><i></i>';
   document.querySelector('#composer')?.appendChild(this.wave);
   const q=s=>this.dialog.querySelector(s);
-  this.orb=q('.voice-call-orb');this.label=q('[data-phase]');this.transcript=q('[data-transcript]');this.resume=q('[data-resume]');this.pause=q('[data-pause]');
+  this.orb=q('.voice-call-orb');this.orbRenderer=new VoiceOrb(this.orb);this.label=q('[data-phase]');this.transcript=q('[data-transcript]');this.resume=q('[data-resume]');this.pause=q('[data-pause]');
   q('[data-end]').onclick=end;q('[data-minimize]').onclick=()=>this.minimize();this.pause.onclick=pause;this.resume.onclick=resume;q('[data-skip]').onclick=skip;q('[data-finish]').onclick=finish;q('[data-settings]').onclick=settings;q('[data-keyboard]').onclick=()=>this.minimize();q('[data-stop-speech]').onclick=stopSpeech;q('[data-cancel-call]').onclick=end;q('[data-cancel-response]').onclick=pause;
   this.mini.querySelector('[data-open]').onclick=()=>this.open();this.mini.querySelector('[data-mini-pause]').onclick=pause;this.mini.querySelector('[data-mini-end]').onclick=end;
   this.dialog.addEventListener('cancel',e=>{e.preventDefault();this.minimize()});
@@ -19,9 +20,10 @@ export class CallView {
   this.layoutMini=()=>{if(this.mini.hidden)return;const composer=document.querySelector('#composer'),rect=composer?.getClientRects().length?composer.getBoundingClientRect():null;this.mini.style.setProperty('--voice-mini-bottom',Math.max(82,rect&&rect.top>0?window.innerHeight-rect.top+10:82)+'px')};
   this.composerObserver=new ResizeObserver(this.layoutMini);const composer=document.querySelector('#composer');if(composer)this.composerObserver.observe(composer);window.addEventListener('resize',this.layoutMini);window.visualViewport?.addEventListener('resize',this.layoutMini);this.open();
  }
- open(){this.mini.hidden=true;if(!this.dialog.open)this.dialog.showModal()}
- minimize(){if(this.dialog.open)this.dialog.close();this.mini.hidden=false;this.layoutMini()}
+ open(){this.mini.hidden=true;if(!this.dialog.open)this.dialog.showModal();this.orbRenderer.setVisible(true)}
+ minimize(){this.orbRenderer.setVisible(false);if(this.dialog.open)this.dialog.close();this.mini.hidden=false;this.layoutMini()}
  phase(phase){
+  this.orbRenderer.setPhase(phase);
   this.dialog.dataset.phase=phase;this.mini.dataset.phase=phase;
   const states={ready:'Conversa por voz',starting:'Preparando…',listening:'Ouvindo…',transcribing:'Transcrevendo…',thinking:'Pensando…',speaking:'Falando…',audiopaused:'Fala pausada',paused:'Pausada',waiting:'Sua vez…',error:'Não foi possível continuar'};
   this.dialog.querySelector('[data-state-label]').textContent=states[phase]||'Conversa por voz';
@@ -38,8 +40,8 @@ export class CallView {
   this.pause.setAttribute('aria-label',phase==='speaking'?'Pausar áudio':'Pausar conversa');this.pause.querySelector('span').textContent=phase==='speaking'?'Pausar áudio':'Pausar conversa';
   this.wave.classList.toggle('active',['listening','speaking'].includes(phase));
  }
- level(value){this.orb.style.setProperty('--voice-scale',String(1+value*.13));this.mini.style.setProperty('--voice-scale',String(1+value*.13));this.wave.style.setProperty('--voice-amplitude',String(.15+value*.85))}
- close(){this.composerObserver.disconnect();window.removeEventListener('resize',this.layoutMini);window.visualViewport?.removeEventListener('resize',this.layoutMini);this.dialog.close();this.dialog.remove();this.mini.remove();this.wave.remove()}
+ level(value){this.orbRenderer.setLevel(value);this.orb.style.setProperty('--voice-scale',String(1+value*.13));this.mini.style.setProperty('--voice-scale',String(1+value*.13));this.wave.style.setProperty('--voice-amplitude',String(.15+value*.85))}
+ close(){this.orbRenderer.destroy();this.composerObserver.disconnect();window.removeEventListener('resize',this.layoutMini);window.visualViewport?.removeEventListener('resize',this.layoutMini);this.dialog.close();this.dialog.remove();this.mini.remove();this.wave.remove()}
 }
 
 export function voiceSettings({stt,tts,invoke,onStreaming}){
