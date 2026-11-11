@@ -91,9 +91,16 @@ corte, como já fazia o motor Android; o tamanho interno é informado.
 ## Entrega e limites
 
 Os builds Android ARM64 e Windows x64 estão preparados em `multiplatform.yml`.
-Não foram iniciados nesta revisão: o repositório é **privado** e houve instrução
-de não gastar Actions sem autorização. O workflow exige disparo manual ou commit
-`[build approved]`; commits de preparação usam `[skip ci]`.
+Foram autorizados em 11/11/2026. A tentativa no commit
+`1547a3f3fddef146e5bf4add3292489d75fbcda9`, execução
+[43081561697](https://github.com/doutor56-lab/Haruna/actions/runs/43081561697),
+foi bloqueada nos dois jobs **antes de qualquer etapa ou runner iniciar**.
+A anotação do GitHub informa pagamentos recentes falhados ou necessidade de
+aumentar o limite de gastos da conta. Não houve logs de compilação nem artefatos.
+Não alteramos limites/pagamentos e não repetimos a execução. A compilação permanece
+sem validação final até o bloqueio de cobrança ser resolvido pelo titular.
+O workflow exige disparo manual ou commit `[build approved]`; commits de
+preparação/documentação usam `[skip ci]`.
 
 Não foi gerado APK/EXE novo nem PNG por difusão nesta validação. Ainda precisam de
 compilação final e execução real em Windows e no Teclast/celular: Vulkan/driver,
