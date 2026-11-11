@@ -39,3 +39,94 @@ html.voice-background .voice-call-orb,html.voice-background .mini-orb{animation:
 @media(prefers-reduced-motion:reduce){.voice-call-reference .voice-call-orb,.mini-orb,.voice-composer-wave i{animation:none!important;transition:none!important;transform:none!important}}
 
 .voice-call-reference .call-control::before{display:none!important;content:none!important}.voice-call-reference .call-brand .brand-mark{display:block;flex:none;width:32px;height:32px;border-radius:9px}.voice-call-reference .call-controls{gap:10px}.voice-call-reference .call-control{width:74px}
+
+/* Call-only polish: existing phase, audio-level and button bindings are retained. */
+:root .voice-call.voice-call-reference{
+ width:calc(100vw - 24px);max-width:500px;height:min(780px,calc(100dvh - 24px));
+ padding:20px;border-color:var(--theme-stroke);border-radius:28px;
+ background:radial-gradient(ellipse at 50% 40%,#8754df0d,transparent 62%),var(--theme-bg);
+ color:var(--theme-text);box-shadow:0 24px 80px #0004;
+}
+.voice-call-reference .call-header{gap:10px}
+.voice-call-reference .call-brand{gap:9px;font-size:16px;letter-spacing:-.02em}
+.voice-call-reference .call-header .call-control{width:44px;height:44px;padding:11px;color:var(--theme-text)}
+.voice-call-reference .call-state{
+ align-self:center;width:fit-content;max-width:100%;box-sizing:border-box;
+ margin:22px auto 0;padding:7px 13px;gap:8px;border:1px solid var(--theme-stroke);
+ border-radius:99px;background:var(--theme-surface);font-size:12px;font-weight:600;
+}
+.voice-call-reference .call-state i{width:6px;height:6px;flex:none}
+.voice-call-reference .call-subtitle{margin:9px 0 0;font-size:11px;letter-spacing:.03em;color:var(--theme-muted)}
+.voice-call-reference .call-orbit{min-height:220px;flex:1 0 220px;overflow:visible}
+.voice-call.voice-call-reference .voice-call-orb{
+ width:clamp(156px,52vw,236px);aspect-ratio:1;height:auto;isolation:isolate;
+ border-radius:50%;margin:28px auto;
+ background:radial-gradient(ellipse at 31% 20%,#e4caff 0%,#b781fa 10%,transparent 38%),radial-gradient(ellipse at 78% 76%,#8a39e8 0%,transparent 56%),radial-gradient(circle at 48% 44%,#8a49e4 0%,#542095 55%,#251044 86%,#180e2d 100%)!important;
+ box-shadow:inset 0 1px 3px #f8e9ff9c,inset -12px -18px 32px #1e0c4766,inset 6px 6px 22px #ddb9ff33,0 14px 42px #6628ad24!important;
+ transform:scale(var(--voice-scale,1));transition:transform 140ms ease-out,opacity 180ms;
+ animation:none;will-change:auto;
+}
+.voice-call-reference .voice-call-orb::before,.voice-call-reference .voice-call-orb::after{
+ content:"";position:absolute;inset:0;pointer-events:none;border-radius:50%;
+}
+.voice-call-reference .voice-call-orb::before{
+ background:radial-gradient(ellipse at 32% 17%,#fff8 0%,#fff2 12%,transparent 34%),radial-gradient(ellipse at 70% 88%,#cc7aff33,transparent 50%);
+ opacity:.48;
+}
+.voice-call-reference .voice-call-orb::after{
+ inset:-2px;border:1px solid;border-color:#e7caff66 #b17cff12 #b17cff44 #b17cff12;
+ opacity:.8;
+}
+.voice-call-reference .call-orbit::before,.voice-call-reference .call-orbit::after{
+ width:clamp(204px,66vw,300px);border-color:#9365dc24;transition:opacity .3s ease;opacity:.25;
+}
+.voice-call-reference .call-orbit::after{width:clamp(228px,74vw,340px);opacity:.12}
+.voice-call-reference[data-phase=listening] .call-orbit::before{border-color:#6c9dfc55;opacity:.8}
+.voice-call-reference[data-phase=listening] .call-orbit::after{border-color:#6c9dfc33;opacity:.5}
+.voice-call-reference[data-phase=speaking] .call-orbit::before{opacity:.7;animation:harunaCallHalo 2.8s ease-in-out infinite}
+.voice-call-reference .voice-call-orb[data-state=thinking]::after{animation:harunaCallRim 9s linear infinite}
+.voice-call.voice-call-reference .voice-call-orb[data-state=paused],
+.voice-call.voice-call-reference .voice-call-orb[data-state=error]{animation:none;transform:scale(1);opacity:.5}
+.voice-call-reference[data-phase=error] .call-state i{background:var(--danger)}
+.voice-call-reference .call-copy{padding:0 8px}
+.voice-call-reference .call-copy h2{margin:12px auto 8px;font-size:21px;font-weight:650;line-height:1.3;letter-spacing:-.025em;max-width:340px}
+.voice-call-reference .call-copy [data-phase]{margin:0 auto;min-height:0;max-width:310px;font-size:13px;line-height:1.6;color:var(--theme-muted)}
+.voice-call-reference [data-transcript]{background:var(--theme-surface);border:1px solid var(--theme-stroke);border-radius:14px;font-size:12px}
+.voice-call-reference .call-controls{align-items:flex-start;gap:12px;margin:22px 0 2px}
+.voice-call-reference .call-controls .call-control{width:80px;padding:8px 2px;gap:9px;font-size:11px;line-height:1.4;color:var(--theme-text)}
+.voice-call-reference .call-controls .call-control svg{width:22px;height:22px;padding:13px;border-color:var(--theme-stroke)}
+.voice-call-reference .call-controls .primary svg{padding:19px;box-shadow:0 6px 22px #7540df33}
+.voice-call-reference button:focus-visible{outline:2px solid var(--theme-accent);outline-offset:4px}
+/* Match the in-chat indicator without adding an animation loop. */
+.voice-miniplayer .mini-orb{background:radial-gradient(circle at 32% 22%,#e4caff,#9c62ed 24%,#5e299e 64%,#24103f);box-shadow:inset 0 1px 2px #f8e9ff66}
+@keyframes harunaCallRim{to{transform:rotate(360deg)}}
+@keyframes harunaCallHalo{0%,100%{transform:scale(.98);opacity:.35}50%{transform:scale(1.04);opacity:.7}}
+@media(orientation:landscape) and (min-width:640px){
+ :root .voice-call.voice-call-reference{max-width:760px;height:min(620px,calc(100dvh - 24px));display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto auto minmax(0,1fr) auto;grid-template-areas:"header header" "status status" "subtitle subtitle" "orbit copy" "orbit controls";column-gap:20px}
+ .voice-call-reference .call-header{grid-area:header}
+ .voice-call-reference .call-state{grid-area:status;margin-top:12px}
+ .voice-call-reference .call-subtitle{grid-area:subtitle}
+ .voice-call-reference .call-orbit{grid-area:orbit;min-height:0}
+ .voice-call-reference .call-copy{grid-area:copy;align-self:center;min-height:0;max-height:32dvh;overflow-y:auto}
+ .voice-call-reference .call-controls{grid-area:controls;margin-top:12px}
+ .voice-call-reference .call-orbit::before{width:260px}.voice-call-reference .call-orbit::after{width:290px}
+}
+@media(max-height:600px){
+ :root .voice-call.voice-call-reference{padding:12px}
+ .voice-call-reference .call-state{margin-top:8px;padding:5px 11px}
+ .voice-call.voice-call-reference .voice-call-orb{width:140px;margin:14px auto}
+ .voice-call-reference .call-orbit::before{width:180px}.voice-call-reference .call-orbit::after{width:202px}
+ .voice-call-reference .call-copy h2{font-size:17px;margin:6px 0}
+ .voice-call-reference .call-copy [data-phase]{font-size:12px}
+ .voice-call-reference .call-controls{margin-top:8px;gap:6px}
+ .voice-call-reference .call-controls .call-control{width:66px;font-size:10px;padding:4px 1px}
+ .voice-call-reference .call-controls .call-control svg{padding:9px}
+ .voice-call-reference .call-controls .primary svg{padding:13px}
+}
+@media(prefers-reduced-motion:reduce){
+ .voice-call-reference .voice-call-orb,.voice-call-reference .voice-call-orb::before,.voice-call-reference .voice-call-orb::after,.voice-call-reference .call-orbit::before,.voice-call-reference .call-orbit::after{animation:none!important;transition:none!important}
+}
+html.voice-background .voice-call-reference .voice-call-orb::before,
+html.voice-background .voice-call-reference .voice-call-orb::after,
+html.voice-background .voice-call-reference .call-orbit::before,
+html.voice-background .voice-call-reference .call-orbit::after{animation:none!important}
