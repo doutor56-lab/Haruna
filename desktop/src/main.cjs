@@ -6,8 +6,12 @@ const {Voice}=require('./voice.cjs');const {Documents}=require('./documents.cjs'
 const uiOnly=process.argv.includes('--ui-smoke-test');const smoke=process.argv.includes('--smoke-test')||uiOnly;const smokeRoot=process.env.HARUNA_SMOKE_OUTPUT||path.join(process.cwd(),'smoke-output');if(smoke)app.disableHardwareAcceleration();
 app.setName('Haruna Windows');app.setAppUserModelId('com.proxyslabs.haruna.windows');
 app.setPath('userData',smoke?path.join(smokeRoot,'user-data'):path.join(app.getPath('appData'),'Haruna Windows'));
+// Bounded local diagnostics: codes only, never exception messages or user content.
+function recordFailure(stage,details={}){try{const dir=path.join(app.getPath('userData'),'diagnostics');fs.mkdirSync(dir,{recursive:true});const file=path.join(dir,'runtime.jsonl');if(fs.existsSync(file)&&fs.statSync(file).size>32768)fs.renameSync(file,path.join(dir,'runtime.previous.jsonl'));fs.appendFileSync(file,JSON.stringify({time:new Date().toISOString(),stage,...details})+'\n');}catch{}}
+process.on('uncaughtExceptionMonitor',()=>recordFailure('main_uncaught_exception'));
+app.on('child-process-gone',(_event,details)=>recordFailure('child_process_gone',{type:details.type,reason:details.reason,exitCode:details.exitCode}));
 protocol.registerSchemesAsPrivileged([{scheme:'haruna',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true}}]);
-if(!app.requestSingleInstanceLock()){app.quit();}else{app.on('second-instance',()=>{window?.restore();window?.focus();});app.whenReady().then(start).catch(e=>{console.error(e.message);app.exit(1);});}
+if(!app.requestSingleInstanceLock()){app.quit();}else{app.on('second-instance',()=>{window?.restore();window?.focus();});app.whenReady().then(start).catch(e=>{recordFailure('startup');dialog.showErrorBox('Haruna — falha ao iniciar','Não foi possível iniciar. Consulte AppData/Roaming/Haruna Windows/diagnostics/runtime.jsonl. Seus dados foram preservados.');app.exit(1);});}
 let window,controller,voice,documents,closing=false;const base=path.resolve(__dirname,'..');const runtimes=app.isPackaged?path.join(process.resourcesPath,'runtimes'):path.join(base,'runtimes');
 function trusted(event){if(event.sender!==window?.webContents||!event.senderFrame?.url.startsWith('haruna://app/'))throw Error('Origem não permitida.');}
 function push(snapshot,event){if(voice)snapshot.voice={stt:voice.status('stt'),tts:voice.status('tts')};if(window&&!window.isDestroyed())window.webContents.send('haruna:update',{snapshot,event});}
@@ -48,6 +52,12 @@ async function start(){
   const data=await fsp.readFile(file);return new Response(data,{headers:{'Content-Type':mime[path.extname(file)]||'application/octet-stream','Content-Security-Policy':"default-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-src 'none'",'X-Content-Type-Options':'nosniff'}});
  }catch{return new Response('',{status:404});}});
  window=new BrowserWindow({width:1180,height:880,minWidth:740,minHeight:600,title:'Haruna',icon:path.join(base,'renderer','haruna.ico'),backgroundColor:'#080c17',show:!smoke,autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
+ window.webContents.on('render-process-gone',async(_event,details)=>{
+  recordFailure('renderer_gone',{reason:details.reason,exitCode:details.exitCode});
+  if(closing||smoke||details.reason==='clean-exit')return;
+  const result=await dialog.showMessageBox(window,{type:'error',title:'Haruna — interface interrompida',message:'A interface foi interrompida ('+details.reason+').',detail:'O registro técnico foi salvo localmente. Reabrir preserva as conversas salvas; texto ainda não salvo pode não ser recuperado.',buttons:['Reabrir interface','Fechar'],defaultId:0,cancelId:1});
+  if(!window.isDestroyed()){if(result.response===0)window.webContents.reload();else window.close();}
+ });
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',(event,url)=>{if(url!=='haruna://app/assets/haruna/index.html')event.preventDefault();});
  window.webContents.session.setPermissionRequestHandler((contents,permission,callback,details)=>callback(contents===window.webContents&&permission==='media'&&details.requestingUrl?.startsWith('haruna://app/')&&details.mediaTypes?.every(t=>t==='audio')));
  await window.loadURL('haruna://app/assets/haruna/index.html');
@@ -76,6 +86,8 @@ async function runSmoke(){
  if(state.title!=='Haruna'||!state.images||!state.chat||!state.chatReady||!state.imageButton||!state.imageSettings||!state.imagePanel||!state.vulkanSelector||state.node!=='undefined')
   throw Error('Android UI to Windows bootstrap failed: '+JSON.stringify(state));
  await window.webContents.executeJavaScript("localStorage.setItem('haruna_onboarding_v1','done');document.querySelector('#onboarding').hidden=true;document.querySelector('#generateImage').click()");
+ const controls=await window.webContents.executeJavaScript("(()=>{const p=document.querySelector('#imageGenerationPanel');return {visible:['steps','cfg'].every(k=>{const e=p.querySelector('[data-'+k+']');return !e.hidden&&!!e.getBoundingClientRect().height}),width:document.querySelector('.app').getBoundingClientRect().width,viewport:innerWidth,styles:[...document.styleSheets].some(s=>s.href?.endsWith('/desktop/workspace.css'))}})()");
+ if(!controls.visible||!controls.styles||Math.abs(controls.width-controls.viewport)>2)throw Error('Desktop controls/layout regression: '+JSON.stringify(controls));
  const view=await window.webContents.executeJavaScript("document.querySelector('#imageGenerationPanel').open");
  if(!view)throw Error('Android image generation panel did not open');
  await window.webContents.executeJavaScript("(()=>{const panel=document.querySelector('#imageGenerationPanel');const ratio=panel.querySelector('[data-ratio-select]');ratio.value='3:5';ratio.dispatchEvent(new Event('change',{bubbles:true}));const quality=panel.querySelector('[data-quality-select]');quality.value='M';quality.dispatchEvent(new Event('change',{bubbles:true}));})()");

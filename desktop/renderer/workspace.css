@@ -1,0 +1,21 @@
+/* Desktop layout in logical pixels; independent of the saved accessibility scale. */
+html .app{width:100%;max-width:none;height:100dvh;margin:0 auto}
+html .app .topbar{padding:10px 24px;min-height:64px}
+html .app .brand-mark{width:36px;height:36px;border-radius:11px}
+html .app .brand h1{font-size:22px}
+html .app .brand small{font-size:11px}
+html .app .page-view{width:min(1060px,100%);padding:20px 28px;margin-inline:auto}
+html .app .chat-view .status-row{min-height:36px;padding-block:3px;width:min(100% - 48px,1060px)}
+html .app .chat-view .messages{width:min(1100px,100%);padding:18px 28px;gap:14px}
+html .app .chat-view .msg .bubble{font-size:15px;line-height:1.55;padding:11px 15px}
+html .app .chat-view .composer{width:min(100% - 48px,1060px);padding:5px;gap:6px}
+html .app .chat-view .composer textarea{font-size:14px;min-height:40px;padding:10px 6px}
+html .app .chat-view .composer button{max-height:42px;max-width:42px}
+html .app .bottom-nav{min-height:56px;padding-block:5px}
+html .app .bottom-nav button{min-height:44px;font-size:12px}
+html .app .empty{padding:20px}
+html .app .empty .orb{width:76px;height:76px}
+html .app .empty h2{font-size:25px}
+html .app .empty p{font-size:14px;max-width:520px}
+html .image-dimensions .image-control-steps,html .image-dimensions .image-control-cfg{margin:12px 0}
+@media(min-width:1000px){html .app .page-view .page-head h2{font-size:23px}html .app .page-view .page-card{padding:18px 22px}}

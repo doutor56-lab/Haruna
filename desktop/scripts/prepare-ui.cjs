@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'..'),source=path.resolve(root,'../app/src/mai
 if(!fs.existsSync(source))throw Error('Use este diretório no repositório Haruna completo.');
 fs.rmSync(dest,{recursive:true,force:true});fs.cpSync(source,dest,{recursive:true});
 const write=(name,edit)=>{const p=path.join(dest,name),s=fs.readFileSync(p,'utf8');fs.writeFileSync(p,edit(s));};
-write('index.html',s=>s.replace('<link rel="stylesheet" href="style.css">','<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="/desktop/desktop.css">').replace('<script src="theme.js">','<script src="/desktop/entry.js"></script><script src="theme.js">').replace(/<script type="module" src="(?:diagnostics\/panel)\.js"><\/script>/g,''));
+write('index.html',s=>s.replace('<link rel="stylesheet" href="style.css">','<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="/desktop/desktop.css">').replace('</head>','<link rel="stylesheet" href="/desktop/workspace.css"></head>').replace('<script src="theme.js">','<script src="/desktop/entry.js"></script><script src="theme.js">').replace(/<script type="module" src="(?:diagnostics\/panel)\.js"><\/script>/g,''));
 // Electron has no synchronous window.prompt. Adapt only the desktop copy.
 write('app.js',s=>s.replace('function renameChat(c){const next=prompt(', 'async function renameChat(c){const next=await window.harunaDesktopPrompt(').replace('const reviewed=prompt(', 'const reviewed=await window.harunaDesktopPrompt('));
 // Windows imports reference existing GGUF files; they are not copied or deleted.
