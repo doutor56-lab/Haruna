@@ -9,3 +9,9 @@ Chromium tests with real CallView and actual app assets, simulated native bridge
 ## Further layout refinement
 
 Base 619ddb3, checkpoint checkpoint/before-call-layout-refinement-20261111. User will supply an orb reference separately: all orb artwork, level transforms and animations retained byte-for-byte. Only call header/text hierarchy, grouped control background, secondary control theme colors, focus/hover hierarchy and spacing refined. Empty control groups have transparent decoration while waiting. No JS or engine changes. Eight theme/viewport configurations passed ten-phase checks, including 800x360; callback/miniplayer/cleanup and reduced-motion/background behavior preserved. Empty waiting decoration checked separately in both themes. Native Android/audio remains untested; no new APK or remote build generated.
+
+## Compact call frame
+
+Base 230152a; checkpoint checkpoint/before-compact-call-20261111. CSS-only source change: portrait call frame capped at 420px wide / 560px high (also bounded by viewport), landscape 640px / 400px, tighter margins/padding and proportional orb size. Existing renderer/artwork, circular 44px exit targets and separate lower controls retained. Transcript stays available in a 72px scrollable area; no text/history removed. No native or application JS changed.
+
+Ten-phase visual/callback checks passed 320x700, 360x800, 800x1280, 1280x800 and 800x360 in both themes. Real call-controller/native-double exit checks additionally passed four phone/landscape/theme cases, compact-frame bounds, long transcript scrolling and no footer card. No physical Android test, new APK or remote build.

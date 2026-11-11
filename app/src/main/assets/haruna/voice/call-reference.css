@@ -178,3 +178,23 @@ html.voice-background .voice-call-reference .call-orbit::after{animation:none!im
  :root .voice-call.voice-call-reference .call-header [data-end]:hover,
  .voice-miniplayer [data-mini-end]:hover{background:#9c2846;color:#fff}
 }
+
+/* Compact call frame; preserve orb artwork and separate circular controls. */
+:root .voice-call.voice-call-reference{width:calc(100vw - 32px);max-width:420px;height:min(560px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);padding:14px}
+.voice-call-reference .call-header{padding-bottom:8px}
+.voice-call-reference .call-state{margin-top:12px;padding:6px 12px}
+.voice-call-reference .call-subtitle{margin-top:6px}
+.voice-call-reference .call-orbit{min-height:0;flex:1 1 auto;padding:4px 0}
+.voice-call.voice-call-reference .voice-call-orb{width:clamp(140px,42vw,180px);margin:8px auto}
+.voice-call-reference .call-controls{margin:12px 0 0;gap:10px}
+.voice-call-reference [data-transcript]{max-height:72px;margin:8px 0;padding:8px 10px}
+@media(orientation:landscape) and (min-width:640px){
+ :root .voice-call.voice-call-reference{max-width:640px;height:min(400px,calc(100dvh - 32px));column-gap:12px}
+ .voice-call-reference .call-controls{margin-top:8px}
+}
+@media(max-height:600px){
+ :root .voice-call.voice-call-reference{padding:12px}
+ .voice-call-reference .call-state{margin-top:8px;padding:5px 11px}
+ .voice-call.voice-call-reference .voice-call-orb{width:128px;margin:6px auto}
+ .voice-call-reference .call-controls{margin-top:8px;gap:6px}
+}
