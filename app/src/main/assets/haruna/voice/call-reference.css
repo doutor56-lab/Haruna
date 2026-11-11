@@ -93,7 +93,7 @@ html.voice-background .voice-call-orb,html.voice-background .mini-orb{animation:
 .voice-call-reference .call-copy [data-phase]{margin:0 auto;min-height:0;max-width:310px;font-size:13px;line-height:1.6;color:var(--theme-muted)}
 .voice-call-reference [data-transcript]{background:var(--theme-surface);border:1px solid var(--theme-stroke);border-radius:14px;font-size:12px}
 .voice-call-reference .call-controls{align-items:flex-start;gap:12px;margin:22px 0 2px}
-.voice-call-reference .call-controls .call-control{width:80px;padding:8px 2px;gap:9px;font-size:11px;line-height:1.4;color:var(--theme-text)}
+.voice-call-reference .call-controls .call-control{width:74px;padding:8px 2px;gap:9px;font-size:11px;line-height:1.4;color:var(--theme-text)}
 .voice-call-reference .call-controls .call-control svg{width:22px;height:22px;padding:13px;border-color:var(--theme-stroke)}
 .voice-call-reference .call-controls .primary svg{padding:19px;box-shadow:0 6px 22px #7540df33}
 .voice-call-reference button:focus-visible{outline:2px solid var(--theme-accent);outline-offset:4px}
@@ -136,30 +136,13 @@ html.voice-background .voice-call-reference .call-orbit::after{animation:none!im
 .voice-call-reference .call-brand strong{font-weight:650}
 .voice-call-reference .call-copy h2{font-weight:700}
 .voice-call-reference .call-copy [data-phase]{max-width:290px}
-.voice-call-reference .call-controls{
- box-sizing:border-box;width:fit-content;max-width:100%;min-height:112px;
- align-self:center;justify-self:center;align-items:flex-start;
- margin:20px auto 4px;padding:8px 10px;gap:8px;
- border:1px solid var(--theme-stroke);border-radius:22px;
- background:var(--theme-surface);
-}
-.voice-call-reference .call-controls .call-control{color:var(--theme-muted);border-radius:14px}
-.voice-call-reference .call-controls .primary{color:var(--theme-text);font-weight:600}
-:root .voice-call-reference .call-controls .call-control:not(.primary) svg{background:var(--theme-surface-2);border-color:var(--theme-stroke);color:var(--theme-text)}
-.voice-call-reference .call-controls .call-control:disabled{opacity:.4}
 @media(hover:hover){
  .voice-call-reference .call-header .call-control:hover{background:var(--selection)}
  .voice-call-reference .call-header [data-end]:hover{color:var(--danger)}
- .voice-call-reference .call-controls .call-control:not(:disabled):hover{background:var(--selection)}
-}
-@media(orientation:landscape) and (min-width:640px){
- .voice-call-reference .call-controls{margin-top:12px;align-self:end}
 }
 @media(max-height:600px){
  .voice-call-reference .call-header{padding-bottom:6px}
- .voice-call-reference .call-controls{min-height:0;padding:4px 6px;margin-top:6px;border-radius:18px;gap:4px}
 }
-.voice-call-reference .call-controls:not(:has(button:not([hidden]))){background:transparent;border-color:transparent}
 
 /* User reference orb: isolated, bounded 2D canvas; CSS sphere remains the fallback. */
 .voice-call-reference .voice-call-orb.orb-canvas-ready{background:transparent!important;box-shadow:none!important}
