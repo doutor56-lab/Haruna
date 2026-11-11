@@ -140,3 +140,24 @@
  .app #settingsView .theme-choice button{gap:5px}
  .app #settingsView .image-settings-card .image-options [data-performance]{width:min(58%,210px)}
 }
+
+/* Dialog action buttons reuse the existing theme; menus retain their list layout. */
+:is(.essential-editor form,.document-preview .document-actions,.speech-install,.recognition-install)>button{
+ min-height:44px;max-width:100%;padding:10px 14px;margin-top:7px;
+ border:1px solid var(--theme-stroke);border-radius:11px;
+ background:var(--theme-surface-2);color:var(--theme-text);
+ justify-content:center;text-align:center;
+}
+.essential-editor form>button[type=submit],
+:is(.speech-install,.recognition-install)>button[data-download]{
+ background:var(--brand-gradient);border-color:transparent;color:#fff;
+}
+:is(.speech-install,.recognition-install)>button[data-download]::before{color:inherit}
+.essential-editor form>button.danger{color:var(--danger)}
+:is(.essential-editor form,.document-preview .document-actions,.speech-install,.recognition-install)>button:focus-visible{
+ outline:2px solid var(--theme-accent);outline-offset:3px;
+}
+/* Keep the primary microphone legible in both themes. */
+html[data-theme] .voice-call-reference .call-controls .call-control.primary svg{
+ background:var(--brand-gradient);border-color:var(--theme-accent);color:#fff;
+}
