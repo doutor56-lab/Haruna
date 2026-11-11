@@ -175,3 +175,21 @@ html.voice-background .voice-call-reference .call-orbit::after{animation:none!im
 @media(orientation:landscape) and (min-width:640px){
  .voice-call-reference:not(:has([data-transcript]:not(:empty))) .call-controls{grid-row:4 / span 2;align-self:center}
 }
+
+/* Distinguish ending the call from returning to chat. Bindings stay unchanged. */
+:root .voice-call.voice-call-reference .call-header [data-end]{
+ width:auto;min-width:44px;max-width:112px;height:44px;padding:10px 11px;
+ flex-direction:row;gap:6px;background:#b93251;border-color:#b93251;color:#fff;
+ border-radius:14px;
+}
+.voice-call-reference .call-header [data-end] span{
+ position:static;width:auto;height:auto;overflow:visible;clip-path:none;
+ font-size:11px;line-height:1;font-weight:650;white-space:nowrap;
+}
+.voice-miniplayer [data-mini-end]{width:44px;height:44px;min-width:44px;padding:10px;background:#b93251;color:#fff}
+:root .voice-call.voice-call-reference .call-controls [data-cancel-call] svg{background:#b93251;border-color:#b93251;color:#fff}
+.voice-call-reference .call-controls [data-cancel-call]{color:var(--danger)}
+@media(hover:hover){
+ :root .voice-call.voice-call-reference .call-header [data-end]:hover,
+ .voice-miniplayer [data-mini-end]:hover{background:#9c2846;color:#fff}
+}
