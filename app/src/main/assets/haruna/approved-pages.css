@@ -161,3 +161,9 @@
 html[data-theme] .voice-call-reference .call-controls .call-control.primary svg{
  background:var(--brand-gradient);border-color:var(--theme-accent);color:#fff;
 }
+
+/* Image controls use the active palette; fixed dark inputs were unreadable in light mode. */
+.app .image-dimensions :is(select,input:not([type=range]):not([type=checkbox]),textarea){background:var(--control-bg);color:var(--theme-text);border-color:var(--theme-stroke)}
+@media (max-width:799px), (orientation:portrait){
+ html .app .image-dimensions[open]{width:min(360px,calc(100vw - 56px))!important;max-width:calc(100vw - 56px)!important}
+}

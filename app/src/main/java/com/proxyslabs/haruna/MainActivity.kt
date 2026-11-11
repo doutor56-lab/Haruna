@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     }
     private lateinit var imageModels: com.proxyslabs.haruna.image.ImageBridge
     private val imagePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if(uri!=null) imageModels.install(uri) }
+    private val imageComponentPicker=registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()){uris->if(uris.isNotEmpty())imageModels.installComponents(uris)}
     private lateinit var recognition: com.proxyslabs.haruna.speech.RecognitionBridge
     private lateinit var speech: com.proxyslabs.haruna.speech.SpeechBridge
     private lateinit var diagnostics: com.proxyslabs.haruna.diagnostics.DiagnosticBridge
@@ -163,7 +164,7 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(bridge, "HarunaAndroid")
         webView.addJavascriptInterface(documents,"HarunaDocuments")
         webView.addJavascriptInterface(DocumentPickerBridge(),"HarunaDocumentPicker")
-        imageModels=com.proxyslabs.haruna.image.ImageBridge(applicationContext,backend){runOnUiThread{if(!activityClosed) imagePicker.launch(arrayOf("*/*"))}}
+        imageModels=com.proxyslabs.haruna.image.ImageBridge(applicationContext,backend,componentPicker={runOnUiThread{if(!activityClosed)imageComponentPicker.launch(arrayOf("*/*"))}}){runOnUiThread{if(!activityClosed) imagePicker.launch(arrayOf("*/*"))}}
         webView.addJavascriptInterface(imageModels,"HarunaImages")
         speech = com.proxyslabs.haruna.speech.SpeechBridge(this, webView)
         webView.addJavascriptInterface(speech, "HarunaSpeech")

@@ -15,7 +15,7 @@ object ImagePackage {
     fun hash(file:File,cancelled:()->Boolean={false}):String {val md=MessageDigest.getInstance("SHA-256");file.inputStream().use{input->val b=ByteArray(65536);while(true){check(!cancelled()){ "Operação cancelada" };val n=input.read(b);if(n<0)break;md.update(b,0,n)}};return md.digest().joinToString(""){"%02x".format(it)}}
     fun verify(dir:File,cancelled:()->Boolean={false}):JSONObject {
         val mf=File(dir,"haruna-image-model.json");require(mf.isFile&&mf.length()<=65536){"Manifesto de modelo ausente ou inválido"}
-        val m=JSONObject(mf.readText());if(m.optString("format") in setOf(SafetensorsPackage.format,SafetensorsPackage.sdxlFormat))return SafetensorsPackage.verify(dir,cancelled);if(m.optString("format")==NezumiPackage.format)return NezumiPackage.verify(dir,cancelled);require(m.getInt("version")==1&&m.getString("architecture")=="sd15"&&m.getString("engine")=="mnn"){"Pacote incompatível: requer SD1.5 MNN"}
+        val m=JSONObject(mf.readText());if(m.optString("format")==SdcppPackage.format)return SdcppPackage.verify(dir,cancelled);if(m.optString("format") in setOf(SafetensorsPackage.format,SafetensorsPackage.sdxlFormat))return SafetensorsPackage.verify(dir,cancelled);if(m.optString("format")==NezumiPackage.format)return NezumiPackage.verify(dir,cancelled);require(m.getInt("version")==1&&m.getString("architecture")=="sd15"&&m.getString("engine")=="mnn"){"Pacote incompatível: requer SD1.5 MNN"}
         val files=m.getJSONObject("files");require(required.all{files.has(it)}){"Componentes SD1.5 ausentes"}
         require(files.length()<=7&&files.keys().asSequence().all{it in allowed&&it!="haruna-image-model.json"}){"Componente não permitido"}
         for(name in files.keys()) {val file=File(dir,name);val h=files.getString(name);require(h.matches(Regex("[0-9a-f]{64}"))&&file.isFile&&file.length()>0&&hash(file,cancelled)==h){"Modelo incompleto ou corrompido"}}
@@ -26,7 +26,7 @@ object ImagePackage {
         root.mkdirs();val temp=File(root,NezumiPackage.stagingPrefix+UUID.randomUUID()).apply{mkdirs()};var total=0L;val seen=mutableSetOf<String>()
         try {
             ZipInputStream(input.buffered()).use{zip->while(true){check(!cancelled()){"Instalação cancelada"};val entry=zip.nextEntry?:break
-                val name=entry.name;require(!entry.isDirectory&&name in allowed&&seen.add(name)){"Pacote inválido: arquivos devem estar na raiz, sem caminhos ou duplicatas"}
+                val name=entry.name;require(!entry.isDirectory&&name in (allowed+SdcppPackage.filenames)&&seen.add(name)){"Pacote inválido: arquivos devem estar na raiz, sem caminhos ou duplicatas"}
                 require(seen.size<=8){"Pacote inválido"};File(temp,name).outputStream().use{out->val buffer=ByteArray(65536);while(true){check(!cancelled()){"Instalação cancelada"};val n=zip.read(buffer);if(n<0)break;total+=n;require(total<=maxBytes){"Pacote excede o limite de 8 GiB"};require(available()>n+128L*1024*1024){"Espaço insuficiente para instalar o modelo"};if(name=="haruna-image-model.json")require(out.channel.position()+n<=65536){"Manifesto inválido"};out.write(buffer,0,n);progress(total)}}
             }}
             verify(temp);check(!cancelled()){"Instalação cancelada"};val target=File(root,UUID.randomUUID().toString());check(temp.renameTo(target)){"Não foi possível concluir a instalação"};return target

@@ -1,0 +1,110 @@
+/* Tablet landscape workspace: navigation never bleeds into other views. */
+@media (orientation:landscape) and (min-width:800px) and (min-height:350px){
+ .app{min-width:0;overflow:hidden}
+ .app .topbar{padding-inline:clamp(16px,2.5vw,36px)}
+ .app .drawer{position:absolute;inset:0 auto 0 0;width:min(340px,38vw);max-width:calc(100vw - 64px);transform:translateX(-105%);z-index:20;border-radius:0 18px 18px 0;box-shadow:0 14px 40px #0006;transition:transform .2s ease}
+ .app .drawer.open{transform:translateX(0)}
+ .app .scrim:not([hidden]){display:block!important;z-index:19}
+ .app:has(#chatView:not([hidden])) .drawer{inset:0 auto 0 0;width:min(340px,38vw);transform:translateX(-105%);z-index:20;border-radius:0 18px 18px 0;box-shadow:0 14px 40px #0006}
+ .app:has(#chatView:not([hidden])) .drawer.open{transform:translateX(0)}
+ .app:has(#chatView:not([hidden])) .drawer #closeMenu{display:inline-flex}
+ .app:has(#chatView:not([hidden])) .scrim:not([hidden]){display:block!important}
+ .app:has(#chatView:not([hidden])) #chatView{margin-left:0;min-width:0}
+ .app .chat-view .status-row,.app .chat-view .composer{width:min(100% - 48px,1100px);margin-inline:auto}
+ .app .chat-view .messages{width:min(100%,1100px);margin-inline:auto;padding-inline:clamp(18px,3vw,42px)}
+ .app .page-view{width:100%;max-width:1200px;margin-inline:auto;padding:clamp(12px,2vw,24px) clamp(22px,3.5vw,48px) 24px}
+ .app .page-view .page-head{margin-bottom:16px}
+ .app .bottom-nav{width:min(100%,860px);margin-inline:auto;border:1px solid var(--theme-stroke);border-bottom:0;border-radius:16px 16px 0 0;padding:3px 8px}
+ .app .bottom-nav .nav-item{min-height:44px}
+}
+@media (orientation:landscape) and (min-width:1100px) and (min-height:600px){
+ .app #settingsView .page-card,.app #memoryView .page-card,.app #libraryView .page-card{max-width:100%}
+ .app #settingsView .page-head,.app #memoryView .page-head,.app #libraryView .page-head{max-width:100%}
+}
+
+/* Full-width landscape workspace. The drawer reserves space only while open. */
+@media (orientation:landscape) and (min-width:800px) and (min-height:350px){
+ html,body{width:100%;max-width:none;margin:0;overflow:hidden}
+ body>.app,.app{width:100%;max-width:none!important;margin:0!important;min-width:0}
+ .app{--haruna-sidebar-width:0px}
+ .app:has(.drawer.open){--haruna-sidebar-width:clamp(200px,22vw,240px)}
+ .app>.topbar,.app>#chatView,.app>.bottom-nav,.app>.page-view{
+  margin-left:var(--haruna-sidebar-width)!important;
+  width:calc(100% - var(--haruna-sidebar-width))!important;
+  max-width:none!important;
+  min-width:0;
+  box-sizing:border-box;
+  transition:margin-left .2s ease,width .2s ease;
+ }
+ .app>.topbar{padding-inline:clamp(12px,1.6vw,24px)}
+ .app:has(#chatView:not([hidden])) .drawer,
+ .app .drawer{
+  position:absolute;inset:0 auto 0 0;
+  width:clamp(200px,22vw,240px);max-width:none;
+  padding:14px 10px;
+  transform:translateX(-105%);
+  z-index:20;
+  border-radius:0 14px 14px 0;
+  box-shadow:0 8px 30px #0004;
+  transition:transform .2s ease;
+ }
+ .app:has(#chatView:not([hidden])) .drawer.open,.app .drawer.open{transform:translateX(0)}
+ .app .scrim,.app:has(#chatView:not([hidden])) .scrim{display:none!important}
+ .app .drawer .drawer-head{gap:4px}
+ .app .drawer .drawer-head-actions{gap:0}
+ .app .drawer .chat-row{min-width:0}
+ .app .drawer .chat-item{min-width:0}
+ .app .drawer .search input{min-width:0}
+ .app #chatView .status-row,.app #chatView .composer{
+  width:calc(100% - 28px);max-width:none;margin-left:14px;margin-right:14px;
+ }
+ .app #chatView .messages{width:100%;max-width:none;padding-inline:clamp(16px,2.5vw,38px)}
+ .app #chatView .msg{max-width:min(92%,860px)}
+ .app .bottom-nav{width:calc(100% - var(--haruna-sidebar-width))!important;max-width:none;border-radius:0}
+ .app .page-view{padding-inline:clamp(16px,3vw,42px)}
+ .image-dimensions[open]{
+  position:fixed!important;
+  left:calc(var(--haruna-sidebar-width,0px) + 14px)!important;
+  right:auto!important;
+  width:min(390px,calc(100vw - var(--haruna-sidebar-width,0px) - 28px))!important;
+  max-width:calc(100vw - var(--haruna-sidebar-width,0px) - 28px)!important;
+  margin:0!important;
+ }
+}
+
+/* The image dialog is bounded to the current chat workspace, even when open
+   in the browser top layer. Other pages never display chat-only controls. */
+@media (orientation:landscape) and (min-width:800px) and (min-height:350px){
+ .app:has(#chatView[hidden]) .image-dimensions[open]{display:none!important}
+ .app .drawer #closeMenu{display:inline-flex!important}
+ .app .page-view{max-width:none!important}
+ .app .bottom-nav{min-width:0}
+}
+@media (max-width:799px), (orientation:portrait){
+ .app .drawer{max-width:calc(100vw - 36px)}
+ .app .image-dimensions[open]{
+  left:12px!important;right:auto!important;
+  width:min(360px,calc(100vw - 24px))!important;
+  max-height:min(70dvh,calc(100dvh - 24px))!important;
+ }
+}
+
+/* Keep the conversation trigger reachable above chat content in every layout. */
+.app>.topbar{position:relative;z-index:11}
+.app #menu{position:relative;z-index:1;pointer-events:auto;touch-action:manipulation;cursor:pointer;flex:none}
+.app #drawer{visibility:visible;pointer-events:none}
+.app #drawer.open{pointer-events:auto}
+.app #scrim[hidden]{display:none!important}
+@media (max-width:799px), (orientation:portrait){
+ .app #drawer{
+  position:absolute;top:0;bottom:0;left:0;right:auto;
+  width:min(86vw,360px);max-width:calc(100vw - 36px);
+  transform:translateX(-105%);z-index:30;
+  transition:transform .2s ease;
+ }
+ .app #drawer.open{transform:translateX(0)}
+ .app #scrim:not([hidden]){display:block!important;z-index:29}
+}
+@media (orientation:landscape) and (min-width:800px) and (min-height:350px){
+ .app #drawer.open{pointer-events:auto}
+}

@@ -1,4 +1,7 @@
 import fs from 'node:fs';import assert from 'node:assert/strict';
-const {imageCandidate,imageDecision}=await import('data:text/javascript;base64,'+Buffer.from(fs.readFileSync('app/src/main/assets/haruna/image-intent.js','utf8')).toString('base64'));
+const {imageCandidate,imageDecision}=await import(new URL('../app/src/main/assets/haruna/image-intent.js',import.meta.url));
 for(const text of ['Como gerar uma imagem?','Você consegue criar imagens?','Explique como criar uma imagem','O que é uma imagem?'])assert.equal(imageCandidate(text),false);
 const original='Crie uma imagem de um touro.';let calls=0;const llm={generate:async(messages,o)=>{calls++;assert(messages[0].content.includes(JSON.stringify(original)));o.onToken('{"action":"generate_image"}')}};assert(await imageDecision(llm,original));assert.equal(calls,1);assert.equal(await imageDecision(llm,'Como criar uma imagem?'),false);assert.equal(calls,1);assert.equal(await imageDecision({generate:async(m,o)=>o.onToken('Vou gerar para você!')},original),false);assert.equal(await imageDecision({generate:async(m,o)=>o.onToken('{"action":"text"}')},original),false);console.log('PASS: explicit gate, LLM structured decision, no classifier for questions, rejects prose and text action; original stays unchanged (FAKE LLM).');
+
+for(const chunks of [['<think>classificar</think>', '{"action":"generate_image"}'],['classificar</thi','nk>{"action":"generate_image"}']])assert.equal(await imageDecision({generate:async(m,o)=>chunks.forEach(t=>o.onToken(t))},original),true);
+console.log('PASS: existing thinking parser protects structured image decision, including split closing tags (FAKE LLM).');

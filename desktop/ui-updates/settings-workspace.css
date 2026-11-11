@@ -1,0 +1,107 @@
+/* Settings / local models: component-level layout, no backend changes. */
+.app #settingsView{min-width:0;scrollbar-width:thin;overscroll-behavior:contain}
+.app #settingsView .page-head{margin-bottom:12px}
+.app #settingsView .page-card{min-width:0}
+.app #settingsView .section-title{min-width:0;gap:12px}
+.app #settingsView .section-title strong{font-size:16px;letter-spacing:-.02em}
+.app #settingsView #localModels{min-width:0}
+.app #settingsView #localModels .local-model-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:4px;margin:0 0 16px;border:1px solid var(--theme-stroke);border-radius:13px;background:var(--theme-surface-2)}
+.app #settingsView #localModels .local-model-tabs button{min-width:0;min-height:42px;margin:0;padding:8px 4px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--theme-muted);font-size:12px;line-height:1.3}
+.app #settingsView #localModels .local-model-tabs button[aria-selected=true]{background:var(--theme-surface);border-color:var(--theme-stroke);color:var(--theme-text);font-weight:700}
+.app #settingsView #localModels .local-model-tabs button:focus-visible{outline:2px solid var(--theme-accent);outline-offset:2px}
+.app #settingsView #localModels>section{min-width:0}
+.app #settingsView #localModels>section[hidden]{display:none!important}
+.app #settingsView #localModels [data-ram]{font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.app #settingsView #localModels progress{display:block;width:100%;height:9px;margin:10px 0 14px;accent-color:var(--theme-accent)}
+.app #settingsView #localModels [data-process],.app #settingsView #localModels [data-runtime],.app #settingsView #localModels [data-engines]{font-size:13px;line-height:1.6;color:var(--theme-muted);overflow-wrap:anywhere}
+.app #settingsView #modelList{display:grid;gap:9px;min-width:0}
+.app #settingsView #modelList .model-row{min-width:0;align-items:flex-start;flex-wrap:wrap;gap:10px;padding:12px;border:1px solid var(--theme-stroke);background:var(--theme-surface-2);border-radius:13px}
+.app #settingsView #modelList .model-info{flex:1 1 170px;min-width:0}
+.app #settingsView #modelList .model-info strong{color:var(--theme-text);white-space:normal;overflow-wrap:anywhere;line-height:1.45}
+.app #settingsView #modelList .model-info small{white-space:normal;overflow-wrap:anywhere;line-height:1.5;color:var(--theme-muted)}
+.app #settingsView #modelList .model-actions{flex:1 1 160px;min-width:0;justify-content:flex-end}
+.app #settingsView #modelList .model-actions button{flex:1 1 auto;min-width:90px;min-height:40px}
+.app #settingsView #addModel{display:block;width:100%;min-height:46px;margin-top:12px;text-align:center;border-radius:12px}
+.app #settingsView #modelImportProgress{min-width:0;overflow:hidden;border-color:var(--theme-stroke);background:var(--theme-surface-2)}
+.app #settingsView #modelImportProgress[hidden]{display:none!important}
+.app #settingsView #modelImportProgress .import-body{min-width:0}
+.app #settingsView #modelImportProgress .import-line{flex-wrap:wrap;align-items:baseline}
+.app #settingsView #modelImportProgress .import-detail{overflow-wrap:anywhere}
+.app #settingsView #localModels .settings-guide{margin-top:12px}
+.app #settingsView #localModels .settings-guide summary{cursor:pointer;min-height:40px;display:flex;align-items:center}
+.app #settingsView #localModels .settings-guide summary:focus-visible{outline:2px solid var(--theme-accent);outline-offset:2px}
+.app #settingsView #localModels .settings-guide p{margin:5px 0 0;line-height:1.55}
+@media(max-width:480px){
+ .app #settingsView #localModels .local-model-tabs button{font-size:11px}
+ .app #settingsView #modelList .model-actions{justify-content:stretch}
+ .app #settingsView #modelList .model-actions button{flex:1 1 120px}
+}
+
+/* Appearance, speech and image-generation settings share the same visual controls. */
+.app #settingsView .theme-choice{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.app #settingsView .theme-choice button{min-width:0;min-height:48px;display:flex;align-items:center;justify-content:center;gap:7px;padding:8px;border:1px solid var(--theme-stroke);border-radius:12px;background:var(--theme-surface-2);color:var(--theme-text);font-size:12px;line-height:1.35;white-space:normal}
+.app #settingsView .theme-choice button[aria-pressed=true],.app #settingsView .theme-choice button.active{background:var(--selection);border-color:var(--theme-accent);color:var(--theme-accent-soft)}
+.app #settingsView .theme-choice button:focus-visible{outline:2px solid var(--theme-accent);outline-offset:2px}
+.app #settingsView .recognition-settings,.app #settingsView .speech-settings,.app #settingsView .image-settings-card{min-width:0}
+.app #settingsView .recognition-settings .speech-actions,.app #settingsView .speech-settings .speech-actions{display:flex;flex-wrap:wrap;gap:8px}
+.app #settingsView .recognition-settings button,.app #settingsView .speech-settings button,.app #settingsView .image-settings-card button{min-height:40px;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.app #settingsView .recognition-settings select,.app #settingsView .speech-settings select,.app #settingsView .image-settings-card select{max-width:100%;min-width:0}
+.app #settingsView .recognition-settings [data-stt-models],.app #settingsView .speech-settings .model-list,.app #settingsView .image-settings-card [data-models]{min-width:0}
+.app #settingsView .recognition-settings [data-progress],.app #settingsView .speech-settings [data-progress],.app #settingsView .image-settings-card [data-progress]{overflow-wrap:anywhere;line-height:1.5}
+.app #settingsView .image-settings-card .image-settings-intro{line-height:1.55}
+.app #settingsView .image-settings-card .image-options{display:grid;gap:12px;min-width:0}
+.app #settingsView .image-settings-card .image-options>label{display:block;min-width:0;line-height:1.5}
+.app #settingsView .image-settings-card .image-options input:not([type=checkbox]):not([type=range]),.app #settingsView .image-settings-card .image-options select{min-width:0;max-width:100%;box-sizing:border-box}
+.app #settingsView .image-settings-card .image-options input[type=range]{display:block;width:100%;min-width:0;margin:10px 0;accent-color:var(--theme-accent)}
+.app #settingsView .image-settings-card .image-options input[type=checkbox]{width:18px;height:18px;accent-color:var(--theme-accent);vertical-align:middle}
+.app #settingsView .image-settings-card .image-options details,.app #settingsView .image-settings-card .image-settings-guide{min-width:0;border:1px solid var(--theme-stroke);border-radius:12px;background:var(--theme-surface-2);padding:0 12px 10px}
+.app #settingsView .image-settings-card .image-options details>summary,.app #settingsView .image-settings-card .image-settings-guide>summary{cursor:pointer;min-height:42px;display:flex;align-items:center;font-weight:600}
+.app #settingsView .image-settings-card .image-options details>summary:focus-visible,.app #settingsView .image-settings-card .image-settings-guide>summary:focus-visible{outline:2px solid var(--theme-accent);outline-offset:2px}
+.app #settingsView .image-settings-card .image-options details label{display:block;min-width:0;margin:10px 0;line-height:1.5}
+.app #settingsView .image-settings-card .image-options small,.app #settingsView .image-settings-card .image-settings-help{display:block;line-height:1.5;overflow-wrap:anywhere;color:var(--theme-muted)}
+.app #settingsView .image-settings-card .image-settings-advanced{min-width:0}
+.app #settingsView .image-settings-card .model-actions{min-width:0;flex-wrap:wrap}
+.app #settingsView .image-settings-card .model-actions button{flex:1 1 130px}
+.app #settingsView .setting-row{align-items:baseline;flex-wrap:wrap;line-height:1.5}
+.app #settingsView .setting-row strong{overflow-wrap:anywhere}
+@media(max-width:390px){
+ .app #settingsView .theme-choice{grid-template-columns:minmax(0,1fr)}
+ .app #settingsView .theme-choice button{justify-content:flex-start;padding-left:14px}
+}
+
+/* Native Android memory observation, presented as a compact status card. */
+.app #settingsView #localModels .ram-monitor{margin-top:18px;padding:16px;border:1px solid var(--theme-stroke);border-radius:16px;background:var(--theme-surface-2);min-width:0}
+.app #settingsView #localModels .ram-monitor-head,.app #settingsView #localModels .ram-usage-label,.app #settingsView #localModels .ram-process{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.app #settingsView #localModels .ram-monitor-head strong{font-size:15px;letter-spacing:-.015em}
+.app #settingsView #localModels .ram-live{font-size:11px;color:var(--theme-muted)}
+.app #settingsView #localModels .ram-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.app #settingsView #localModels .ram-metric{display:flex;flex-direction:column;gap:4px;min-width:0;padding:14px;border:1px solid var(--theme-stroke);border-radius:13px;background:var(--theme-surface)}
+.app #settingsView #localModels .ram-metric small{font-size:11px;line-height:1.4;color:var(--theme-muted)}
+.app #settingsView #localModels .ram-metric strong{font-size:clamp(20px,2.3vw,26px);font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.app #settingsView #localModels .ram-metric span{font-size:11px;color:var(--theme-muted)}
+.app #settingsView #localModels .ram-usage{margin:17px 0}
+.app #settingsView #localModels .ram-usage-label{font-size:12px;color:var(--theme-muted)}
+.app #settingsView #localModels .ram-usage-label strong{font-size:12px;color:var(--theme-text);font-variant-numeric:tabular-nums}
+.app #settingsView #localModels .ram-usage progress{display:block;width:100%;height:10px;margin:10px 0 0;accent-color:var(--theme-accent);border-radius:20px;overflow:hidden}
+.app #settingsView #localModels .ram-process{padding-top:13px;border-top:1px solid var(--theme-stroke);font-size:12px}
+.app #settingsView #localModels .ram-process span{color:var(--theme-muted)}
+.app #settingsView #localModels .ram-process strong{font-size:13px;font-variant-numeric:tabular-nums}
+.app #settingsView #localModels .ram-technical{margin-top:12px;border-top:1px solid var(--theme-stroke)}
+.app #settingsView #localModels .ram-technical summary{padding:12px 0 2px;min-height:38px;font-size:12px;color:var(--theme-muted);cursor:pointer}
+.app #settingsView #localModels .ram-technical p{font-size:12px;line-height:1.5;color:var(--theme-muted);overflow-wrap:anywhere}
+.app #settingsView #localModels .ram-monitor [data-runtime]{margin:8px 0 0}
+.app #settingsView #localModels .local-model-tabs button{font-size:13px}
+@media(max-width:390px){.app #settingsView #localModels .ram-monitor{padding:12px}.app #settingsView #localModels .ram-metric{padding:10px}.app #settingsView #localModels .ram-metric strong{font-size:20px}}
+
+/* Voice workspace: preserve native controls, reduce unnecessary visual noise. */
+.app #settingsView #haruna-local-model-panel-2{min-width:0;display:grid;gap:14px}
+.app #settingsView #haruna-local-model-panel-2>.recognition-settings,
+.app #settingsView #haruna-local-model-panel-2>.speech-settings{margin:0;min-width:0}
+.app #settingsView #haruna-local-model-panel-2 .section-title{margin-bottom:12px}
+.app #settingsView #haruna-local-model-panel-2 .section-title strong{font-size:15px}
+.app #settingsView #haruna-local-model-panel-2 .settings-note,
+.app #settingsView #haruna-local-model-panel-2 .speech-help{font-size:12px;line-height:1.5;color:var(--theme-muted)}
+.app #settingsView #haruna-local-model-panel-2 select,
+.app #settingsView #haruna-local-model-panel-2 input:not([type=checkbox]):not([type=range]){max-width:100%;min-width:0}
+.app #settingsView #haruna-local-model-panel-2 .speech-actions{gap:8px}
+.app #settingsView #haruna-local-model-panel-2 .speech-actions button{flex:1 1 160px;min-height:42px}

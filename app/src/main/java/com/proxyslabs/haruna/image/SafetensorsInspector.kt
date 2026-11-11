@@ -9,7 +9,7 @@ import java.io.InputStream
 object SafetensorsInspector {
     private const val MAX_HEADER_BYTES=16L*1024*1024
     data class Result(val tensorCount:Int,val tensorBytes:Long,val fileBytes:Long,val architectureHint:SafetensorsArchitecture.Hint,val sd15Compatible:Boolean=false,val sdxlCompatible:Boolean=false)
-    internal data class Header(val prefix:ByteArray,val json:ByteArray,val result:Result)
+    internal data class Header(val prefix:ByteArray,val json:ByteArray,val result:Result,val tensors:Map<String,SafetensorsArchitecture.Tensor>)
     private data class Span(val start:Long,val end:Long)
     private val bitsPerElement=mapOf("BOOL" to 8,"U8" to 8,"I8" to 8,"F8_E5M2" to 8,"F8_E4M3" to 8,"F8_E8M0" to 8,"I16" to 16,"U16" to 16,"F16" to 16,"BF16" to 16,"I32" to 32,"U32" to 32,"F32" to 32,"I64" to 64,"U64" to 64,"F64" to 64,"F4" to 4,"F6_E2M3" to 6,"F6_E3M2" to 6)
     private fun integer(value:Any):Long {require(value is Number){"Inteiro inválido no cabeçalho"};val n=value.toLong();require(value.toDouble()==n.toDouble()){ "Inteiro inválido no cabeçalho" };return n}
@@ -34,7 +34,8 @@ object SafetensorsInspector {
         require(spans.isNotEmpty()){ "Nenhum tensor encontrado" };spans.sortWith(compareBy<Span>{it.start}.thenBy{it.end});var cursor=0L
         for(span in spans){require(span.start==cursor){"Tensores sobrepostos ou dados não contíguos"};cursor=span.end}
         val fileBytes=Math.addExact(Math.addExact(8,length),cursor);require(fileBytes<=ImagePackage.maxBytes){"Checkpoint excede 8 GiB"}
-        return Header(prefix,header,Result(spans.size,cursor,fileBytes,SafetensorsArchitecture.detect(tensors.keys.asSequence()),SafetensorsArchitecture.supportsCheckpoint(tensors),SafetensorsArchitecture.supportsSdxl(tensors)))
+        return Header(prefix,header,Result(spans.size,cursor,fileBytes,SafetensorsArchitecture.detect(tensors.keys.asSequence()),SafetensorsArchitecture.supportsCheckpoint(tensors),SafetensorsArchitecture.supportsSdxl(tensors)),tensors)
     }
+    internal fun tensorMap(file:File):Map<String,SafetensorsArchitecture.Tensor> = file.inputStream().buffered().use{val header=readHeader(it);require(header.result.fileBytes==file.length()){ "Componente safetensors incompleto" };header.tensors}
     fun inspect(file:File):Result {require(file.isFile&&file.length()>=10){"Arquivo safetensors vazio ou inválido"};return file.inputStream().buffered().use{val result=readHeader(it).result;require(result.fileBytes==file.length()){ "Dados extras ou truncados no arquivo" };result}}
 }

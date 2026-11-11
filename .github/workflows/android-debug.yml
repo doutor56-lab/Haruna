@@ -6,6 +6,7 @@ on:
       - refactor/haruna-ui-integracao-20261108
       - design/haruna-paginas-aprovadas-20261108
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   build-debug:
@@ -27,6 +28,14 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate shared UI and structured image intent
+        run: |
+          python3 scripts/validate_ui_integrity.py
+          node tests/image_intent_check.mjs
+          node tests/voice_orb_check.cjs
       - name: Install Android SDK components
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
@@ -51,12 +60,16 @@ jobs:
           print("Haruna llama.cpp interface methods are present")
           PY
       - name: Build debug APK
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
+        run: gradle --no-daemon --stacktrace :app:testDebugUnitTest :app:assembleDebug
+      - name: Hash Android APK
+        run: sha256sum app/build/outputs/apk/debug/*.apk > app/build/outputs/apk/debug/SHA256SUMS.txt
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: haruna-ui-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: Haruna-Android-ARM64
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/debug/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7

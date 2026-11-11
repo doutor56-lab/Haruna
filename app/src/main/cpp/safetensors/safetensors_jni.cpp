@@ -18,7 +18,7 @@
 namespace {
 struct Session {
     std::mutex operation, contextAccess;
-    bool sdxl=false,lowMemory=false,previewEnabled=false;std::string previewPath;
+    bool sdxl=false,flux=false,lowMemory=false,previewEnabled=false;std::string previewPath;
     sd_ctx_t* ctx=nullptr; // operation owns use; contextAccess protects cancel vs release.
     std::atomic<bool> cancelled{false},closing{false},samplerStarted{false};
     std::atomic<int> phase{0},step{0},total{0};
@@ -69,6 +69,22 @@ extern "C" JNIEXPORT jboolean JNICALL JNI(generatePng)(JNIEnv* env,jobject,jlong
         if(!saved||s->cancelled||s->closing){unlink(path.c_str());lastError=s->cancelled?"Geração cancelada":"Falha ao salvar PNG";return false;}return true;
     }catch(const std::bad_alloc&){lastError="Memória insuficiente para gerar Stable Diffusion";}catch(...){lastError="Falha nativa ao gerar Stable Diffusion";}if(!path.empty())unlink(path.c_str());release(*s);return false;}
 extern "C" JNIEXPORT void JNICALL JNI(cancel)(JNIEnv*,jobject,jlong id){auto s=find(id);if(s)cancel(*s);}
+extern "C" JNIEXPORT jboolean JNICALL JNI(loadFlux)(JNIEnv* env,jobject,jlong id,jstring diffusion,jstring clip,jstring t5,jstring vae,jboolean lowMemory){
+    auto s=find(id);if(!s){lastError="Sessão inexistente";return false;}
+    std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);
+    try{lastError.clear();if(s->ctx||s->closing||s->cancelled){lastError="Sessão ocupada ou cancelada";return false;}
+        const auto d=fromJava(env,diffusion),c=fromJava(env,clip),t=fromJava(env,t5),v=fromJava(env,vae);
+        if(d.empty()||c.empty()||t.empty()||v.empty()){lastError="Componentes FLUX.1 ausentes";return false;}
+        sd_set_log_callback(quiet,nullptr);s->phase=1;sd_ctx_params_t params{};sd_ctx_params_init(&params);
+        params.diffusion_model_path=d.c_str();params.clip_l_path=c.c_str();params.t5xxl_path=t.c_str();params.vae_path=v.c_str();params.n_threads=4;
+        params.enable_mmap=true;params.backend="cpu";params.params_backend=lowMemory?"disk":"cpu";params.batched_cfg=false;
+        std::unique_ptr<sd_ctx_t,decltype(&free_sd_ctx)> ctx(new_sd_ctx(&params),free_sd_ctx);
+        if(!ctx){lastError="Não foi possível carregar FLUX.1; confira componentes e memória";return false;}
+        const char* version=sd_get_model_version_name(ctx.get());if(!version||std::string(version)!="Flux"){lastError="O runtime não identificou FLUX.1 txt2img compatível";return false;}
+        if(s->closing||s->cancelled){lastError="Carregamento cancelado";return false;}
+        {std::lock_guard<std::mutex> l(s->contextAccess);s->ctx=ctx.release();s->sdxl=true;s->flux=true;s->lowMemory=lowMemory;}s->phase=2;return true;
+    }catch(const std::bad_alloc&){lastError="Memória insuficiente para FLUX.1";}catch(...){lastError="Falha nativa ao preparar FLUX.1";}release(*s);return false;
+}
 extern "C" JNIEXPORT void JNICALL JNI(destroy)(JNIEnv*,jobject,jlong id){std::shared_ptr<Session> s;{std::lock_guard<std::mutex> l(registryMutex);auto i=sessions.find(id);if(i==sessions.end())return;s=i->second;s->closing=true;sessions.erase(i);}cancel(*s);std::lock_guard<std::mutex> op(s->operation);std::lock_guard<std::mutex> engine(engineMutex);release(*s);}
 extern "C" JNIEXPORT jstring JNICALL JNI(lastError)(JNIEnv* env,jobject){return env->NewStringUTF(("Stable Diffusion CPU: "+lastError).c_str());}
 extern "C" JNIEXPORT jintArray JNICALL JNI(progress)(JNIEnv* env,jobject,jlong id){auto s=find(id);jint values[3]={s?s->phase.load():0,s?s->step.load():0,s?s->total.load():0};auto a=env->NewIntArray(3);if(a)env->SetIntArrayRegion(a,0,3,values);return a;}

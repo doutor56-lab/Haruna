@@ -1,0 +1,73 @@
+name: Haruna Windows
+on:
+  push:
+    branches: [feature/windows-sdxl, port/windows-from-working-42504813611]
+    paths: ['desktop/**', 'app/src/main/assets/haruna/**', '.github/workflows/windows-sdxl.yml']
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: haruna-windows-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: desktop
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install pinned desktop dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Test model boundaries and exclusive LLM/image lifecycle
+        run: |
+          npm run prepare:ui
+          npm test
+      - name: Download and verify native Windows runtimes
+        run: python scripts/fetch-runtimes.py
+      - name: Bundle app-local Microsoft redistributable runtime
+        run: ./scripts/bundle-vc-runtime.ps1
+      - name: Build Windows x64 portable EXE
+        run: npm run dist:win
+      - name: Launch packaged Windows app and test real native CLI interfaces
+        run: |
+          $env:HARUNA_SMOKE_OUTPUT = Join-Path $PWD 'smoke-output'
+          $exe = Get-ChildItem dist -Filter 'Haruna-Windows-*-x64.exe' | Select-Object -First 1
+          if (!$exe) { throw 'Installer not produced' }
+          $p = Start-Process $exe.FullName -ArgumentList '--smoke-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Packaged application smoke failed: $($p.ExitCode)" }
+          if (!(Test-Path 'smoke-output/WINDOWS_SMOKE.json')) { throw 'Smoke report missing' }
+          $report = Get-Content 'smoke-output/WINDOWS_SMOKE.json' -Raw | ConvertFrom-Json
+          if ($report.realImageGenerated -ne $false) { throw 'CI must not simulate model inference' }
+      - name: Build metadata and hashes
+        run: |
+          $meta = @{ harunaCommit='${{ github.sha }}'; platform='Windows x64'; electron='45.2.3'; sdRevision='f5df5f8b84f139f1e80496902da90798a0d92896'; llamaRevision='7e42b95f231e508a001b6006fa73abbbbc1da3c2'; actualModelInference=$false }
+          $meta | ConvertTo-Json | Set-Content dist/BUILD_METADATA.json
+          Get-ChildItem dist -Filter '*.exe' | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content dist/SHA256SUMS.txt
+          Get-Content dist/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haruna-Windows-x64
+          path: desktop/dist/Haruna-Windows-*-x64.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Haruna-Windows-Relatorio
+          path: |
+            desktop/dist/BUILD_METADATA.json
+            desktop/dist/SHA256SUMS.txt
+            desktop/smoke-output/*.json
+            desktop/smoke-output/*.png
+            desktop/licenses/
+            desktop/README.md
+            desktop/runtimes/*/BUILD_METADATA.json
+            desktop/runtimes/VC_RUNTIME_METADATA.json

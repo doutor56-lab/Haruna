@@ -11,6 +11,15 @@ import java.io.File
  */
 internal class SafetensorsSession private constructor(@Volatile private var handle: Long, val sdxl:Boolean) : Closeable {
     companion object {
+        fun openFlux(directory:File,cancelled:()->Boolean={false},lowMemory:Boolean=true,onCreated:(SafetensorsSession)->Unit={}):SafetensorsSession {
+            require(SafetensorsImageNative.available){"Motor FLUX.1 não incluído neste APK"}
+            // ImageBridge verifies hashes and tensor roles before acquiring this session.
+            val paths=SdcppPackage.files(directory)
+            val id=SafetensorsImageNative.create();check(id!=0L){SafetensorsImageNative.lastError()}
+            val session=SafetensorsSession(id,true)
+            try{onCreated(session);check(!cancelled()){"Carregamento cancelado"};check(SafetensorsImageNative.loadFlux(id,paths[0],paths[1],paths[2],paths[3],lowMemory)){SafetensorsImageNative.lastError()};check(!cancelled()){"Carregamento cancelado"};return session}
+            catch(t:Throwable){session.close();throw t}
+        }
         fun open(checkpoint: File, cancelled:()->Boolean={false}, lowMemory:Boolean?=null, onCreated:(SafetensorsSession)->Unit={}): SafetensorsSession {
             require(SafetensorsImageNative.available) {
                 "Motor safetensors não incluído neste APK"

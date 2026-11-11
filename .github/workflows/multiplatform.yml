@@ -1,0 +1,16 @@
+name: Haruna Android and Windows
+on:
+  push:
+    branches: [integration/haruna-multiplatform-20261111]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build approved]')
+    uses: ./.github/workflows/android-debug.yml
+    secrets: inherit
+  windows:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build approved]')
+    uses: ./.github/workflows/windows-sdxl.yml
+    secrets: inherit

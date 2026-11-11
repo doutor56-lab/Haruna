@@ -12,7 +12,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.withLock
 
-class ImageBridge(context:Context,private val backend:LlmBackend,private val picker:()->Unit) {
+class ImageBridge(context:Context,private val backend:LlmBackend,private val componentPicker:(()->Unit)?=null,private val picker:()->Unit) {
     private val app=context.applicationContext
     private val prefs=app.getSharedPreferences("image_generation",Context.MODE_PRIVATE)
     private val root=File(app.filesDir,"image-models").apply{mkdirs()}
@@ -28,19 +28,20 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
     @Volatile private var nativeTicket=0L
     @Volatile private var nezumiHandle=0L
     @Volatile private var safetensorsSession:SafetensorsSession?=null
-    private fun isSafetensors(id:String?)=models[id]?.optString("format") in setOf(SafetensorsPackage.format,SafetensorsPackage.sdxlFormat)
-    private fun availableFormat(format:String)=when(format){SafetensorsPackage.format,SafetensorsPackage.sdxlFormat->SafetensorsImageNative.available;NezumiPackage.format->NezumiImageNative.available;else->ImageNative.available}
+    private fun isSafetensors(id:String?)=models[id]?.optString("format") in setOf(SafetensorsPackage.format,SafetensorsPackage.sdxlFormat,SdcppPackage.format)
+    private fun availableFormat(format:String)=when(format){SafetensorsPackage.format,SafetensorsPackage.sdxlFormat,SdcppPackage.format->SafetensorsImageNative.available;NezumiPackage.format->NezumiImageNative.available;else->ImageNative.available}
+    private fun isFlux(id:String?=prefs.getString("selected",null))=models[id]?.optString("format")==SdcppPackage.format
     private fun selectedSdxl()=models[prefs.getString("selected",null)]?.optString("format")==SafetensorsPackage.sdxlFormat
     private fun outputResolution()=prefs.getInt(if(selectedSdxl())"sdxlResolution" else "resolution",if(selectedSdxl())1024 else 256)
     private fun outputSteps()=prefs.getInt(if(selectedSdxl())"sdxlSteps" else "steps",if(selectedSdxl())28 else 5)
     private var restorePath:String?=null
     private var restoreWarning:String?=null
-    private fun optionKey(id:String?=prefs.getString("selected",null))=when {models[id]?.optString("format")==SafetensorsPackage.sdxlFormat->"options-sdxl";isSafetensors(id)->"options-sd15";isNezumi(id)->"options-nezumi";else->"options-mnn"}
+    private fun optionKey(id:String?=prefs.getString("selected",null))=when {isFlux(id)->"options-flux1";models[id]?.optString("format")==SafetensorsPackage.sdxlFormat->"options-sdxl";isSafetensors(id)->"options-sd15";isNezumi(id)->"options-nezumi";else->"options-mnn"}
     private fun optionEngine(id:String?=prefs.getString("selected",null))=when {isSafetensors(id)->"safetensors";isNezumi(id)->"nezumi";else->"mnn"}
     private fun options(id:String?=prefs.getString("selected",null)):ImageOptions {
-        val kind=optionEngine(id);val sf=kind=="safetensors";val xl=models[id]?.optString("format")==SafetensorsPackage.sdxlFormat
-        val side=prefs.getInt(if(xl)"sdxlResolution" else "resolution",if(xl)1024 else 256)
-        val d=ImageOptions(side,side,prefs.getInt(if(xl)"sdxlSteps" else "steps",if(xl)28 else 5),if(xl)5.0 else if(sf)7.0 else 7.5,if(xl)2 else -1,if(xl)"euler" else if(kind=="nezumi")"dpm++2m" else "default",if(xl||kind=="nezumi")"discrete" else "default",-1,"",xl,if(xl)1024 else 512,if(xl)32 else 64)
+        val kind=optionEngine(id);val sf=kind=="safetensors";val flux=isFlux(id);val xl=flux||models[id]?.optString("format")==SafetensorsPackage.sdxlFormat
+        val side=if(flux)512 else prefs.getInt(if(xl)"sdxlResolution" else "resolution",if(xl)1024 else 256)
+        val d=ImageOptions(side,side,if(flux){if(models[id]?.optString("architecture")=="flux1-schnell")4 else 20}else prefs.getInt(if(xl)"sdxlSteps" else "steps",if(xl)28 else 5),if(flux)1.0 else if(xl)5.0 else if(sf)7.0 else 7.5,if(xl&&!flux)2 else -1,if(xl)"euler" else if(kind=="nezumi")"dpm++2m" else "default",if(flux)"default" else if(xl||kind=="nezumi")"discrete" else "default",-1,"",xl,if(flux)0 else if(xl)1024 else 512,if(xl)32 else 64)
         val saved=prefs.getString(optionKey(id),null)?:return d
         return d.updated(JSONObject(saved),kind).let{it.copy(legacySide=JSONObject(saved).optInt("legacySide",0))}
     }
@@ -53,7 +54,7 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
     }}
     private fun isNezumi(id:String?)=models[id]?.optString("format")==NezumiPackage.format
     private fun available(id:String?)=availableFormat(models[id]?.optString("format").orEmpty())
-    private fun model(id:String,m:JSONObject)=JSONObject().put("id",id).put("name",m.optString("displayName","SD1.5 MNN").take(64)).put("format",m.optString("format","haruna_sd15")).put("engineAvailable",availableFormat(m.optString("format"))).put("state","INSTALLED")
+    private fun model(id:String,m:JSONObject)=JSONObject().put("id",id).put("name",m.optString("displayName","SD1.5 MNN").take(64)).put("format",m.optString("format","haruna_sd15")).put("architecture",m.optString("architecture","sd15")).put("engineAvailable",availableFormat(m.optString("format"))).put("state","INSTALLED")
     private var job=JSONObject()
     companion object {private val tickets=java.util.concurrent.atomic.AtomicLong()}
     private var phase="NOT_INSTALLED"
@@ -67,9 +68,20 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
             catch(e:Exception){models[dir.name]=JSONObject().put("id",dir.name).put("name","Pacote inválido").put("state","INCOMPATIBLE")}
         };phase=if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";publish()
     }}
-    private fun publish(){snapshot=options().json().put("state",phase).put("busy",busy).put("imageEngineBusy",ImageLease.active).put("error",error).put("copiedBytes",copied).put("engineAvailable",available(prefs.getString("selected",null))).put("performanceSupported",!isNezumi(prefs.getString("selected",null))&&!isSafetensors(prefs.getString("selected",null))).put("engine",if(isSafetensors(prefs.getString("selected",null)))(if(selectedSdxl())"stable-diffusion.cpp CPU · SDXL/Illustrious · pesos em disco" else "stable-diffusion.cpp CPU · SD1.5 experimental") else "MNN CPU · componentes SD1.5").put("generationAvailable",available(prefs.getString("selected",null))).put("generation",job).put("loaded",loaded).put("selected",prefs.getString("selected",null)).put("models",JSONArray(models.values.toList())).put("nativeSide",if(selectedSdxl())1024 else 512).put("resolution",options().width).put("restoreWarning",restoreWarning).put("nativeWidth",options().nativeWidth(optionEngine()=="safetensors")).put("nativeHeight",options().nativeHeight(optionEngine()=="safetensors")).put("engineKind",optionEngine()).put("maxSteps",if(optionEngine()=="safetensors")100 else 50).put("performance",prefs.getString("performance","balanced")).put("autoSave",prefs.getBoolean("autoSave",true)).put("backend","CPU").put("batchCount",if(optionEngine()=="mnn")1 else prefs.getInt("batchCount",1)).put("maxBatch",if(optionEngine()=="mnn")1 else 4).put("previewSupported",isSafetensors(prefs.getString("selected",null))&&SafetensorsImageNative.available).put("showPreviews",prefs.getBoolean("showPreviews",false)).toString()}
+    private fun publish(){snapshot=options().json().put("state",phase).put("busy",busy).put("imageEngineBusy",ImageLease.active).put("error",error).put("copiedBytes",copied).put("engineAvailable",available(prefs.getString("selected",null))).put("performanceSupported",!isNezumi(prefs.getString("selected",null))&&!isSafetensors(prefs.getString("selected",null))).put("engine",if(isSafetensors(prefs.getString("selected",null)))(if(isFlux())"stable-diffusion.cpp CPU · FLUX.1 · componentes locais" else if(selectedSdxl())"stable-diffusion.cpp CPU · SDXL/Illustrious · pesos em disco" else "stable-diffusion.cpp CPU · SD1.5 experimental") else "MNN CPU · componentes SD1.5").put("generationAvailable",available(prefs.getString("selected",null))).put("generation",job).put("loaded",loaded).put("selected",prefs.getString("selected",null)).put("models",JSONArray(models.values.toList())).put("nativeSide",if(selectedSdxl())1024 else 512).put("resolution",options().width).put("restoreWarning",restoreWarning).put("nativeWidth",options().nativeWidth(optionEngine()=="safetensors")).put("nativeHeight",options().nativeHeight(optionEngine()=="safetensors")).put("engineKind",optionEngine()).put("maxSteps",if(optionEngine()=="safetensors")100 else 50).put("performance",prefs.getString("performance","balanced")).put("autoSave",prefs.getBoolean("autoSave",true)).put("backend","CPU").put("batchCount",if(optionEngine()=="mnn")1 else prefs.getInt("batchCount",1)).put("maxBatch",if(optionEngine()=="mnn")1 else 4).put("previewSupported",isSafetensors(prefs.getString("selected",null))&&SafetensorsImageNative.available).put("showPreviews",prefs.getBoolean("showPreviews",false)).toString()}
     @JavascriptInterface fun status():String {val s=JSONObject(snapshot).put("busy",busy).put("imageEngineBusy",ImageLease.active);safetensorsSession?.let{s.put("nativeProgress",JSONArray(it.progress().toList()))};if(nezumiHandle>0&&NezumiImageNative.available){s.put("nativeProgress",JSONArray(NezumiImageNative.progress(nezumiHandle).toList()))};if(nativeTicket>0&&ImageNative.available){val p=ImageNative.progress();s.put("nativeProgress",JSONArray(p.toList()))};val previewId=s.optJSONObject("generation")?.optString("currentRequest").orEmpty();if(previewId.matches(Regex("[0-9a-f-]{36}"))){val preview=File(outputs,"$previewId.preview.png");if(preview.isFile)s.put("previewUrl","/generated/$previewId.preview.png?v="+preview.lastModified())};return s.toString()}
     @JavascriptInterface fun add(){if(!closed&&!busy)picker()}
+    @JavascriptInterface fun addComponents(){if(!closed&&!busy)componentPicker?.invoke()}
+    fun installComponents(uris:List<Uri>)=submit {
+        require(uris.size==4){"Selecione os quatro arquivos: difusão FLUX.1, CLIP-L, T5-XXL e VAE"}
+        phase="INSTALLING";copied=0;publish();val stage=File(root,NezumiPackage.stagingPrefix+java.util.UUID.randomUUID()).apply{check(mkdirs())}
+        try{val hashes=JSONObject();val roles=mutableSetOf<String>();var total=0L
+            for(uri in uris){check(!cancel.get()&&!closed){"Instalação cancelada"};val name=checkpointName(uri).lowercase();val role=when{ name.startsWith("clip_l")->"clip_l";name.startsWith("t5")->"t5xxl";name=="ae"||name.startsWith("vae")->"ae";else->"diffusion"};require(roles.add(role)){"Componentes FLUX duplicados ou sem identificação. Use clip_l, t5xxl e ae nos nomes correspondentes"}
+                app.contentResolver.openInputStream(uri).use{raw->val input=requireNotNull(raw).buffered();input.mark(8);val magic=ByteArray(4);java.io.DataInputStream(input).readFully(magic);input.reset();val gguf=magic.contentEquals(byteArrayOf(71,71,85,70));require(!gguf||role in setOf("diffusion","t5xxl")){"CLIP-L e VAE devem estar em safetensors"};if(!gguf){input.mark(16*1024*1024+8);SafetensorsInspector.readHeader(input);input.reset()};val target=File(stage,role+if(gguf)".gguf"else".safetensors");target.outputStream().use{out->val bytes=ByteArray(65536);while(true){check(!cancel.get()&&!closed){"Instalação cancelada"};val n=input.read(bytes);if(n<0)break;total+=n;require(total<=ImagePackage.maxBytes){"O conjunto excede 8 GiB; use componentes quantizados compatíveis"};check(root.usableSpace>128L*1024*1024+n){"Espaço insuficiente para instalar os componentes"};out.write(bytes,0,n);copied=total;if(total%1048576<65536)publish()}};hashes.put(target.name,ImagePackage.hash(target){cancel.get()||closed})}
+            }
+            require(roles==setOf("diffusion","clip_l","t5xxl","ae")){"Conjunto FLUX incompleto"};val d=File(SdcppPackage.files(stage)[0]);val tensors=if(d.extension=="gguf")ImageGguf.tensors(d)else SafetensorsInspector.tensorMap(d);val dev=tensors.keys.any{it.contains("guidance_in.")};val m=JSONObject().put("version",1).put("engine","stable-diffusion.cpp").put("format",SdcppPackage.format).put("architecture",if(dev)"flux1-dev"else"flux1-schnell").put("displayName",if(dev)"FLUX.1 dev"else"FLUX.1 schnell").put("files",hashes);File(stage,"haruna-image-model.json").writeText(m.toString());SdcppPackage.verify(stage){cancel.get()||closed};val target=File(root,java.util.UUID.randomUUID().toString());check(stage.renameTo(target)){"Falha ao concluir a instalação"};models[target.name]=model(target.name,m);if(prefs.getString("selected",null)==null)prefs.edit().putString("selected",target.name).commit();phase="INSTALLED"
+        }finally{stage.deleteRecursively()}
+    }
     @JavascriptInterface fun cancel(){cancel.set(true);safetensorsSession?.cancel();val h=nezumiHandle;if(h>0&&NezumiImageNative.available)NezumiImageNative.cancel(h);val t=nativeTicket;if(t>0&&ImageNative.available)ImageNative.cancelNative(t)}
     @Synchronized private fun submit(action:()->Unit):Boolean {if(closed||busy)return false;busy=true;cancel.set(false);worker.execute {error=null;phase=if(loaded!=null)"LOADED" else if(models.isEmpty())"NOT_INSTALLED" else "INSTALLED";publish();try{action()}catch(e:OutOfMemoryError){free();error="Memória insuficiente; arquivos instalados foram preservados";phase="ERROR"}catch(e:Exception){error=when(e){is java.util.zip.ZipException->"Pacote ZIP incompleto ou corrompido";is IllegalArgumentException,is IllegalStateException->e.message?:"Modelo incompatível";else->"Não foi possível concluir a operação de imagem"};phase=if(e is IllegalArgumentException && !error.orEmpty().contains("Espaço")) "INCOMPATIBLE" else "ERROR"}finally{busy=false;publish()}};return true}
     private fun checkpointName(uri:Uri):String = runCatching{app.contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use{if(it.moveToFirst())it.getString(0)?.substringBeforeLast('.') else null}}.getOrNull()?:"SD1.5 safetensors"
@@ -83,7 +95,7 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
         if(cancel.get()||closed){dir.deleteRecursively();throw IllegalStateException("Instalação cancelada")}
         val m=ImagePackage.verify(dir)
         // FlatBuffer verification maps model files and never creates inference sessions.
-        if(m.optString("format") !in setOf(NezumiPackage.format,SafetensorsPackage.format,SafetensorsPackage.sdxlFormat)&&ImageNative.available&&!ImageNative.validate(dir.absolutePath)){dir.deleteRecursively();throw IllegalArgumentException("Modelo MNN inválido ou corrompido")}
+        if(m.optString("format") !in setOf(NezumiPackage.format,SafetensorsPackage.format,SafetensorsPackage.sdxlFormat,SdcppPackage.format)&&ImageNative.available&&!ImageNative.validate(dir.absolutePath)){dir.deleteRecursively();throw IllegalArgumentException("Modelo MNN inválido ou corrompido")}
         models[dir.name]=model(dir.name,m)
         if(prefs.getString("selected",null)==null)prefs.edit().putString("selected",dir.name).commit()
         phase="INSTALLED"
@@ -116,7 +128,7 @@ class ImageBridge(context:Context,private val backend:LlmBackend,private val pic
             val minimum=if(sf&&options(id).lowMemory)768L*mib else maxOf(bytes+256L*mib,1536L*mib)
             check(!info.lowMemory&&info.availMem>minimum){"Memória disponível insuficiente; modelo instalado foi preservado"}
             phase="LOADING";models[id]?.put("state","LOADING");publish()
-            if(sf){SafetensorsSession.open(File(file,SafetensorsPackage.checkpoint),{cancel.get()||closed},options(id).lowMemory){safetensorsSession=it}}
+            if(sf){if(isFlux(id))SafetensorsSession.openFlux(file,{cancel.get()||closed},options(id).lowMemory){safetensorsSession=it}else SafetensorsSession.open(File(file,SafetensorsPackage.checkpoint),{cancel.get()||closed},options(id).lowMemory){safetensorsSession=it}}
             else if(nezumi){val h=NezumiImageNative.create();check(h>0){"Motor Nezumi indisponível"};nezumiHandle=h;check(!cancel.get()&&!closed){"Carregamento cancelado"};check(NezumiImageNative.loadCpu(h,file.absolutePath)&&NezumiImageNative.isLoaded(h)){NezumiImageNative.lastError()}}
             else if(preload)check(ImageNative.load(file.absolutePath)){"Não foi possível preparar os componentes SD1.5. Pode haver incompatibilidade ou falta de memória."}
             if(cancel.get()||closed)throw IllegalStateException("Carregamento cancelado")
