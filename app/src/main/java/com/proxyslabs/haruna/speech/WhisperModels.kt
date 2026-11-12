@@ -37,7 +37,9 @@ object WhisperModels {
             if (line.isBlank()) continue
             val rank = line.substringAfterLast(' ').toIntOrNull() ?: return false
             if (rank !in ids.indices || ids[rank]) return false
-            if (!line.substringBefore(' ').matches(encoded)) return false
+            val symbol = line.substringBefore(' ')
+            // Official multilingual exports use '=' for the final empty-byte vocabulary entry.
+            if (!(rank == 50256 && symbol == "=") && !symbol.matches(encoded)) return false
             ids[rank] = true; count++
         }
         return count == ids.size

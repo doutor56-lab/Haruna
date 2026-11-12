@@ -22,10 +22,10 @@ android {
         minSdk = 33
         targetSdk = 36
         testInstrumentationRunner = "com.proxyslabs.haruna.diagnostic45.CanonicalRunner"
-        versionCode = 15
-        versionName = "1.2.0-overdrive"
+        versionCode = 16
+        versionName = "1.3.0-overdrive"
         val useVulkan = providers.gradleProperty("harunaVulkan").orElse("false").get().toBoolean()
-        if(useVulkan) { applicationId = "com.proxyslabs.haruna.overdrive.vulkan";versionName = "1.2.0-overdrive-vulkan" }
+        if(useVulkan) { applicationId = "com.proxyslabs.haruna.overdrive.vulkan";versionName = "1.3.0-overdrive-vulkan" }
         manifestPlaceholders["harunaLabel"] = "Haruna Overdrive"
         externalNativeBuild { cmake { arguments += "-DCMAKE_BUILD_TYPE=Release" } }
         ndk { abiFilters += listOf("arm64-v8a") }

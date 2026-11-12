@@ -11,7 +11,7 @@ const command=(m,...args)=>invoke(native(),m,...args);
 function quiet(target,method,...args){try{return invoke(target,method,...args)}catch{}}
 let status={},capture=null,localCall=null,sequence=0,resumeTimer=null;
 const id=prefix=>`${prefix}-${Date.now().toString(36)}-${++sequence}`;
-const isBusy=()=>['importing','downloading','extracting','cancelling','selecting','removing'].includes(status.state);
+const isBusy=()=>['importing','downloading','extracting','validating','finalizing','cancelling','selecting','removing'].includes(status.state);
 const mic=document.createElement('button');mic.type='button';mic.className='voice-input';mic.textContent='';mic.setAttribute('aria-label','Escrever por voz');composer?.insertBefore(mic,input);
 const phone=document.createElement('button');phone.type='button';phone.className='ghost';phone.textContent='';phone.setAttribute('aria-label','Conversa por voz local');document.querySelector('.topbar .actions')?.prepend(phone);
 const dictation=document.createElement('div');dictation.className='speech-player dictation-control';dictation.style.display='none';dictation.hidden=true;
@@ -31,9 +31,11 @@ function update(value){
  }
  const installed=!!value.installed,busy=isBusy();
  q('[data-state]').textContent=installed?`${value.modelName||'Whisper'} · ${value.loaded?'carregado':'selecionado'}`:'Não instalado';
- const labels={downloading:'Baixando reconhecimento…',importing:'Importando reconhecimento…',extracting:'Preparando reconhecimento…',cancelling:'Cancelando instalação…',cancelled:'Instalação cancelada.',selecting:'Selecionando modelo…',removing:'Removendo modelo…',listening:'Ouvindo…',transcribing:'Transcrevendo no dispositivo…',error:value.error||'Falha no reconhecimento'};
+ const labels={downloading:'Baixando reconhecimento…',importing:'Importando reconhecimento…',extracting:'Extraindo reconhecimento…',validating:'Verificando componentes…',finalizing:'Concluindo instalação…',cancelling:'Cancelando instalação…',cancelled:'Instalação cancelada.',selecting:'Selecionando modelo…',removing:'Removendo modelo…',listening:'Ouvindo…',transcribing:'Transcrevendo no dispositivo…',error:value.error||'Falha no reconhecimento'};
  let text=labels[value.state]||(installed?`${(value.bytes/1e6).toFixed(1)} MB • pronto para uso offline`:'Tiny: 116 MB • Base: 208 MB • Small: 639 MB de download. Pacotes ONNX INT8 para sherpa-onnx ou arquivos Whisper GGML oficiais F16/Q5_1.');
  const percent=value.totalBytes>0?Math.min(100,Math.floor(value.copiedBytes*100/value.totalBytes)):null;
+ if(value.installingModel&&busy)text+=` ${value.installingModel}`;
+ if(['extracting','validating'].includes(value.state))text+=` ${(Number(value.copiedBytes||0)/1e6).toFixed(1)}${value.totalBytes>0?' / '+(value.totalBytes/1e6).toFixed(1):''} MB${value.state==='extracting'?' do pacote lidos':' verificados'}`;
  if(['downloading','importing'].includes(value.state))text+=percent===null?` ${(Number(value.copiedBytes||0)/1e6).toFixed(1)} MB`:` ${percent}%`;
  q('[data-progress]').textContent=text;const bar=q('[data-progress-bar]');bar.hidden=!busy;bar.style.display=busy?'block':'none';if(percent===null)bar.removeAttribute('value');else bar.value=percent;
  for(const action of ['download','import'])q(`[data-${action}]`).disabled=busy||!!capture;

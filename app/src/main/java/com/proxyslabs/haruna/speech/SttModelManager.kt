@@ -15,7 +15,7 @@ import java.security.MessageDigest
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Extends the existing private STT installation; recognizers remain short-lived. */
+/** Extends the existing private STT installation; execution remains separate from installation. */
 class SttModelManager(private val context: Context) {
     companion object {
         const val ARCHIVE = "sherpa-onnx-whisper-tiny.tar.bz2"
@@ -55,6 +55,24 @@ class SttModelManager(private val context: Context) {
     fun cancel() { cancelled.set(true); runCatching { stream?.close() }; connection?.disconnect() }
     private fun check() { if (cancelled.get()) throw CancellationException("Instalação cancelada") }
     fun cleanTemporary() { stage.deleteRecursively(); archive.delete() }
+
+    private fun extractionInput(progress: (String, Long, Long?) -> Unit): java.io.InputStream {
+        val source = archive.inputStream()
+        val size = archive.length()
+        var consumed = 0L; var notified = 0L
+        fun observed(n: Int) {
+            if (n <= 0) return
+            consumed += n
+            if (consumed - notified >= 512 * 1024 || consumed == size) {
+                progress("extracting", consumed, size); notified = consumed
+            }
+        }
+        return object : java.io.InputStream() {
+            override fun read(): Int { check(); val value = source.read(); if (value >= 0) observed(1); return value }
+            override fun read(bytes: ByteArray, offset: Int, length: Int): Int { check(); val n = source.read(bytes, offset, length); observed(n); return n }
+            override fun close() { try { if (!cancelled.get()) progress("extracting", consumed, size) } finally { source.close() } }
+        }.buffered(128 * 1024)
+    }
 
     fun install(uri: Uri?, progress: (String, Long, Long?) -> Unit, requested: String = "whisper-tiny-int8") {
         val download = WhisperModels.byId(requested)
@@ -118,10 +136,11 @@ class SttModelManager(private val context: Context) {
             stream = null; check()
             val archiveHash = digest.digest().joinToString("") { "%02x".format(it) }
             if (uri == null && download.family == "tiny") require(archiveHash == SHA256) { "O pacote Tiny não corresponde ao SHA-256 conhecido" }
-            progress("extracting", 0, null); stage.mkdirs()
+            progress("extracting", 0, archive.length()); stage.mkdirs()
             val allowed = WhisperModels.onnx.flatMap { it.files }.toSet()
             val found = mutableSetOf<String>(); var expanded = 0L; var declared = 0L
-            BZip2CompressorInputStream(archive.inputStream().buffered()).use { bz -> TarArchiveInputStream(bz).use { tar ->
+            val extraction = extractionInput(progress); stream = extraction
+            BZip2CompressorInputStream(extraction).use { bz -> TarArchiveInputStream(bz).use { tar ->
                 while (true) {
                     check(); val entry = tar.nextEntry ?: break
                     require(!entry.isSymbolicLink && !entry.isLink && !entry.name.startsWith("/") && entry.name.split('/').none { it == ".." }) { "Caminho/link inválido no pacote STT" }
@@ -139,8 +158,11 @@ class SttModelManager(private val context: Context) {
                     }
                 }
             } }
+            stream = null
             check(); val model = WhisperModels.detect(found)
             if (uri == null) require(model.id == download.id) { "O pacote recebido não corresponde ao modelo escolhido" }
+            val validationBytes = model.files.sumOf { File(stage, it).length() }
+            progress("validating", 0, validationBytes)
             val tokens = File(stage, model.files.last()); require(tokens.length() <= 8L * 1024 * 1024 && WhisperModels.hasPortuguese(tokens.readText())) { "Vocabulário Whisper multilíngue inválido; pacotes .en não são suportados nesta seleção" }
             val target = File(root, model.id)
             if (installed(model)) {
@@ -148,11 +170,14 @@ class SttModelManager(private val context: Context) {
                 require(previous.optString("sha256") == archiveHash) { "Este modelo STT já está instalado. Remova-o explicitamente antes de substituir por outro pacote" }
                 select(model.id); progress("installed", 0, null); return
             }
-            val lengths = JSONObject(); val hashes = JSONObject()
+            val lengths = JSONObject(); val hashes = JSONObject(); var verified = 0L; var reported = 0L
             model.files.forEach { name -> lengths.put(name, File(stage, name).length()); hashes.put(name, File(stage, name).inputStream().use { source ->
                 val hash = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(128 * 1024)
-                while (true) { check(); val n = source.read(buffer); if (n < 0) break; hash.update(buffer, 0, n) }; hash.digest().joinToString("") { "%02x".format(it) }
+                while (true) { check(); val n = source.read(buffer); if (n < 0) break; hash.update(buffer, 0, n); verified += n
+                    if (verified - reported >= 512 * 1024 || verified == validationBytes) { progress("validating", verified, validationBytes); reported = verified }
+                }; hash.digest().joinToString("") { "%02x".format(it) }
             }) }
+            progress("finalizing", 0, null); check()
             File(stage, "installed.json").writeText(JSONObject().put("modelId", model.id).put("sha256", archiveHash).put("language", "pt").put("files", lengths).put("hashes", hashes).toString())
             require(!target.exists()) { "Instalação STT incompleta já existe; remova esse modelo nas configurações antes de reinstalar" }
             check(); require(stage.renameTo(target)) { "Não foi possível finalizar a instalação STT" }

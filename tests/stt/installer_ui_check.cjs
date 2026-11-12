@@ -1,0 +1,20 @@
+// Real UI modules with a native-status fixture, never model installation/inference.
+const {chromium}=require('playwright');const fs=require('fs'),path=require('path');
+(async()=>{const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+for(const [width,height]of [[360,800],[800,1280]]){
+ const page=await browser.newPage({viewport:{width,height}});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.dismiss());
+ await page.route('**/*',async route=>{const u=new URL(route.request().url());const prefix='/assets/haruna/';if(!u.pathname.startsWith(prefix))return route.fulfill({status:404,body:''});const file=path.join(process.cwd(),'app/src/main/assets/haruna',u.pathname.slice(prefix.length));if(!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});return route.fulfill({contentType:({'.js':'text/javascript','.css':'text/css','.html':'text/html','.svg':'image/svg+xml'})[path.extname(file)]||'application/octet-stream',body:fs.readFileSync(file)})});
+ await page.addInitScript(()=>{localStorage.setItem('haruna_onboarding_v1','done');window.installCalls=[];window.fixture={state:'extracting',installed:true,modelName:'Whisper Tiny · Q5_1',loaded:false,installingModel:'Whisper Small',copiedBytes:64000000,totalBytes:639387718,catalog:[],models:[{id:'old',name:'Whisper Tiny · Q5_1',selected:true,installed:true,bytes:32152673,format:'whisper.cpp'}]};window.HarunaRecognition={getStatus:()=>JSON.stringify(window.fixture),cancelInstallation(){window.installCalls.push('cancel');return '{"status":"ok"}'},downloadModel(){window.installCalls.push('download')},selectModel(){window.installCalls.push('select')}}});
+ await page.goto('https://appassets.androidplatform.net/assets/haruna/index.html');await page.waitForSelector('.recognition-settings',{state:'attached'});await page.locator('[data-view="settings"]').click();await page.locator('#haruna-local-model-tab-2').click();
+ const panel=page.locator('.recognition-settings');await page.waitForFunction(()=>document.querySelector('.recognition-settings [data-progress]').textContent.includes('Extraindo'));
+ let text=await panel.locator('[data-progress]').textContent();if(!text.includes('Whisper Small')||!text.includes('64.0')||!text.includes('MB do pacote lidos'))throw Error('Missing actual extraction/target progress: '+text);
+ if(!await panel.locator('[data-download]').isDisabled()||!await panel.locator('[data-cancel]').isVisible())throw Error('Extraction controls not locked');
+ await page.evaluate(()=>{Object.assign(window.fixture,{state:'validating',copiedBytes:20000000,totalBytes:103609903});window.dispatchEvent(new CustomEvent('haruna-stt-status',{detail:window.fixture}))});
+ if(!(await panel.locator('[data-progress]').textContent()).includes('MB verificados')||!await panel.locator('[data-import]').isDisabled())throw Error('Validation progress/busy missing');
+ await panel.locator('[data-cancel]').click();if(!await page.evaluate(()=>window.installCalls.includes('cancel')))throw Error('Cancel not forwarded');
+ await page.evaluate(()=>{Object.assign(window.fixture,{state:'finalizing',copiedBytes:0,totalBytes:null});window.dispatchEvent(new CustomEvent('haruna-stt-status',{detail:window.fixture}))});
+ if(!await panel.locator('[data-download]').isDisabled())throw Error('Finalization must remain busy');
+ await page.evaluate(()=>{Object.assign(window.fixture,{state:'installed',installingModel:null,modelName:'Whisper Small',bytes:375485327});window.dispatchEvent(new CustomEvent('haruna-stt-status',{detail:window.fixture}))});
+ if(await panel.locator('[data-download]').isDisabled()||await panel.locator('[data-cancel]').isVisible())throw Error('Completion did not unlock UI');
+ if(errors.length)throw Error(errors.join(';'));console.log('PASS installer UI '+width+'x'+height+': target, actual MB, phase-aware progress, cancellation, busy/final controls (native fixture only)');await page.close();
+}await browser.close()})().catch(e=>{console.error(e);process.exit(1)});
