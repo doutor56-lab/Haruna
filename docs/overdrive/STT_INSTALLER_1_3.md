@@ -35,3 +35,14 @@ Reprodução: `tests/stt/run_installer_host.sh` exige Kotlin, `INSTALLER_CLASSPA
 ## Limitação de entrega
 
 O problema de assinatura debug já documentado permanece: a chave privada dos APKs anteriores não está disponível. Não desinstalar nem limpar dados da instalação atual para contornar incompatibilidade de atualização. O resultado do build e o APK verificado serão registrados na entrega. Não se afirma teste físico de instalação/ativação no Samsung ou Teclast.
+
+## APK publicado e conferido
+
+- Código compilado: `f1ca1fba9942dd53914058659cade22f8ecb6899`.
+- [GitHub Actions 43311206927](https://github.com/doutor56-lab/Haruna/actions/runs/43311206927): sucesso; `:app:testDebugUnitTest :app:assembleDebug`, `BUILD SUCCESSFUL in 22m 42s`.
+- [Artefato ARM64](https://github.com/doutor56-lab/Haruna/actions/runs/43311206927/artifacts/13988580357), retenção até 19/11/2026. ZIP contém `Haruna-Overdrive-ARM64.apk` e `SHA256SUMS.txt`.
+- APK: 79324968 bytes; SHA-256 `81a0e79d222e76430b5b58209471f5eb65876ca5fdbbfe08c98b7d4a0bd70148`. Download conferido contra o manifesto de hashes. Bibliotecas do APK exclusivamente `arm64-v8a`; workflow confirmou pacote `com.proxyslabs.haruna.overdrive` e nome Haruna Overdrive.
+- Verificação do ELF STT extraído do APK passou: somente os cinco métodos JNI de sessão são exportados, sem dependência dinâmica de ggml/llama/sherpa. Isso não comprova inferência de áudio.
+- Certificado SHA-256: `63f2e3877d6cd5235ab59b386dd1d5d2bdcc31be847df527b5bfaf40243bdcd1`, diferente do APK 1.2 (`be1310d2d90ecc1ecd3a11ea22db600becbea5c9f88048db535833fb23d1ec8f`). Portanto este APK **não atualiza a instalação anterior preservando seu sandbox**: é necessário o dono fornecer a chave de assinatura anterior para uma atualização compatível. Não foi mudado o applicationId para contornar a assinatura, nem removidos dados locais.
+
+No aparelho, a validação pendente é concluir a instalação de um pacote ONNX e ativá-lo/transcrever. A tela deve apresentar extração com bytes, verificação e finalização. Base/Small compartilham o vocabulário corrigido, mas não se declara instalação completa ou execução desses modelos em dispositivo real.
