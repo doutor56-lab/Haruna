@@ -19,7 +19,7 @@ A captura continua usando o Silero VAD existente, incluindo os 450 ms de silênc
 
 A versão consolida os pools CPU persistentes e o prefixo estático preparado no carregamento da 1.1, descritos em `SMOLLM3_CPU_STARTUP.md`. Além dos hooks de liberação ociosa antes de trocar motores, não adiciona outra rodada de parâmetros, não muda sampler, system prompt, max output, templates, thinking ou política do Qwen híbrido. O ganho físico da escrita permanece sem medição no Samsung. Streaming do chat, GGUF, geração de imagens, RAG, documentos, histórico e preferências permanecem intactos.
 
-O build recebe `android.injected.build.abi=arm64-v8a` para compilar somente a ABI que o APK já suporta, evitando construir x86_64 inutilmente na biblioteca LLM. Isso é seleção de build, não otimização de inferência. Sem dependências novas e sem Vulkan/OpenCL.
+O build mantém o comando Gradle anteriormente validado. Uma tentativa de selecionar ABI pela propriedade interna `android.injected.build.abi` compilou o aplicativo/testes, mas alterou a saída esperada pela coleta do APK. A propriedade foi retirada; o APK continua ARM64 pelo filtro existente. Sem dependências novas e sem Vulkan/OpenCL.
 
 DBG registra engine realmente usado, tempo de preparação e `sessionReused`, separados de decode/RTF. Não exporta áudio ou transcrições. Sessões e seu estado são voláteis; não se cria cache de gravações em disco.
 
@@ -38,3 +38,7 @@ Uma validação física suficiente: duas falas curtas com o mesmo Tiny/Base, den
 ## Instalação: limitação já conhecida
 
 A build anterior gerava chaves debug efêmeras no GitHub Actions; a incompatibilidade entre assinaturas 1.0 e 1.1 já foi comprovada. Esta tarefa não tem a chave privada anterior. **Não desinstalar a instalação existente nem limpar dados para contornar assinatura.** O APK de teste é para instalação nova; uma atualização compatível que preserve o sandbox exige a chave privada correspondente ao APK instalado. Não foi criado outro package nem se tentou contornar a verificação Android. Compilação aprovada não comprova compatibilidade de atualização, desempenho físico ou reconhecimento correto no aparelho.
+
+## Primeira compilação e correção da entrega
+
+Run `43238640700`, código `28717f9`: `:app:testDebugUnitTest :app:assembleDebug` passou em 16 min 49 s. O workflow falhou depois, ao procurar `app-debug.apk` na etapa de verificação/publicação após a seleção de ABI injetada. Nenhum APK foi publicado nessa execução. A seleção de ABI adicional foi removida, sem alterar o código do aplicativo. O verificador de isolamento ELF foi atualizado para os cinco métodos JNI da sessão; continuará rejeitando símbolos/dependências de outros motores.
