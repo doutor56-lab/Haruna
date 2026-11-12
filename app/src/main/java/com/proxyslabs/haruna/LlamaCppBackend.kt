@@ -100,8 +100,8 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     fun incrementalConversation(): Boolean = status().modelLoaded
 
     private val inferencePrefs = appContext.getSharedPreferences("haruna_overdrive_inference_v1", Context.MODE_PRIVATE)
-    private fun preferenceKey(): String = java.security.MessageDigest.getInstance("SHA-256")
-        .digest(requireNotNull(modelPath) { "Carregue um modelo GGUF" }.toByteArray())
+    private fun preferenceKey(path: String = requireNotNull(modelPath) { "Carregue um modelo GGUF" }): String = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(path.toByteArray())
         .joinToString("") { "%02x".format(it) }
     private fun normalSettings(): JSONObject {
         val identity = modelIdentity ?: modelName ?: ""
@@ -150,7 +150,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
 
     override fun status(): LlmBackend.Status {
         val engineState = engine.state.value
-        val loaded = engineState.isModelLoaded
+        val loaded = engineState.isModelLoaded && !loading
         val state = when {
             loading || engineState is InferenceEngine.State.LoadingModel || engineState is InferenceEngine.State.ProcessingSystemPrompt -> "loading"
             jobs.values.any { !it.cancelled.get() && !it.finishing.get() } || engineState is InferenceEngine.State.Generating || engineState is InferenceEngine.State.ProcessingUserPrompt -> "generating"
@@ -206,6 +206,15 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         val metadata = JSONObject(engine.runtimeMetrics()).optJSONObject("runtime")
         modelIdentity = metadata?.optString("modelName")?.takeIf { it.isNotBlank() }
         thinkingSupported = if (metadata?.has("thinkingSupported") == true && !metadata.isNull("thinkingSupported")) metadata.optBoolean("thinkingSupported") else null
+        if (metadata?.optString("architecture") == "smollm3") {
+            val manager = appContext.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val memory = android.app.ActivityManager.MemoryInfo(); manager.getMemoryInfo(memory)
+            val saved = inferencePrefs.getString(preferenceKey(file.absolutePath), null)
+            val config = InferencePreferences.resolve(modelIdentity ?: file.name, saved?.let(::JSONObject))
+            val budget = if (!memory.lowMemory && memory.availMem >= 256L*1024*1024) 64L*1024*1024 else 0L
+            try { engine.primeStaticSystem(HarunaIdentity.systemPrompt(file.name), config.toString(), budget) }
+            catch (failure: Throwable) { runCatching { engine.cleanUp() }; throw failure }
+        }
         // Identity and current profile are the system role of the complete chat request.
         // Do not prime a competing legacy template or call setSystemPrompt after a turn.
         Log.i(TAG, "total_prepare_ms=${System.currentTimeMillis() - totalStart}")

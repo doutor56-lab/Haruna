@@ -10,6 +10,8 @@ class InferencePreferencesTest {
         assertEquals(0.6, smol.getDouble("temperature"), 0.0)
         assertEquals(0.95, smol.getDouble("topP"), 0.0)
         assertEquals("smollm3", smol.getString("profile"))
+        assertEquals("off", smol.getString("flashAttention"))
+        assertEquals("auto", InferencePreferences.resolve("Phi-4 Mini").getString("flashAttention"))
         assertEquals(0.3, InferencePreferences.resolve("Phi-4 Mini").getDouble("temperature"), 0.0)
         assertEquals(0.3, InferencePreferences.resolve("Qwen3.5 2B").getDouble("temperature"), 0.0)
     }
@@ -19,6 +21,8 @@ class InferencePreferencesTest {
         assertEquals(2, custom.getInt("threads")); assertEquals(6, custom.getInt("threadsBatch"))
         assertEquals("custom", custom.getString("profile"))
         assertEquals(0.6, InferencePreferences.resolve("SmolLM3").getDouble("temperature"), 0.0)
+        value.put("flashAttention", "auto")
+        assertEquals("auto", InferencePreferences.resolve("SmolLM3", value).getString("flashAttention"))
         value.put("nBatch", 512).put("nUbatch", 128)
         assertEquals(128, InferencePreferences.validate(value).getInt("nUbatch"))
     }

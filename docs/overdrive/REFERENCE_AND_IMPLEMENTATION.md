@@ -30,7 +30,7 @@ O template oficial distingue `/think` e `/no_think` por `enable_thinking`. A det
 
 ## Interface e instalação
 
-Nome de launcher: **Haruna Overdrive**. Application ID: `com.proxyslabs.haruna.overdrive`; versão 1.0.0-overdrive, ARM64. Instala ao lado da Haruna anterior. A outra aplicação e seus diretórios privados não são tocados. Dados e modelos não são copiados automaticamente entre sandboxes; o usuário pode importar seus arquivos originais no novo aplicativo.
+Nome de launcher: **Haruna Overdrive**. Application ID: `com.proxyslabs.haruna.overdrive`; versão 1.1.0-overdrive, ARM64. Instala ao lado da Haruna anterior. A outra aplicação e seus diretórios privados não são tocados. Dados e modelos não são copiados automaticamente entre sandboxes; o usuário pode importar seus arquivos originais no novo aplicativo.
 
 Configurações → Modelos de IA → Linguagem → Inferência avançada. Controles recolhidos, com validação, salvamento por modelo e restauração. Thinking permanece no botão existente. A seção mostra TTFT nativo, prefill/decode, tokens, cache, contexto/batch/threads efetivos, backend, FA, K/V e buffers de contexto. Métricas ausentes permanecem N/D. Atualização somente com a seção visível; usa os snapshots existentes. Não inclui prompts, respostas ou documentos na exportação técnica.
 
@@ -38,7 +38,7 @@ Configurações → Modelos de IA → Linguagem → Inferência avançada. Contr
 
 Identidade, personalidade, RAG, memória, voz, geradores MNN/Nezumi/stable-diffusion.cpp, importadores, modelos e histórico mantidos. Bibliotecas não foram trocadas. CPU ARM64 continua como backend normal: não há evidência de estabilidade Vulkan neste aparelho para habilitá-lo automaticamente. Os controles experimentais de offload existentes não foram removidos; build CPU não anuncia aceleração GPU inexistente.
 
-Não há acesso ao Teclast/Samsung nesta execução. Nenhum número de TTFT, ganho de velocidade, qualidade factual, consumo físico ou equivalência ao PocketPal foi inventado. O APK integrado precisa ser medido no dispositivo com o mesmo SmolLM3 Q4, prompt, histórico, modo de raciocínio e parâmetros para quantificar qualquer diferença. Cache não evita o prefill frio do primeiro turno nem elimina trabalho quando os tokens antigos mudam.
+Não há acesso ao Teclast/Samsung nesta execução. Nenhum número de TTFT, ganho de velocidade, qualidade factual, consumo físico ou equivalência ao PocketPal foi inventado. O APK integrado precisa ser medido no dispositivo com o mesmo SmolLM3 Q4, prompt, histórico, modo de raciocínio e parâmetros para quantificar qualquer diferença. Na 1.1, o prefixo estático do SmolLM3 pode ser preparado durante o carregamento; esse custo não desaparece e não conta como aceleração do cálculo frio. Veja [SMOLLM3_CPU_STARTUP.md](SMOLLM3_CPU_STARTUP.md) para mecanismo, métricas e limites.
 
 ## Verificações
 

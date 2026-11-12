@@ -46,6 +46,7 @@ template<class F>static void rejected(F f){bool failed=false;try{f();}catch(...)
 int main(){
  llama_context_params p;hc_apply(p,&model);assert(p.n_threads==2&&p.n_threads_batch==6&&p.n_ctx==8192&&p.n_batch==512&&p.type_k==GGML_TYPE_F16);
  llama_model phi{"phi3",3800000000ULL,false,false};p={};hc_apply(p,&phi);assert(p.n_threads==4&&p.n_threads_batch==4);
+ llama_model smol{"smollm3",3000000000ULL,false,false};p={};hc_apply(p,&smol);assert(p.n_threads==6&&p.n_threads_batch==6);
  g_context=init_context(g_model);g_batch=common_batch(g_context);
  auto desired=hc_parse({{"nCtx",2048},{"nBatch",256},{"nUbatch",64},{"flashAttention","off"}});hc_ensure(desired);hc_observe();assert(live==1&&maximum==1&&releases==1&&g_context->p.n_ctx==2048&&g_context->p.n_batch==256&&g_context->p.n_ubatch==64&&g_context->p.flash_attn_type==0);
  hc_ensure(desired);assert(releases==1);

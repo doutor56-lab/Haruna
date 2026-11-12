@@ -10,7 +10,7 @@ object InferencePreferences {
             .put("temperature", if (smol) 0.6 else 0.3).put("topK", 40).put("topP", 0.95).put("minP", 0.05)
             .put("repeat", 1.0).put("presence", 0.0).put("frequency", 0.0).put("seed", -1L)
             .put("maxTokens", 1024).put("threads", 0).put("threadsBatch", 0)
-            .put("nCtx", 8192).put("nBatch", 512).put("nUbatch", 512).put("flashAttention", "auto")
+            .put("nCtx", 8192).put("nBatch", 512).put("nUbatch", 512).put("flashAttention", if(smol) "off" else "auto")
         if (saved != null) {
             val valid = validate(saved)
             valid.keys().forEach { key -> defaults.put(key, valid.get(key)) }

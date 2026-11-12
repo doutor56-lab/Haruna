@@ -26,7 +26,14 @@ export function runtimeCards(native,local,f){
   row('llama.cpp · commit compilado',clean(r.llamaCommit)),row('ABI nativa',clean(r.abi)),
   row('Dispositivos dos buffers efetivos',clean(r.bufferDevices)),row('Variante CPU carregada · dladdr',clean(r.cpuVariant)),
   row('ARM · DOTPROD detectado',yes(r.dotprod)),row('ARM · FP16 vetorial detectado',yes(r.fp16)),row('ARM · I8MM detectado',yes(r.i8mm)),
-  row('CPUs online / permitidas à thread',`${number(r.cpuOnline)} / ${number(r.cpuAllowed)}`)
+  row('CPUs online / permitidas à thread',`${number(r.cpuOnline)} / ${number(r.cpuAllowed)}`),
+  row('Pools CPU persistentes anexados',yes(r.cpuThreadpools?.persistent)),
+  row('Pools · decode / batch / pares criados',`${number(r.cpuThreadpools?.decodeThreads)} / ${number(r.cpuThreadpools?.batchThreads)} / ${number(r.cpuThreadpools?.pairsCreated)}`),
+  row('Preparação do prefixo · no carregamento',clean(r.startup?.status)),
+  row('Tempo de preparação · não é TTFT frio',us(r.startup?.preparationUs)),
+  row('Prefixo estático · tokens / snapshot',`${number(r.startup?.systemPrefixTokens)} / ${bytes(r.startup?.snapshotBytes)}`),
+  row('Prefixo estático restaurado nesta solicitação',yes(r.startup?.restoredForRequest)),
+  row('Restore do prefixo · duração',us(r.startup?.restoreUs))
  ],'Variante vem do símbolo do backend CPU registrado, sem caminhos. Features vêm de HWCAP/HWCAP2: disponibilidade não comprova uso em cada kernel. Dispositivos são os que possuem buffers alocados; não é um profiler de operações. CPU permitida é amostrada na thread de inferência. Dados da preparação/prefill, sem polling do contexto.'),
  section('configuration','Configuração aplicada',[
   row('Threads · decode / batch',`${number(r.threads)} / ${number(r.threadsBatch)}`),row('Contexto configurado',number(r.nCtx)),

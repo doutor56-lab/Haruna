@@ -14,6 +14,7 @@ static void hc_apply(llama_context_params & p,llama_model * model,bool allow_exp
     char arch[80]={};llama_model_meta_val_str(model,"general.architecture",arch,sizeof(arch));
     int allowed=sysconf(_SC_NPROCESSORS_ONLN);cpu_set_t mask;CPU_ZERO(&mask);if(sched_getaffinity(0,sizeof(mask),&mask)==0)allowed=CPU_COUNT(&mask);
     if(haruna_qwen_2b_threads(arch,llama_model_n_params(model),allowed)){p.n_threads=2;p.n_threads_batch=6;}
+    if(std::strcmp(arch,"smollm3")==0&&allowed>0){const int recommended=std::max(1,std::min(16,allowed<=4?allowed:allowed*4/5));p.n_threads=recommended;p.n_threads_batch=recommended;}
     if(!allow_experiment||!hc_config.experimental)return;
     p.n_ctx=hc_config.context;p.n_batch=hc_config.batch;p.n_ubatch=hc_config.ubatch;
     p.type_k=hc_config.k?GGML_TYPE_Q8_0:GGML_TYPE_F16;p.type_v=hc_config.v?GGML_TYPE_Q8_0:GGML_TYPE_F16;

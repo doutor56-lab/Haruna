@@ -129,3 +129,6 @@ from patch_android_vision import *
 
 from patch_android_overdrive import apply_overdrive_patch
 apply_overdrive_patch()
+
+from patch_android_startup import apply_startup_patch
+apply_startup_patch()
