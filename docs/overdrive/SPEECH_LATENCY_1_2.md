@@ -42,3 +42,14 @@ A build anterior gerava chaves debug efêmeras no GitHub Actions; a incompatibil
 ## Primeira compilação e correção da entrega
 
 Run `43238640700`, código `28717f9`: `:app:testDebugUnitTest :app:assembleDebug` passou em 16 min 49 s. O workflow falhou depois, ao procurar `app-debug.apk` na etapa de verificação/publicação após a seleção de ABI injetada. Nenhum APK foi publicado nessa execução. A seleção de ABI adicional foi removida, sem alterar o código do aplicativo. O verificador de isolamento ELF foi atualizado para os cinco métodos JNI da sessão; continuará rejeitando símbolos/dependências de outros motores.
+
+## Entrega verificada
+
+- Código compilado: `bcc4e2d2ed910199dbd89df6ecf879fd80211f6a`.
+- Workflow: https://github.com/doutor56-lab/Haruna/actions/runs/43258470752 — **sucesso**, Gradle 24 min 53 s. Testes Android, nome/package/ARM64, hash e upload passaram.
+- Download: https://github.com/doutor56-lab/Haruna/actions/runs/43258470752/artifacts/13964587274
+- ZIP contém um APK e `SHA256SUMS.txt`. APK `Haruna-Overdrive-ARM64.apk`, 79.321.412 bytes; SHA-256 conferido localmente: `35a4ba618e1a8cdf45b53248e3a8d4827d4ac9bec8ec95fe697ca2400cc783d7`.
+- ZIP SHA-256 informado pelo GitHub: `d55cd63809abb13ced4580d9ba49fc2f3c6db93f978519f15e27c5fc4d074dfe`.
+- O APK baixado contém exclusivamente libs ARM64. `scripts/check_stt_native.py` passou no ELF **extraído desse APK**: somente os cinco exports JNI esperados; nenhuma dependência dinâmica de ggml/llama/whisper/sherpa. Esse teste não executa reconhecimento.
+- Certificado debug do APK 1.2 (SHA-256): `be1310d2d90ecc1ecd3a11ea22db600becbea5c9f88048db535833fb23d1ec8f`, diferente das versões 1.0 e 1.1 verificadas. **Não pode atualizar aquelas instalações preservando o sandbox sem a chave privada anterior. Não desinstalar nem limpar dados para contornar.** O APK foi entregue para instalação nova; não se afirma atualização compatível.
+- Não houve teste físico de reconhecimento, leitura, RAM, latência ou tokens/s depois desta alteração. Não se declara equivalência ao PocketPal, transcrição instantânea ou meta de TTFT atingida. A preparação concorrente e a reutilização foram verificadas nos testes; seu ganho físico depende do dispositivo/modelo e da margem de RAM.
