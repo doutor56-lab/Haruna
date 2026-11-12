@@ -19,7 +19,8 @@ contextBridge.exposeInMainWorld('HarunaAndroid',{
 contextBridge.exposeInMainWorld('HarunaImages',{
  status:()=>JSON.stringify(cache.images),add:()=>command('pickSdxl'),addComponents:()=>command('pickComponents'),select:id=>sync('selectImage',id),configure:json=>{try{return JSON.parse(sync('configure',JSON.parse(json))).status==='ok';}catch{return false;}},
  remove:(id,confirmed)=>{if(confirmed)command('remove',id);},load:id=>sync('selectImage',id),unload:()=>JSON.stringify({status:'ok'}),
- generate:(id,prompt)=>{if(cache.images.busy||cache.llm.state==='generating')return false;cache.images.busy=true;command('image',id,prompt);return true;},
+ // The classifier final event can precede the idle snapshot. Main checks the live LLM owner.
+ generate:(id,prompt)=>{if(cache.images.busy)return false;cache.images.busy=true;command('image',id,prompt);return true;},
  cancel:()=>command('cancelImage',cache.images.generation?.request),cancelGeneration:id=>command('cancelImage',id),result:id=>sync('imageResult',id),
  save:id=>command('saveImage',id),saveBatch:id=>command('saveBatch',id),open:(id,share)=>command('openImage',id,share)
 });

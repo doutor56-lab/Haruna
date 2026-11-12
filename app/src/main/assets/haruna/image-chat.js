@@ -41,7 +41,7 @@ if(api&&chat){
   const text=original??(chat.state().draft.trim()||prompt('Descreva a imagem que deseja gerar:')||'').trim();if(!text)return;
   if(text.length>2000)throw Error('Use uma descrição de até 2.000 caracteres.');
   const request=crypto.randomUUID();chat.begin(request,text,options.rememberUser===true,status);
-  if(!api.generate(request,text)){chat.update({request,state:'ERROR',error:'O motor de imagens está ocupado.'});throw Error('O motor de imagens está ocupado.')}
+  if(!api.generate(request,text)){chat.update({request,state:'ERROR',error:'O motor de imagens está ocupado.'});return false}
   window.harunaImagesBusy=true;window.harunaImageRunning=true;window.harunaImageMode=false;button.setAttribute('aria-pressed','false');
  };
  button.setAttribute('aria-controls','imageGenerationPanel');button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');button.onclick=()=>{window.harunaImageMode=window.harunaToggleImagePanel?window.harunaToggleImagePanel():!window.harunaImageMode;button.setAttribute('aria-pressed',String(window.harunaImageMode))};
