@@ -19,3 +19,13 @@ Execução: `NODE_PATH=/opt/codex/cua_node/lib/node_modules node tests/image_cha
 `tests/image_parameters_check.cjs` passou nas duas dimensões, validando etapas/CFG visíveis e persistidos. O teste legado `tests/image_ui_check.cjs` para ao clicar no antigo atalho oculto `[data-dimensions]`; a mesma falha foi reproduzida no código base `e62f90b`, sem a correção. Não se alterou a interface para acomodar esse teste desatualizado.
 
 A assinatura debug anterior continua indisponível; não desinstalar nem limpar dados para contornar atualização com certificado diferente. O APK deve ser validado antes de se afirmar compatibilidade de atualização. Não houve aparelho conectado.
+
+## Entrega conferida
+
+- Código compilado: `be1548c4762b81c981bb4445f70647126116e4de`.
+- [Build 43316360957](https://github.com/doutor56-lab/Haruna/actions/runs/43316360957): sucesso; Gradle `:app:testDebugUnitTest :app:assembleDebug`, `BUILD SUCCESSFUL in 19m 6s`. Verificações de pacote, nome e publicação também passaram.
+- [Artefato ARM64](https://github.com/doutor56-lab/Haruna/actions/runs/43316360957/artifacts/13989199084), disponível até 19/11/2026; contém APK e SHA256SUMS.txt.
+- `Haruna-Overdrive-ARM64.apk`: 79324856 bytes; SHA-256 `41f8468be6b4bb825961eba77a067fab1d3aeacf083eef4a7de8cc6a1e8f4907`, conferido no download real contra o manifesto. Bibliotecas exclusivamente ARM64. `app.js` e `image-chat.js` do APK conferidos: nenhum encaminhamento pelo antigo `harunaImageMode`.
+- Certificado SHA-256 `3f8f434c09151777f97f2fa42396c5b2727f64d00275127b9356b0abc5037940`, diferente do build 1.3 (`63f2e3877d6cd5235ab59b386dd1d5d2bdcc31be847df527b5bfaf40243bdcd1`). Não é atualização compatível com a assinatura anterior. A chave anterior é necessária para atualizar preservando o sandbox; não foram desinstalados apps, apagados dados ou alterado o applicationId.
+
+Validação física pendente: enviar “oi” após abrir/fechar/salvar o painel e, separadamente, um pedido explícito de imagem. A reprodução automatizada cobre o roteamento, sem comprovar inferência no aparelho.
