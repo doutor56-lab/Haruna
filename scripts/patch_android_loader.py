@@ -126,3 +126,6 @@ from patch_android_incremental import apply_incremental_patch
 apply_incremental_patch()
 
 from patch_android_vision import *
+
+from patch_android_overdrive import apply_overdrive_patch
+apply_overdrive_patch()

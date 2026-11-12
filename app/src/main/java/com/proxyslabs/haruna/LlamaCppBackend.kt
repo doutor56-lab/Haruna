@@ -52,6 +52,9 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     @Volatile private var loading = false
     @Volatile private var modelName: String? = null
     @Volatile private var modelPath: String? = null
+    @Volatile private var modelIdentity: String? = null
+    @Volatile private var thinkingSupported: Boolean? = null
+    fun thinkingCapability(): Boolean? = thinkingSupported
     @Volatile private var lastError: String? = null
     @Volatile private var resetRequired = false
     @Volatile private var conversationId: String? = null
@@ -94,10 +97,35 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         lifecycle.withLock { check(!destroyed) { "Runtime encerrado" };runBlocking(Dispatchers.IO) { waitUntilInitialized() } }
     }
     override fun installedModelPath(): String? = modelPath.takeIf { !loading && engine.state.value.isModelLoaded }
-    fun incrementalConversation(): Boolean = runCatching {
-        val runtime = JSONObject(engine.runtimeMetrics()).optJSONObject("runtime")
-        status().modelLoaded && runtime?.optString("architecture") == "qwen35" && runtime.optBoolean("modelHybrid")
-    }.getOrDefault(false)
+    fun incrementalConversation(): Boolean = status().modelLoaded
+
+    private val inferencePrefs = appContext.getSharedPreferences("haruna_overdrive_inference_v1", Context.MODE_PRIVATE)
+    private fun preferenceKey(): String = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(requireNotNull(modelPath) { "Carregue um modelo GGUF" }.toByteArray())
+        .joinToString("") { "%02x".format(it) }
+    private fun normalSettings(): JSONObject {
+        val identity = modelIdentity ?: modelName ?: ""
+        val saved = inferencePrefs.getString(preferenceKey(), null)
+        return InferencePreferences.resolve(identity, saved?.let(::JSONObject))
+    }
+    fun inferenceSettings(): JSONObject = runCatching {
+        check(!loading && status().modelLoaded) { "Carregue um modelo GGUF para configurar" }
+        val metrics = JSONObject(engine.runtimeMetrics())
+        val observation = JSONObject()
+        for (key in listOf("runtime", "generation", "prefix")) metrics.optJSONObject(key)?.let { observation.put(key, it) }
+        JSONObject().put("status", "ok").put("settings", normalSettings()).put("observation", observation)
+    }.getOrElse { JSONObject().put("status", "error").put("error", it.message) }
+    fun configureInference(json: String): Result<Unit> = runCatching {
+        lifecycle.withLock {
+            check(!destroyed && !loading && jobs.isEmpty() && status().modelLoaded) { "Aguarde a operação atual ou carregue um modelo" }
+            val value = JSONObject(json)
+            val key = preferenceKey()
+            val editor = inferencePrefs.edit()
+            if (value.optBoolean("restoreDefaults", false)) editor.remove(key)
+            else editor.putString(key, InferencePreferences.validate(value).toString())
+            check(editor.commit()) { "Não foi possível salvar as preferências" }
+        }
+    }
     override fun subscribeStatus(listener: () -> Unit): () -> Unit {
         statusListeners.add(listener)
         return { statusListeners.remove(listener) }
@@ -175,6 +203,9 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             val state = engine.state.value
             (state as? InferenceEngine.State.Error)?.exception?.let(::friendlyLoadError) ?: "O llama.cpp não confirmou o carregamento do modelo (${state.javaClass.simpleName})"
         }
+        val metadata = JSONObject(engine.runtimeMetrics()).optJSONObject("runtime")
+        modelIdentity = metadata?.optString("modelName")?.takeIf { it.isNotBlank() }
+        thinkingSupported = if (metadata?.has("thinkingSupported") == true && !metadata.isNull("thinkingSupported")) metadata.optBoolean("thinkingSupported") else null
         // Identity and current profile are the system role of the complete chat request.
         // Do not prime a competing legacy template or call setSystemPrompt after a turn.
         Log.i(TAG, "total_prepare_ms=${System.currentTimeMillis() - totalStart}")
@@ -234,7 +265,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             maintenance(7) {
                 val state = engine.state.value
                 if (state.isModelLoaded || state is InferenceEngine.State.Error || state is InferenceEngine.State.Initialized) engine.cleanUp()
-                modelName = null; modelPath = null; lastError = null
+                modelName = null; modelPath = null; modelIdentity = null; thinkingSupported = null; lastError = null
                 conversationId = null; resetRequired = false
             }
         }
@@ -279,7 +310,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     val system = com.proxyslabs.haruna.diagnostics.LabSystemPrompt.apply(originalSystem, labVariant, labAuthorized)
                     val roles = mutableListOf("system")
                     val contents = mutableListOf(system)
-                    require(messages.length() in 1..(if(incrementalConversation()) 127 else 17)) { "Número de mensagens inválido" }
+                    require(messages.length() in 1..127) { "Número de mensagens inválido" }
                     for (i in 0 until messages.length()) {
                         val message = messages.getJSONObject(i)
                         val role = message.optString("role")
@@ -289,9 +320,11 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     require(roles.last() == "user" && contents.last().isNotBlank()) { "Mensagem atual vazia" }
                     conversationId = nextConversation
                     resetRequired = false
-                    val predictLength = options?.optInt("maxTokens", 512)?.coerceIn(16, 1024) ?: 512
+                    val isLab = BuildConfig.DEBUG && requestId.startsWith("lab-") && options?.optString("labConfig", "")?.isNotEmpty() == true
+                    val inference = if (isLab) null else normalSettings()
+                    val predictLength = options?.optInt("maxTokens", inference?.optInt("maxTokens", 1024) ?: 512)?.coerceIn(16, 4096) ?: 1024
                     val generationStart = System.currentTimeMillis(); var firstTokenAt = 0L; var outputChars = 0L
-                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial, nextConversation, conversationRevision, if (BuildConfig.DEBUG) options?.optString("labConfig", "")?.takeIf { it.isNotEmpty() } ?: if (options?.optBoolean("labInspector", false) == true) "{\"inspectOnly\":true}" else "" else "", stableSystem).collect { token ->
+                    engine.sendChatMessages(roles.toTypedArray(), contents.toTypedArray(), predictLength, options?.optBoolean("enableThinking", true) ?: true, request.serial, nextConversation, conversationRevision, if (BuildConfig.DEBUG) options?.optString("labConfig", "")?.takeIf { it.isNotEmpty() } ?: if (options?.optBoolean("labInspector", false) == true) "{\"inspectOnly\":true}" else "" else "", stableSystem, inference?.toString() ?: "").collect { token ->
                         if (firstTokenAt == 0L) { firstTokenAt = System.currentTimeMillis(); Log.i(TAG, "first_token_ms=${firstTokenAt - generationStart}") }
                         outputChars += token.length
                         // The bridge owns a bounded ordered buffer; no Main-thread hop per delta.

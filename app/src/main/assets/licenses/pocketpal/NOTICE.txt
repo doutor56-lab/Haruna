@@ -1,0 +1,6 @@
+Haruna Overdrive used PocketPal AI as a public engineering reference.
+PocketPal AI: https://github.com/a-ghorbani/pocketpal-ai
+Reference commit: 6f46cfe9fece64e37e57589af57c83806294ed58
+Copyright (c) 2024 Asghar Ghorbani. MIT License (included).
+No PocketPal UI/TypeScript or React Native runtime was incorporated.
+Haruna retains its existing pinned llama.cpp/common JNI integration and upstream licenses.

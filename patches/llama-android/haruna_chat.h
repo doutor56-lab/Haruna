@@ -53,7 +53,7 @@ static int hi_prefill(const llama_tokens&tokens,size_t reused){
 extern "C" JNIEXPORT jint JNICALL
 Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         JNIEnv * env, jobject, jobjectArray roles, jobjectArray contents,
-        jint n_predict, jboolean enable_thinking, jstring conversation_key, jlong conversation_revision, jstring lab_config, jstring stable_system) {
+        jint n_predict, jboolean enable_thinking, jstring conversation_key, jlong conversation_revision, jstring lab_config, jstring stable_system, jstring inference_config) {
     hm_begin();
     haruna_input_tokens = -1; haruna_output_tokens = -1;
     haruna_history_messages = -1; haruna_template_from_gguf = -1; haruna_context_capacity = -1;
@@ -61,10 +61,11 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         if (hs_check_cancel()) return 5;
         if (g_model == nullptr || g_context == nullptr || g_sampler == nullptr || !g_chat_templates || roles == nullptr || contents == nullptr)
             throw std::runtime_error("Chat runtime unavailable");
+        ho_configure(haruna_jstring(env,inference_config));
         hl_configure(haruna_jstring(env,lab_config));
         const auto preparation_start=hm_clock();
         const int count = env->GetArrayLength(roles);
-        if (count < 2 || count > (hi_eligible()?128:18) || count != env->GetArrayLength(contents))
+        if (count < 2 || count > 128 || count != env->GetArrayLength(contents))
             throw std::runtime_error("Invalid chat message count");
         std::vector<common_chat_msg> messages;
         for (int i = 0; i < count; ++i) {
@@ -81,7 +82,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         }
         if (messages.back().role != ROLE_USER) throw std::runtime_error("Chat must end with a user message");
         const int limit = llama_n_ctx(g_context) - OVERFLOW_HEADROOM;
-        const int predict = std::max(16, std::min(1024, static_cast<int>(n_predict)));
+        const int predict = std::max(16, std::min(4096, static_cast<int>(n_predict)));
         llama_tokens tokens;common_chat_prompt canonical;
         while (true) {
             if (hs_check_cancel()) return 5;
@@ -129,6 +130,8 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processChatMessages(
         const size_t reuse=hk_reconcile(tokens,key,conversation_revision,enable_thinking);
         reset_long_term_states(false); reset_short_term_states(); hd_prepare_sampler(); common_sampler_reset(g_sampler);
         hs_sampler_reset_observed();
+        // Penalties must see the actual prompt, including reused tokens. Grammar only accepts generated tokens.
+        if(!ho_settings.is_null())for(const auto token:tokens)common_sampler_accept(g_sampler,token,false);
         hm_input = tokens.size(); hm_stage = 3;
         hi_note("preparationUs",hm_clock()-preparation_start);hi_note("contextRecreated",hc_rebuild_us>0);
         const auto prefill_start = hm_clock();

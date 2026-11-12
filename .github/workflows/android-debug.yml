@@ -7,6 +7,11 @@ on:
       - design/haruna-paginas-aprovadas-20261108
   workflow_dispatch:
   workflow_call:
+    inputs:
+      artifact_name:
+        type: string
+        required: false
+        default: Haruna-Android-ARM64
 
 jobs:
   build-debug:
@@ -61,13 +66,26 @@ jobs:
           PY
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest :app:assembleDebug
+      - name: Verify separate Overdrive package and launcher name
+        if: github.ref_name == 'feature/android-overdrive'
+        run: |
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > /tmp/overdrive-badging.txt
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          s=Path('/tmp/overdrive-badging.txt').read_text()
+          assert "package: name='com.proxyslabs.haruna.overdrive'" in s, s[:300]
+          assert "application-label:'Haruna Overdrive'" in s
+          assert "native-code: 'arm64-v8a'" in s
+          print('Verified: separate package, Haruna Overdrive label, ARM64')
+          PYCODE
+          mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-Overdrive-ARM64.apk
       - name: Hash Android APK
         run: sha256sum app/build/outputs/apk/debug/*.apk > app/build/outputs/apk/debug/SHA256SUMS.txt
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Haruna-Android-ARM64
+          name: ${{ inputs.artifact_name || 'Haruna-Android-ARM64' }}
           path: |
             app/build/outputs/apk/debug/*.apk
             app/build/outputs/apk/debug/SHA256SUMS.txt

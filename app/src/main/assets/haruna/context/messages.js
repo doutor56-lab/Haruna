@@ -48,7 +48,7 @@ export function conversationMessages(chat,prompt,systemContext='',{persistent=fa
   if(m.role==='user')user=m;
   else if(m.role==='assistant'&&user){pairs.push([{role:'user',content:user.content},{role:'assistant',content:m.content}]);user=null}
  }
- const budget=Math.max(0,24000-prompt.length-systemContext.length);
+ const budget=Math.max(0,160000-prompt.length-systemContext.length);
  let size=pairs.reduce((n,p)=>n+p[0].content.length+p[1].content.length,0);
  while(pairs.length>62||size>budget){const p=pairs.shift();if(!p)break;size-=p[0].content.length+p[1].content.length}
  return [...pairs.flat(),{role:'user',content:prompt}];
