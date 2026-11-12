@@ -92,7 +92,7 @@
 .app .chat-view .attachment-actions{flex:none;flex-wrap:wrap;justify-content:flex-end}
 .app .chat-view .attachment-actions button{min-height:36px;min-width:36px;touch-action:manipulation}
 .app .chat-view .composer .image-generate{display:grid;place-items:center;min-width:36px;min-height:40px;border-radius:10px}
-.app .chat-view .composer .image-generate[aria-pressed=true]{background:var(--selection);color:var(--theme-accent-soft)}
+.app .chat-view .composer .image-generate[aria-expanded=true]{background:var(--selection);color:var(--theme-accent-soft)}
 .app .chat-view .composer .voice-input{min-width:36px;min-height:40px}
 .app .chat-view .msg:has(.image-card){min-width:0;max-width:min(96%,760px);width:auto}
 .app .chat-view .image-card{min-width:0;width:100%;max-width:100%;overflow:hidden}
