@@ -1,6 +1,6 @@
 # Overdrive 1.1: CPU e primeiro turno do SmolLM3
 
-Base: `357b2d09e4f42d80e045a94eaec0308662576613`, branch `feature/android-overdrive`. Checkpoint: `checkpoint/overdrive-1.0.0-357b2d0`. Runtime continua `4d71b42fd87db24b8b7c808c151b713aa4459cfd`; não há downgrade ou troca de GGUF. Package `com.proxyslabs.haruna.overdrive`, launcher Haruna Overdrive, versionCode 14: atualização da Overdrive existente, separada da Haruna original.
+Base: `357b2d09e4f42d80e045a94eaec0308662576613`, branch `feature/android-overdrive`. Checkpoint: `checkpoint/overdrive-1.0.0-357b2d0`. Runtime continua `4d71b42fd87db24b8b7c808c151b713aa4459cfd`; não há downgrade ou troca de GGUF. Package `com.proxyslabs.haruna.overdrive`, launcher Haruna Overdrive, versionCode 14, separado da Haruna original. O package é o mesmo da Overdrive 1.0, mas o artefato CI tem assinatura diferente e não pode substituí-la como atualização; veja abaixo.
 
 ## Evidência física recebida
 
@@ -41,3 +41,16 @@ DBG e Inferência avançada mostram pools anexados, threads efetivos, preparaç�
 Não há aparelho Android conectado. **Depois da alteração, TTFT, velocidade de escrita, qualidade, estabilidade térmica e consumo de memória no Samsung ainda requerem validação física.** Não há demonstração de equivalência de velocidade ao PocketPal nem de meta <=5 s. Comparar uma resposta à mesma pergunta, no mesmo GGUF, Pensar OFF, primeiro após “Carregado” e depois na mesma conversa. O diagnóstico deve incluir preparação no carregamento, entrada/avaliados/reutilizados, prefill, native TTFT, decode e threads/FA efetivos. Não é necessário repetir uma matriz de parâmetros.
 
 O resultado do build Android e o link do APK são informados na entrega do workflow. Uma compilação aprovada não comprova aceleração no aparelho.
+
+## Resultado do build e compatibilidade de instalação
+
+- Código compilado: `344354e646b7f09986bef10f02800d7a9a429fe0`.
+- Actions: https://github.com/doutor56-lab/Haruna/actions/runs/43209575813 — sucesso, `:app:testDebugUnitTest :app:assembleDebug`, 19 min 47 s de Gradle.
+- Nome/package/ARM64 confirmados pelo `aapt` no workflow.
+- Artefato: https://github.com/doutor56-lab/Haruna/actions/runs/43209575813/artifacts/13941558032
+- Arquivo no ZIP: `Haruna-Overdrive-ARM64.apk`; SHA-256 conferido com `SHA256SUMS.txt`: `80de3afad0eacefdfd7d2c97df1be980a26f84027207672d1b23a7c4053f3b5e`.
+- ZIP SHA-256 informado pelo GitHub: `e24d41bea9ae9a17e9ba6b087a90a8940bedaa017ab46efeadd757e1624fbdd8`.
+
+**Impedimento confirmado para atualizar a instalação anterior:** comparação dos certificados públicos extraídos dos blocos de assinatura dos dois APKs mostrou chaves de debug diferentes. A build existente usa assinatura debug gerada no runner e não configura uma chave persistente. Certificado 1.0: `f2639655e2618538f597a093412be94e1a61cb544b1ee967c26fef3c17414075`; certificado 1.1: `f4720d206be6e72210ec662f5f57b0db7ad1add0613aef5e6dd1287410ac1146` (SHA-256 dos certificados, não dos APKs).
+
+O APK novo é destinado a instalação nova; Android recusará atualização sobre aquele APK 1.0. **Não desinstalar nem limpar dados da Overdrive existente para contornar isso.** Para atualizar preservando o sandbox é necessária a chave privada usada no APK anterior. O certificado público não permite recuperá-la. Não foi criado outro applicationId, não se tentou contornar a verificação Android e não foi iniciada outra compilação. O baseline e seus dados permanecem intocados; a compatibilidade de atualização está pendente da chave anterior. O sucesso da compilação não é uma entrega de atualização compatível nem prova de ganho físico.

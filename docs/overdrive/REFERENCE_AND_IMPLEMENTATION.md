@@ -30,7 +30,7 @@ O template oficial distingue `/think` e `/no_think` por `enable_thinking`. A det
 
 ## Interface e instalação
 
-Nome de launcher: **Haruna Overdrive**. Application ID: `com.proxyslabs.haruna.overdrive`; versão 1.1.0-overdrive, ARM64. Instala ao lado da Haruna anterior. A outra aplicação e seus diretórios privados não são tocados. Dados e modelos não são copiados automaticamente entre sandboxes; o usuário pode importar seus arquivos originais no novo aplicativo.
+Nome de launcher: **Haruna Overdrive**. Application ID: `com.proxyslabs.haruna.overdrive`; versão 1.1.0-overdrive, ARM64. Instala ao lado da Haruna original. A atualização da Overdrive 1.0 está bloqueada por certificados debug diferentes nos artefatos CI; veja [resultado e limitação de assinatura](SMOLLM3_CPU_STARTUP.md#resultado-do-build-e-compatibilidade-de-instalação). Não desinstale a Overdrive existente para contornar isso. A outra aplicação e seus diretórios privados não são tocados. Dados e modelos não são copiados automaticamente entre sandboxes; o usuário pode importar seus arquivos originais no novo aplicativo.
 
 Configurações → Modelos de IA → Linguagem → Inferência avançada. Controles recolhidos, com validação, salvamento por modelo e restauração. Thinking permanece no botão existente. A seção mostra TTFT nativo, prefill/decode, tokens, cache, contexto/batch/threads efetivos, backend, FA, K/V e buffers de contexto. Métricas ausentes permanecem N/D. Atualização somente com a seção visível; usa os snapshots existentes. Não inclui prompts, respostas ou documentos na exportação técnica.
 
