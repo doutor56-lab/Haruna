@@ -20,7 +20,8 @@ class TtsTextNormalizer {
     fun chunks(text: String): List<String> {
         val result = mutableListOf<String>(); var rest = text.trim()
         while (rest.isNotEmpty()) {
-            var end = minOf(rest.length, 240)
+            val initial = result.isEmpty()
+            var end = minOf(rest.length, if (initial) 120 else 240)
             if (end < rest.length) {
                 val window = rest.take(end)
                 val punctuation = Regex("[.!?;:]\\s").findAll(window).lastOrNull()?.range?.last

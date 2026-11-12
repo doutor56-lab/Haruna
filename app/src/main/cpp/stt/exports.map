@@ -1,4 +1,9 @@
 {
-  global: Java_com_proxyslabs_haruna_speech_WhisperCppNative_transcribe;
+  global:
+    Java_com_proxyslabs_haruna_speech_WhisperCppNative_load;
+    Java_com_proxyslabs_haruna_speech_WhisperCppNative_resetCancellation;
+    Java_com_proxyslabs_haruna_speech_WhisperCppNative_transcribe;
+    Java_com_proxyslabs_haruna_speech_WhisperCppNative_cancel;
+    Java_com_proxyslabs_haruna_speech_WhisperCppNative_unload;
   local: *;
 };

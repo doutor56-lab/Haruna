@@ -65,7 +65,7 @@ jobs:
           print("Haruna llama.cpp interface methods are present")
           PY
       - name: Build debug APK
-        run: gradle --no-daemon --stacktrace :app:testDebugUnitTest :app:assembleDebug
+        run: gradle --no-daemon --stacktrace -Pandroid.injected.build.abi=arm64-v8a :app:testDebugUnitTest :app:assembleDebug
       - name: Verify separate Overdrive package and launcher name
         if: github.ref_name == 'feature/android-overdrive'
         run: |

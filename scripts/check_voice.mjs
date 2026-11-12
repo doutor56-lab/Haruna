@@ -22,6 +22,8 @@ output=[];const noMarker=new SpeechStream({send:x=>output.push(x)});noMarker.pus
 output=[];const plain=new SpeechStream({send:x=>output.push(x)});for(const c of first+second)plain.push(c,false);plain.finish(first+second);assert.deepEqual(output,[first.trim(),second.trim()]);
 output=[];const cancelled=new SpeechStream({send:x=>output.push(x)});cancelled.push('Parcial');cancelled.cancel();cancelled.push(first);cancelled.finish(first);assert.equal(output.length,0);
 let failed=0;const full=new SpeechStream({send:()=>{throw Error('queue full')},onError:()=>failed++});assert.doesNotThrow(()=>full.push(first,false));assert.equal(failed,1);full.push(first,false);assert.equal(failed,1);
+output=[];const early=new SentenceQueue(x=>output.push(x));early.push('Uma frase curta já pode ser lida. ');assert.equal(output.length,1);
+output=[];const latency=new SentenceQueue(x=>output.push(x));latency.push('palavra '.repeat(19));assert.equal(output.length,1);assert(output[0].length<=120);latency.finish();assert.equal(output.join(' '),'palavra '.repeat(19).trim());
 const {modelStatus,modelLabel}=await import(data(await readFile(new URL('voice/model-names.js',root),'utf8')));
 assert.equal(modelLabel('Qwen3.5-2B-Q4_K_M.gguf'),'Qwen3.5');assert.equal(modelLabel('microsoft_Phi-4-mini-instruct-Q4_K_M.gguf'),'Phi-4');assert.equal(modelLabel('qwen2.5-0.5b-instruct-q4_k_m.gguf'),'Qwen 0.5B');
 assert.equal(modelStatus({modelLoaded:true,state:'active',modelName:'Qwen3.5-2B-Q4_K_M.gguf'}),'Qwen3.5 local ativo');assert.equal(modelStatus({modelLoaded:true,state:'loading',modelName:'old.gguf'}),'Carregando modelo…');

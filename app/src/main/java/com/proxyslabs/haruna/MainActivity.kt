@@ -108,7 +108,7 @@ class MainActivity : AppCompatActivity() {
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) recognition.permitted(mode, id)
         else { pendingVoicePermission = mode to id; try { voicePermission.launch(android.Manifest.permission.RECORD_AUDIO) } catch (failure: Exception) { pendingVoicePermission = null; recognition.permissionFailed(failure.message ?: "Não foi possível solicitar o microfone", id) } }
     }
-    fun prepareToListen(ready: () -> Unit) = speech.prepareForListening(ready)
+    fun prepareToListen(keepVoiceWarm: Boolean = false, ready: () -> Unit) = speech.prepareForListening(keepVoiceWarm, ready)
     fun stopListening() { if (::recognition.isInitialized) recognition.stop() }
 
     private val callStopReceiver = object : android.content.BroadcastReceiver() {

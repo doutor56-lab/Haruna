@@ -8,20 +8,29 @@ import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
 import com.proxyslabs.haruna.diagnostics.DiagnosticSession
 import java.io.File
 
-interface SttEngine {
+interface SttEngine : AutoCloseable {
+    fun prepare(directory: File, model: WhisperModels.Model)
+    fun cancel() {}
+    override fun close()
     fun transcribe(directory: File, samples: FloatArray, model: WhisperModels.Model): String
     fun loaded(): Boolean = false
 }
 
-/** A fresh, short-lived recognizer keeps STT weights out of the LLM/TTS response phase. */
+/** Sessions are owned exclusively by the model worker; streams remain per utterance. */
 class WhisperSttEngine(private val changed: () -> Unit = {}) : SttEngine {
     @Volatile private var resident = false
     override fun loaded() = resident
-    override fun transcribe(directory: File, samples: FloatArray, model: WhisperModels.Model): String {
+    private var recognizer: OfflineRecognizer? = null
+    private var installedPath: String? = null
+    override fun prepare(directory: File, model: WhisperModels.Model) {
+        val started = DiagnosticSession.clock()
+        val reused = recognizer != null && installedPath == directory.absolutePath
+        if (reused) { SttDiagnostics.prepared("sherpa-onnx OfflineRecognizer", true, (DiagnosticSession.clock()-started)/1e6); return }
+        close()
         SttDiagnostics.model(model.title + " multilíngue INT8")
-        val diagnosticStarted = DiagnosticSession.clock()
+
         fun path(name: String) = File(directory, name).absolutePath
-        val recognizer = OfflineRecognizer(config = OfflineRecognizerConfig(
+        recognizer = OfflineRecognizer(config = OfflineRecognizerConfig(
             featConfig = FeatureConfig(sampleRate = 16000, featureDim = 80),
             modelConfig = OfflineModelConfig(whisper = OfflineWhisperModelConfig(
                 encoder = path(model.files[0]), decoder = path(model.files[1]),
@@ -32,24 +41,24 @@ class WhisperSttEngine(private val changed: () -> Unit = {}) : SttEngine {
         resident = true
         DiagnosticSession.voiceLoaded("stt", true)
         changed()
+        installedPath = directory.absolutePath
+        SttDiagnostics.prepared("sherpa-onnx OfflineRecognizer", false, (DiagnosticSession.clock()-started)/1e6)
+    }
+    override fun transcribe(directory: File, samples: FloatArray, model: WhisperModels.Model): String {
+        val engine = requireNotNull(recognizer) { "Prepare o Whisper antes de transcrever" }
+        check(installedPath == directory.absolutePath) { "Modelo STT alterado" }
+        val diagnosticStarted = DiagnosticSession.clock()
+        val stream = engine.createStream()
         try {
-            val stream = recognizer.createStream()
-            try {
-                stream.acceptWaveform(samples, SttAudioRecorder.RATE)
-                val decodeStarted = DiagnosticSession.clock()
-                try { recognizer.decode(stream) }
-                finally { SttDiagnostics.decoded((DiagnosticSession.clock() - decodeStarted) / 1e6) }
-                return recognizer.getResult(stream).text.trim()
-            }
-            finally { stream.release() }
-        } finally {
-            recognizer.release()
-            resident = false
-            DiagnosticSession.voiceLoaded("stt", false)
-            changed()
-            DiagnosticSession.voiceOperation("stt", diagnosticStarted)
-        }
+            stream.acceptWaveform(samples, SttAudioRecorder.RATE)
+            val decodeStarted = DiagnosticSession.clock()
+            try { engine.decode(stream) }
+            finally { SttDiagnostics.decoded((DiagnosticSession.clock()-decodeStarted)/1e6) }
+            return engine.getResult(stream).text.trim()
+        } finally { stream.release(); DiagnosticSession.voiceOperation("stt", diagnosticStarted) }
+    }
+    override fun close() {
+        val old = recognizer; recognizer = null; installedPath = null; resident = false
+        if (old != null) { old.release(); DiagnosticSession.voiceLoaded("stt", false); changed() }
     }
 }
-
-

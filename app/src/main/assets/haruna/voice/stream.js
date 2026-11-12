@@ -2,25 +2,25 @@ import {ThinkParser} from '../streaming/think-parser.js';
 
 /** Natural, bounded text segments. No audio buffer and no native/UI backpressure on the LLM. */
 export class SentenceQueue {
- constructor(send,{minimum=48,maximum=280}={}){this.send=send;this.minimum=minimum;this.maximum=maximum;this.buffer='';this.ended=false}
+ constructor(send,{minimum=48,maximum=280}={}){this.send=send;this.minimum=minimum;this.maximum=maximum;this.buffer='';this.ended=false;this.initial=true}
  push(text){if(this.ended||!text)return;this.buffer+=text;this.flush(false)}
- reset(){this.buffer=''}
+ reset(){this.buffer='';this.initial=true}
  flush(final){
   while(this.buffer.length){
-   let end=0;
+   let end=0;const minimum=this.initial?Math.min(24,this.minimum):this.minimum,maximum=this.initial?Math.min(120,this.maximum):this.maximum;
    for(const match of this.buffer.matchAll(/[.!?;:]["'”»)]*\s+|\n\s*\n/g)){
     const point=match.index+match[0].length;
-    if(point<this.minimum)continue;
-    if(point>this.maximum)break;
+    if(point<minimum)continue;
+    if(point>maximum)break;
     const previous=this.buffer.slice(0,match.index).match(/([\p{L}.]+)$/u)?.[1]||'';
     if(match[0][0]==='.'&&(/^(sr|sra|srta|dr|dra|prof|profa|etc|ex|p\.ex)$/i.test(previous)||previous.length===1))continue;
     end=point;break;
    }
-   if(!end&&this.buffer.length>this.maximum){const space=this.buffer.lastIndexOf(' ',this.maximum);end=space>40?space+1:this.maximum;if(/[\uD800-\uDBFF]/.test(this.buffer[end-1]))end--}
+   if(!end&&this.buffer.length>maximum){const space=this.buffer.lastIndexOf(' ',maximum);end=space>40?space+1:maximum;if(/[\uD800-\uDBFF]/.test(this.buffer[end-1]))end--}
    if(!end&&final)end=this.buffer.length;
    if(!end)break;
    const value=this.buffer.slice(0,end).trim();this.buffer=this.buffer.slice(end);
-   if(value)this.send(value);
+   if(value){this.send(value);this.initial=false;}
   }
  }
  finish(){if(this.ended)return;this.flush(true);this.ended=true}

@@ -194,6 +194,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
 
     private suspend fun loadAndPrime(file: File) {
         val totalStart = System.currentTimeMillis()
+        com.proxyslabs.haruna.speech.IdleSpeechSessions.releaseIdle()
         if (engine.state.value is InferenceEngine.State.Error || engine.state.value.isModelLoaded) engine.cleanUp()
         waitUntilInitialized()
         val loadStart = System.currentTimeMillis()
@@ -273,7 +274,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             check(!destroyed) { "Runtime encerrado" }
             maintenance(7) {
                 val state = engine.state.value
-                if (state.isModelLoaded || state is InferenceEngine.State.Error || state is InferenceEngine.State.Initialized) engine.cleanUp()
+                if (state.isModelLoaded || state is InferenceEngine.State.Error || state is InferenceEngine.State.Initialized) { com.proxyslabs.haruna.speech.IdleSpeechSessions.releaseIdle(); engine.cleanUp() }
                 modelName = null; modelPath = null; modelIdentity = null; thinkingSupported = null; lastError = null
                 conversationId = null; resetRequired = false
             }

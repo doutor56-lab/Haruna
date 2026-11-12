@@ -32,7 +32,7 @@ class RecognitionBridge(private val activity: MainActivity, private val webView:
             try { activity.ensureBackgroundVoiceCall() }
             catch (failure: Exception) { manager.fail("Não foi possível iniciar a chamada em segundo plano. Mantenha a Haruna aberta e tente novamente.", id); return }
         }
-        activity.prepareToListen {
+        activity.prepareToListen(keepVoiceWarm = manager.canShareVoiceCache()) {
             if (!closed && expected == id) runCatching { manager.start(mode, id) }.onFailure { manager.fail(it.message ?: "Não foi possível iniciar o microfone", id) }
         }
     }

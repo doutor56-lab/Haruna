@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
-class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : AutoCloseable {
+class TtsManager(private val context: Context, private val emit: (JSONObject) -> Unit) : AutoCloseable {
     private val prefs = context.getSharedPreferences("haruna_speech", Context.MODE_PRIVATE)
     private val models = TtsModelManager(context)
     private val worker = java.util.concurrent.ScheduledThreadPoolExecutor(1).apply { setExecuteExistingDelayedTasksAfterShutdownPolicy(false) }
@@ -32,7 +32,7 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
             emit(JSONObject().put("meter", true).put("state", "playing").put("messageId", id).put("level", value))
     }
 
-    init { player.volume(prefs.getFloat("volume", 1f)); worker.execute { models.cleanTemporary() } }
+    init { IdleSpeechSessions.register(this) { if (closed.get() || state !in setOf("idle", "error")) null else worker.submit { if (state in setOf("idle", "error")) engine.close() } }; player.volume(prefs.getFloat("volume", 1f)); worker.execute { models.cleanTemporary() } }
     fun status(): JSONObject = JSONObject().put("state", state).put("error", error)
         .put("installed", models.installed()).put("bytes", models.bytes()).put("speakers", models.speakers())
         .put("speaker", prefs.getInt("speaker", -1)).put("speed", prefs.getFloat("speed", 1f).toDouble())
@@ -170,9 +170,14 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
         if (!closed.get()) runCatching { worker.schedule({ if (generation.get() == ticket) engine.close() }, 30, TimeUnit.SECONDS) }
     }
     fun reportError(message: String) { publish("error", message) }
-    fun prepareForListening(ready: () -> Unit) {
+    fun prepareForListening(keepWarm: Boolean = false, ready: () -> Unit) {
         stop()
-        worker.execute { engine.close(); if (!closed.get()) ready() }
+        worker.execute {
+            val info = android.app.ActivityManager.MemoryInfo()
+            (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).getMemoryInfo(info)
+            if (!keepWarm || info.lowMemory || info.availMem < 1536L*1024*1024) engine.close()
+            if (!closed.get()) ready()
+        }
     }
     fun cancelInstallation() { if (installing.get()) { models.cancel(); publish("cancelling") } }
     fun install(uri: Uri?) {
@@ -199,7 +204,7 @@ class TtsManager(context: Context, private val emit: (JSONObject) -> Unit) : Aut
     }
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
-        models.cancel(); textStream?.queue?.cancel(); textStream = null; generation.incrementAndGet(); player.stop()
+        IdleSpeechSessions.unregister(this); models.cancel(); textStream?.queue?.cancel(); textStream = null; generation.incrementAndGet(); player.stop()
         worker.execute { engine.close() }; worker.shutdown(); audioWorker.shutdown()
     }
 }

@@ -30,7 +30,7 @@ class SpeechBridge(private val activity: MainActivity, private val webView: WebV
     @JavascriptInterface fun removeModel(): String = command { manager.remove() }
     fun importModel(uri: Uri) { runCatching { manager.install(uri) }.onFailure { manager.reportError(it.message ?: "Falha na importação") } }
     fun suspendForBackground() { manager.stop("app_background") }
-    fun prepareForListening(ready: () -> Unit) { manager.prepareForListening(ready) }
+    fun prepareForListening(keepWarm: Boolean = false, ready: () -> Unit) { manager.prepareForListening(keepWarm, ready) }
     fun selectionFailed(message: String) { manager.reportError(message) }
     fun selectionCancelled() { stop() }
     override fun close() { closed = true; manager.close() }

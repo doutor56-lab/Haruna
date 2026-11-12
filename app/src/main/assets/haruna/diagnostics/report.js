@@ -29,6 +29,7 @@ export function diagnosticCards(native={},knowledge={}){
    ...(kind==='stt'?[
     row('STT — engine',clean(recognition.engine)),row('STT — idioma configurado',recognition.language==='pt'?'Português (pt)':unavailable),
     row('STT — sample rate capturado',valid(recognition.sampleRate)?`${number(recognition.sampleRate)} Hz`:unavailable),
+    row('STT — preparação do modelo',duration(recognition.modelLoadMs)),row('STT — sessão reutilizada',typeof recognition.sessionReused==='boolean'?(recognition.sessionReused?'Sim':'Não'):unavailable),
     row('STT — duração do último trecho enviado',duration(recognition.audioMs)),row('STT — última inferência (decode)',duration(recognition.decodeMs)),
     row('STT — RTF (decode / áudio)',valid(recognition.rtf)?recognition.rtf.toLocaleString('pt-BR',{maximumFractionDigits:3}):unavailable),
     row('STT — último resultado',Object.hasOwn(outcome,recognition.outcome)?outcome[recognition.outcome]:unavailable),
@@ -70,7 +71,7 @@ export function diagnosticCards(native={},knowledge={}){
   ],'Tempos de busca são observados desde o carregamento desta página. Contagens vêm dos metadados existentes; o DBG não abre nem varre o IndexedDB e não chama search(). Tempos observam as chamadas reais, incluindo retornos vazios. Roteamento é uma regra local, sem inferência extra. Chamadas e seleção são medidas separadamente; recuperar trechos não comprova uso pelo LLM. Solicitações não incluem conteúdo nem identificadores no relatório.'),
   section('voice','Voz',[
    ...voiceRows('stt','STT · fala → texto','Whisper Tiny INT8'),...voiceRows('tts','TTS · texto → fala','Supertonic 3 INT8')
-  ],'STT: a duração antiga inclui criação e liberação do recognizer; decode/RTF medem apenas a inferência, sem carregamento. Áudio é o trecho após remoção de silêncio inicial. Sucesso significa saída estruturalmente válida, não confiança ou precisão medida. TTS mede segmentos sintetizados, sem reprodução/fila/carregamento. Ler diagnóstico não carrega motores nem guarda texto/áudio.'),
+  ],'STT: preparação do modelo é separada e pode ocorrer durante a captura; decode/RTF medem a transcrição, sem carregar novamente pesos reutilizados. Sessões pequenas podem permanecer até 30 s quando há margem de memória. Não há transcrição parcial simulada. Áudio é o trecho após remoção de silêncio inicial. Sucesso significa saída estruturalmente válida, não confiança ou precisão medida. TTS mede segmentos sintetizados, sem reprodução/fila/carregamento. Ler diagnóstico não carrega motores nem guarda texto/áudio.'),
   section('subsystems','Uso por subsistema',[
    row('Haruna / base',unavailable),row('LLM · buffers modelo',bytes(llm.observation?.runtime?.modelBufferBytes)),row('LLM · cache/contexto',bytes(llm.observation?.runtime?.contextBufferBytes)),row('LLM · computação',bytes(llm.observation?.runtime?.computeBufferBytes)),row('Segundo Cérebro',unavailable),row('STT',unavailable),row('TTS',unavailable)
   ],'Buffers LLM vêm de llama_get_memory_breakdown(), amostrados em preparação/prefill. Contexto inclui KV e/ou estados recorrentes; não há separação adicional confiável. São bytes de buffers, não RAM residente exclusiva: não somar a PSS/RSS/heaps. Não há atribuição confiável aos demais subsistemas.'),
