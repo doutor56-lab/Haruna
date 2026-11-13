@@ -87,6 +87,7 @@ class HarunaAndroidBridge(private val activity:MainActivity,private val webView:
  fun notifyAttachmentResult(result:Result<File>){result.onSuccess{emit(JSONObject().put("type","attachment").put("name",it.name).put("path",it.absolutePath).put("bytes",it.length()).put("readable",it.extension.lowercase() in setOf("txt","md","csv","json","log")))}.onFailure{emit(JSONObject().put("type","attachment").put("error",it.message))}}
  private fun statusJson():JSONObject{val s=backend.status();return JSONObject().put("available",s.available).put("modelLoaded",s.modelLoaded).put("state",s.state).put("modelName",s.modelName).put("error",s.error).put("incrementalConversation",(backend as? LlamaCppBackend)?.incrementalConversation()==true).put("thinkingSupported",(backend as? LlamaCppBackend)?.thinkingCapability())}
  private fun emitStatus()=emit(statusJson().put("type","status"))
+ fun notifyCurrentStatus()=emitStatus()
  private fun sendBatch(id:String,handle:Pending,batch:StreamDelivery.Batch,ack:(Boolean)->Unit){
   if(closed.get()||pending[id]!==handle){DiagnosticSession.callbackDiscarded();ack(false);return}
   val event=JSONObject().put("requestId",id).put("type","stream").put("sequence",batch.sequence)

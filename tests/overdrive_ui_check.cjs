@@ -19,6 +19,8 @@ for(const [width,height]of [[360,800],[800,1280]]){
  if(await page.locator('#input').inputValue()!=='Draft preserved while preparing')throw Error('Loading consumed the draft');
  await page.evaluate(()=>{window.testModel.state='active';window.testModel.modelLoaded=true;window.harunaAndroidOnEvent({type:'status'})});
  await page.waitForFunction(()=>!document.querySelector('#send').disabled);
+  if(!await page.locator('#chatView').isVisible())throw Error('Ready state required opening Settings');
+  if(await page.locator('#input').inputValue()!=='Draft preserved while preparing')throw Error('Ready state lost the draft');
  await page.locator('[data-view="settings"]').click();await page.locator('.inference-settings summary').click();
  await page.waitForFunction(()=>{const e=document.querySelector('.inference-settings [name=temperature]');return e.value==='0.6'&&!e.disabled});
  await page.locator('.inference-settings [name=threads]').fill('2');await page.locator('.inference-settings [name=threadsBatch]').fill('6');

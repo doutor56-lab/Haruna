@@ -142,6 +142,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     private fun maintenance(reason: Int, action: () -> Unit) {
         val active = synchronized(jobs) { loading = true; jobs.values.toList() }
         try {
+            notifyStatus()
             active.forEach { cancel(it, reason) }
             runBlocking { active.forEach { it.job.cancelAndJoin() } }
             action()

@@ -152,10 +152,9 @@ class MainActivity : AppCompatActivity() {
         webView.settings.allowFileAccess = false
         webView.settings.allowContentAccess = false
         webView.webViewClient = object : WebViewClientCompat() {
-            private var restored = false
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
-                if (!restored) { restored = true; autoLoadPrimaryModel() }
+                if (url == "https://appassets.androidplatform.net/assets/haruna/index.html") bridge.notifyCurrentStatus()
             }
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? = loader.shouldInterceptRequest(request.url)
             @Deprecated("Deprecated in Java") override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? = loader.shouldInterceptRequest(Uri.parse(url))
@@ -179,6 +178,8 @@ class MainActivity : AppCompatActivity() {
             webView.addJavascriptInterface(diagnostics, "HarunaDiagnostics")
         }
         webView.loadUrl("https://appassets.androidplatform.net/assets/haruna/index.html")
+        // Loading belongs to Activity startup, not to WebView completion or Settings.
+        autoLoadPrimaryModel()
     }
 
     private fun prepareModel(file: File) {
