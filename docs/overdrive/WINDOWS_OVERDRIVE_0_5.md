@@ -36,4 +36,12 @@ node desktop/test/native-inference.cjs /caminho/llama-server /tmp/smol-random.gg
 
 ## Entrega
 
-Build Windows e hash: pendentes da compilação desta revisão. A validação de velocidade e estabilidade com o GGUF real depende do computador do usuário. Vulkan continua opcional e depende do driver; não foi medido neste ambiente.
+Build compilado: `6bb2fe2e59260fabc22437ce35c3525b28589647`.
+
+- [Workflow Windows concluído com sucesso](https://github.com/doutor56-lab/Haruna/actions/runs/43553206589).
+- [Baixar Haruna Windows 0.5.0 x64](https://github.com/doutor56-lab/Haruna/actions/runs/43553206589/artifacts/14096469391): extrair o ZIP e abrir `Haruna-Windows-0.5.0-x64.exe`.
+- SHA-256 do EXE: `d7b369f84dbd1f3a96932435e494937ee5f378ff28a0e81d5651f55b3d8f5081`.
+- [Relatório e screenshots do runner](https://github.com/doutor56-lab/Haruna/actions/runs/43553206589/artifacts/14096449374).
+- Runner Windows x64: testes passaram, EXE empacotado abriu, painel de inferência presente, escalas 75/100/125/150 passaram, runtimes nativos CPU/Vulkan incluídos e CLIs verificadas. Nenhum modelo de usuário foi executado pelo CI; `actualModelInference:false` e `realImageGenerated:false` permanecem explícitos no relatório.
+
+A validação de velocidade e estabilidade com o GGUF real depende do computador do usuário. Vulkan continua opcional e depende do driver; não foi medido neste ambiente. Feche a versão anterior e abra este EXE; o mesmo diretório de dados Windows é preservado. Nenhuma reinstalação, exclusão de modelos ou limpeza de dados é necessária.
