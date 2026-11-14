@@ -9,6 +9,8 @@ jobs:
   android:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build approved]')
     uses: ./.github/workflows/android-debug.yml
+    with:
+      artifact_name: Haruna-Overdrive-Android-ARM64
     secrets: inherit
   windows:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build approved]')

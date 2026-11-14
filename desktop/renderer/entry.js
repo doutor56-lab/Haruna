@@ -17,13 +17,14 @@
   close.onclick=()=>note.remove();note.append(close);
   (document.body||document.documentElement).append(note);
  };
- // Windows-only UI scale. Chromium CSS zoom reflows the layout instead of
-// stretching a fixed-size screenshot; responsive CSS remains active.
+ // Native Chromium zoom changes logical pixels while keeping the viewport full.
  const SCALE_KEY='haruna.windows.interfaceScale';
  const clampScale=value=>{const n=Number(value);return Number.isFinite(n)&&n>=75&&n<=150&&n%5===0?n:100;};
  const applyScale=value=>{
   const scale=clampScale(value);
-  document.documentElement.style.zoom=scale+'%';
+  document.documentElement.style.zoom='';
+  const result=desktop.setInterfaceScale(scale);
+  if(result?.status!=='ok')throw Error(result?.error||'Não foi possível ajustar a escala.');
   try{localStorage.setItem(SCALE_KEY,String(scale));}catch{}
   return scale;
  };

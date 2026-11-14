@@ -6,10 +6,10 @@
  function mount(){
   const host=document.querySelector('#settingsView .image-settings-card');
   if(!host||document.getElementById('desktopVulkanSettings'))return false;
-  const section=document.createElement('section');
+  const section=document.createElement('details');
   section.id='desktopVulkanSettings';
   section.className='desktop-vulkan-settings';
-  const heading=document.createElement('strong');heading.textContent='Aceleração no Windows';
+  const heading=document.createElement('summary');heading.textContent='Motores e aceleração';
   const backendLabel=document.createElement('label');backendLabel.textContent='Processamento';
   const backend=document.createElement('select');backend.setAttribute('aria-label','Motor de processamento de imagens');
   for(const [value,title]of [['cpu','CPU (compatibilidade)'],['vulkan','Vulkan (GPU)']]){

@@ -54,6 +54,8 @@ write('image-models.js',s=>s
  .replace(']]){const b=document.createElement(\'button\');b.type=\'button\';b.textContent=label;', ']]){if(window.HarunaDesktop&&(label===\'Carregar\'||label===\'Descarregar\'))continue;const b=document.createElement(\'button\');b.type=\'button\';b.textContent=label;')
  .replace('Motor nativo indisponível. Instalação não implica que o modelo possa ser carregado.','Motor Windows CPU/Vulkan indisponível. A seleção não garante carregamento.'));
 write('image-controls.js',s=>s.replace('pode ser lenta no tablet','pode ser lenta no computador'));
+write('voice-chat.js',s=>s.replace('Pacote Whisper .tar.bz2 ou GGML F16/Q5_1 multilíngue.','Pacote Whisper ONNX .tar.bz2 multilíngue.'));
+
 write('local-models.js',s=>s.replace('Dados do Android','Monitoramento do Windows indisponível nesta versão'));
 write('index.html',s=>{
  const anchor='</body>';
