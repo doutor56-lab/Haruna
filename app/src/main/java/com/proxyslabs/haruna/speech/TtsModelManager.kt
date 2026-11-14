@@ -89,10 +89,20 @@ class TtsModelManager(private val context: Context) {
             stream = null
             check()
             require(digest.digest().joinToString("") { "%02x".format(it) } == SHA256) { "O pacote falhou na verificação SHA-256. Use o arquivo oficial indicado." }
-            progress("extracting", 0, null)
+            progress("extracting", 0, archive.length())
             stage.mkdirs()
             var expanded = 0L
-            BZip2CompressorInputStream(archive.inputStream().buffered()).use { bz -> TarArchiveInputStream(bz).use { tar ->
+            val compressed = object : java.io.FilterInputStream(archive.inputStream()) {
+                private var count = 0L
+                private var notified = 0L
+                private fun observed(n: Int) { if (n > 0) { count += n; if (count - notified >= 512 * 1024 || count == archive.length()) {
+                    notified = count; progress("extracting", count, archive.length())
+                } } }
+                override fun read(): Int { check(); val n = super.read(); if (n >= 0) observed(1); return n }
+                override fun read(b: ByteArray, off: Int, len: Int): Int { check(); return super.read(b, off, len).also(::observed) }
+            }
+            stream = compressed
+            BZip2CompressorInputStream(compressed.buffered(128 * 1024)).use { bz -> TarArchiveInputStream(bz).use { tar ->
                 while (true) {
                     check(); val entry = tar.nextEntry ?: break
                     require(!entry.isSymbolicLink && !entry.isLink) { "Pacote contém links não permitidos" }
@@ -110,7 +120,9 @@ class TtsModelManager(private val context: Context) {
                     }
                 }
             } }
+            stream = null
             check()
+            progress("validating", 0, null)
             require(FILES.all { File(stage, it).isFile && File(stage, it).length() > 0 }) { "Faltam componentes do Supertonic" }
             JSONObject(File(stage, "tts.json").readText())
             val voice = File(stage, "voice.bin")
@@ -124,6 +136,7 @@ class TtsModelManager(private val context: Context) {
             val lengths = JSONObject(); FILES.forEach { lengths.put(it, File(stage, it).length()) }
             File(stage, "installed.json").writeText(JSONObject().put("sha256", SHA256).put("speakers", dims[0]).put("files", lengths).toString())
             check()
+            progress("finalizing", 0, null)
             require(!directory.exists() || directory.deleteRecursively()) { "Não foi possível substituir a instalação de voz" }
             require(stage.renameTo(directory)) { "Não foi possível finalizar a instalação" }
             progress("installed", 0, null)

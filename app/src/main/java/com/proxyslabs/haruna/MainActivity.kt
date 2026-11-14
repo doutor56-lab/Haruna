@@ -36,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bridge: HarunaAndroidBridge
     @Volatile private var modelImportBusy = false
     @Volatile private var activityClosed = false
+    private var webUiReady = false
     private val modelExecutor = Executors.newSingleThreadExecutor()
     private var modelPickerOpen = false
     @Volatile private var activeModelPath: String? = null
@@ -120,12 +121,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
     fun ensureBackgroundVoiceCall() {
-        if (!com.proxyslabs.haruna.speech.VoiceCallService.running) {
+        if (!com.proxyslabs.haruna.speech.VoiceCallService.active) {
             check(!activityClosed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) { "Inicie a chamada com a Haruna visível." }
-            startForegroundService(android.content.Intent(this, com.proxyslabs.haruna.speech.VoiceCallService::class.java))
+            com.proxyslabs.haruna.speech.VoiceCallService.start(this)
         }
     }
-    fun endBackgroundVoiceCall() { stopService(android.content.Intent(this, com.proxyslabs.haruna.speech.VoiceCallService::class.java)) }
+    fun endBackgroundVoiceCall() { com.proxyslabs.haruna.speech.VoiceCallService.stop(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -154,7 +155,9 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClientCompat() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
-                if (url == "https://appassets.androidplatform.net/assets/haruna/index.html") bridge.notifyCurrentStatus()
+                if (url == "https://appassets.androidplatform.net/assets/haruna/index.html") {
+                    webUiReady = true; bridge.notifyCurrentStatus(); openVoiceDownloadsFromIntent()
+                }
             }
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? = loader.shouldInterceptRequest(request.url)
             @Deprecated("Deprecated in Java") override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? = loader.shouldInterceptRequest(Uri.parse(url))
@@ -190,6 +193,19 @@ class MainActivity : AppCompatActivity() {
         if (activityClosed) return
         activeModelPath = file.absolutePath
         library.rememberActive(file)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent); setIntent(intent); openVoiceDownloadsFromIntent()
+    }
+    private fun openVoiceDownloadsFromIntent() {
+        val key = com.proxyslabs.haruna.speech.SpeechDownloadService.OPEN_DOWNLOADS
+        if (!webUiReady || !intent.getBooleanExtra(key, false)) return
+        val kindKey = com.proxyslabs.haruna.speech.SpeechDownloadService.OPEN_KIND
+        val kind = intent.getStringExtra(kindKey)?.takeIf { it == "tts" || it == "stt" } ?: "stt"
+        intent.removeExtra(key)
+        intent.removeExtra(kindKey)
+        webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('haruna-open-voice-downloads',{detail:{kind:" + org.json.JSONObject.quote(kind) + "}}))", null)
     }
 
     fun activeModelPath(): String? = backend.installedModelPath()
@@ -265,9 +281,9 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onStop() {
         pendingVoicePermission = null
-        val calling = com.proxyslabs.haruna.speech.VoiceCallService.running
-        if (::recognition.isInitialized) { if (!calling) recognition.stop(); recognition.cancelInstallation() }
-        if (::speech.isInitialized) { if (!calling) speech.suspendForBackground(); speech.cancelInstallation() }
+        val calling = com.proxyslabs.haruna.speech.VoiceCallService.active
+        if (::recognition.isInitialized) { if (!calling) recognition.stop() }
+        if (::speech.isInitialized) { if (!calling) speech.suspendForBackground() }
         super.onStop()
     }
     override fun onDestroy() {

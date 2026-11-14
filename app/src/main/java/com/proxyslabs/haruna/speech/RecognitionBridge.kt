@@ -9,7 +9,8 @@ import org.json.JSONObject
 class RecognitionBridge(private val activity: MainActivity, private val webView: WebView) : AutoCloseable {
     @Volatile private var closed = false
     @Volatile private var expected = ""
-    private val manager = SttManager(activity.applicationContext) { status ->
+    private val manager = SpeechRuntime.stt(activity.applicationContext)
+    private val unsubscribe = SpeechRuntime.subscribeStt { status ->
         if (!closed) webView.post { if (!closed) webView.evaluateJavascript(
             "window.dispatchEvent(new CustomEvent('haruna-stt-status',{detail:JSON.parse(${JSONObject.quote(status.toString())})}))", null) }
     }
@@ -49,5 +50,5 @@ class RecognitionBridge(private val activity: MainActivity, private val webView:
     @JavascriptInterface fun removeModel(): String = command { manager.remove() }
     fun importModel(uri: Uri) { runCatching { manager.install(uri) }.onFailure { manager.fail(it.message ?: "Falha na importação") } }
     fun selectionFailed(message: String) { manager.fail(message) }
-    override fun close() { closed = true; expected = ""; manager.close() }
+    override fun close() { closed = true; expected = ""; unsubscribe(); manager.stop() }
 }

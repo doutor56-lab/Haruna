@@ -1,3 +1,4 @@
+import {showDownloadSheet} from './voice/download-ui.js';
 import {CallView,voiceSettings,voiceIcon} from './voice/call-view.js';
 import {SpeechStream} from './voice/stream.js';
 // Dictation writes a draft. Only the explicitly started local call sends turns automatically.
@@ -11,13 +12,13 @@ const command=(m,...args)=>invoke(native(),m,...args);
 function quiet(target,method,...args){try{return invoke(target,method,...args)}catch{}}
 let status={},capture=null,localCall=null,sequence=0,resumeTimer=null;
 const id=prefix=>`${prefix}-${Date.now().toString(36)}-${++sequence}`;
-const isBusy=()=>['importing','downloading','extracting','validating','finalizing','cancelling','selecting','removing'].includes(status.state);
+const isBusy=()=>status.installing===true||['importing','downloading','extracting','validating','finalizing','cancelling','selecting','removing'].includes(status.state);
 const mic=document.createElement('button');mic.type='button';mic.className='voice-input';mic.textContent='';mic.setAttribute('aria-label','Escrever por voz');composer?.insertBefore(mic,input);
 const phone=document.createElement('button');phone.type='button';phone.className='ghost';phone.textContent='';phone.setAttribute('aria-label','Conversa por voz local');document.querySelector('.topbar .actions')?.prepend(phone);
 const dictation=document.createElement('div');dictation.className='speech-player dictation-control';dictation.style.display='none';dictation.hidden=true;
 const dictationLabel=document.createElement('span'),finish=document.createElement('button'),cancel=document.createElement('button');finish.type=cancel.type='button';finish.textContent='Concluir';cancel.textContent='Cancelar';dictation.append(dictationLabel,finish,cancel);composer?.before(dictation);
 const settings=document.createElement('div');settings.className='page-card recognition-settings';
-settings.innerHTML='<div class="section-title"><div><strong>Escrita e conversa por voz</strong><small>Reconhecimento local • português • áudio no dispositivo</small></div></div><div class="setting-row"><span>Reconhecimento</span><strong data-state>Não instalado</strong></div><div data-stt-models class="model-list"></div><label class="speech-field">Modelo para baixar<select data-download-model aria-label="Modelo STT para baixar"><option value="whisper-tiny-int8">Whisper Tiny</option><option value="whisper-base-int8">Whisper Base</option><option value="whisper-small-int8">Whisper Small</option></select></label><p class="settings-note" data-progress aria-live="polite"></p><progress data-progress-bar max="100" hidden></progress><details class="settings-guide"><summary>Como funciona o reconhecimento de voz</summary><p class="settings-note">O ditado preenche o rascunho para revisão. A chamada conversa por turnos e envia suas falas ao chat. O microfone pausa durante a resposta. Cada fala pode ter até 20 segundos; uma pausa encerra o trecho.</p></details><div class="model-actions speech-actions"><button data-download>Baixar reconhecimento</button><button data-import>Importar modelo do dispositivo</button><button data-cancel hidden>Cancelar instalação</button><button data-remove class="danger" hidden>Remover reconhecimento</button></div>';
+settings.innerHTML='<div class="section-title"><div><strong>Reconhecimento de voz</strong><small>Escreva e converse com sua voz · offline</small></div></div><div class="setting-row"><span>Reconhecimento</span><strong data-state>Não instalado</strong></div><div data-stt-models class="model-list"></div><label class="speech-field">Modelo para baixar<select data-download-model aria-label="Modelo STT para baixar"><option value="whisper-tiny-int8">Whisper Tiny</option><option value="whisper-base-int8">Whisper Base</option><option value="whisper-small-int8">Whisper Small</option></select></label><p class="settings-note" data-progress aria-live="polite"></p><progress data-progress-bar max="100" hidden></progress><details class="settings-guide"><summary>Como funciona o reconhecimento de voz</summary><p class="settings-note">O ditado preenche o rascunho para revisão. A chamada conversa por turnos e envia suas falas ao chat. O microfone pausa durante a resposta. Cada fala pode ter até 20 segundos; uma pausa encerra o trecho.</p></details><div class="model-actions speech-actions"><button data-download>Baixar reconhecimento</button><button data-import>Importar arquivo</button><button data-cancel hidden>Cancelar</button><button data-remove class="danger" hidden>Remover reconhecimento</button></div>';
 const settingsPage=document.querySelector('#settingsView');
 const privacyCard=[...(settingsPage?.querySelectorAll(':scope > .page-card')||[])].find(el=>el.querySelector('.section-title strong')?.textContent.trim()==='Privacidade e armazenamento');
 if(settingsPage){if(privacyCard)settingsPage.insertBefore(settings,privacyCard);else settingsPage.appendChild(settings)}
@@ -27,12 +28,13 @@ function refresh(){try{update(parse(native()?.getStatus()||'{}'))}catch(error){q
 function update(value){
  status=value;
  for(const select of [q('[data-download-model]'),document.querySelector('.recognition-install[open] [data-choice]')].filter(Boolean)){
-  if(value.catalog?.length){const previous=select.value;select.replaceChildren(...value.catalog.map(model=>{const option=document.createElement('option');option.value=model.id;option.textContent=`${model.name} · ${(model.bytes/1e6).toFixed(1)} MB · ${model.engine==='cpp'?'whisper.cpp':'ONNX INT8'}`;return option}));if([...select.options].some(o=>o.value===previous))select.value=previous}
+  if(value.catalog?.length){const previous=select.value;select.replaceChildren(...value.catalog.map(model=>{const option=document.createElement('option');option.value=model.id;option.textContent=`${model.name} · ${(model.bytes/1e6).toFixed(1)} MB`;return option}));if([...select.options].some(o=>o.value===previous))select.value=previous}
  }
  const installed=!!value.installed,busy=isBusy();
+ q('[data-download-model]').disabled=busy||!!capture;
  q('[data-state]').textContent=installed?`${value.modelName||'Whisper'} · ${value.loaded?'carregado':'selecionado'}`:'Não instalado';
  const labels={downloading:'Baixando reconhecimento…',importing:'Importando reconhecimento…',extracting:'Extraindo reconhecimento…',validating:'Verificando componentes…',finalizing:'Concluindo instalação…',cancelling:'Cancelando instalação…',cancelled:'Instalação cancelada.',selecting:'Selecionando modelo…',removing:'Removendo modelo…',listening:'Ouvindo…',transcribing:'Transcrevendo no dispositivo…',error:value.error||'Falha no reconhecimento'};
- let text=labels[value.state]||(installed?`${(value.bytes/1e6).toFixed(1)} MB • pronto para uso offline`:'Tiny: 116 MB • Base: 208 MB • Small: 639 MB de download. Pacotes ONNX INT8 para sherpa-onnx ou arquivos Whisper GGML oficiais F16/Q5_1.');
+ let text=labels[value.state]||(installed?`${(value.bytes/1e6).toFixed(1)} MB • pronto para uso offline`:'Escolha um modelo abaixo para usar a voz offline.');
  const percent=value.totalBytes>0?Math.min(100,Math.floor(value.copiedBytes*100/value.totalBytes)):null;
  if(value.installingModel&&busy)text+=` ${value.installingModel}`;
  if(['extracting','validating'].includes(value.state))text+=` ${(Number(value.copiedBytes||0)/1e6).toFixed(1)}${value.totalBytes>0?' / '+(value.totalBytes/1e6).toFixed(1):''} MB${value.state==='extracting'?' do pacote lidos':' verificados'}`;
@@ -50,16 +52,17 @@ function update(value){
   const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='Remover';remove.disabled=busy||!!capture;
   remove.onclick=()=>{try{if(confirm(`Remover somente ${model.name}?`))command('removeInstalledModel',model.id)}catch(error){alert(error.message)}};actions.appendChild(remove);row.appendChild(actions);modelList.appendChild(row);
  }
- const install=document.querySelector('.recognition-install[open]');if(install){install.querySelector('p[data-progress]').textContent=text;for(const key of ['download','import'])install.querySelector(`[data-${key}]`).disabled=busy;install.querySelector('[data-close]').textContent=busy?'Cancelar instalação':'Fechar'}
+ const install=document.querySelector('.recognition-install[open]');if(install){install.querySelector('[data-choice]').disabled=busy;install.querySelector('[data-choice]').closest('label').hidden=busy;install.querySelector('details').hidden=busy;install.querySelector('[data-download]').hidden=busy;install.querySelector('p[data-progress]').textContent=busy||value.state==='error'?text:'';for(const key of ['download','import'])install.querySelector(`[data-${key}]`).disabled=busy;install.querySelector('[data-close]').textContent='×';install.querySelector('[data-cancel-download]').hidden=!busy}
 }
 function settingsView(){window.dispatchEvent(new CustomEvent('haruna-open-view',{detail:{view:'settings'}}));settings.scrollIntoView({behavior:'smooth',block:'center'})}
 function installDialog(){
  if(document.querySelector('.recognition-install[open]'))return;
  const d=document.createElement('dialog');d.className='message-menu recognition-install';d.setAttribute('aria-label','Instalação do reconhecimento local');
- d.innerHTML='<strong>Reconhecimento local não instalado</strong><p>Escolha um Whisper multilíngue para reconhecer português no dispositivo. O áudio não é enviado para servidores.</p><label class="speech-field">Modelo para baixar<select data-choice aria-label="Modelo de reconhecimento"><option value="whisper-tiny-int8">Whisper Tiny · ONNX INT8 · 116,2 MB</option><option value="whisper-base-int8">Whisper Base · ONNX INT8 · 207,6 MB</option><option value="whisper-small-int8">Whisper Small · ONNX INT8 · 639,4 MB</option></select></label><p class="settings-note">Importação: pacote sherpa-onnx .tar.bz2 ou arquivo oficial Whisper GGML F16/Q5_1 de Tiny, Base ou Small. GGUF de conversa e variantes .en são incompatíveis. O espaço temporário necessário é verificado antes da cópia.</p><p data-progress aria-live="polite"></p><button data-download>Baixar modelo oficial</button><button data-import>Importar modelo do dispositivo</button><button data-close>Fechar</button>';
- const close=()=>{if(isBusy())quiet(native(),'cancelInstallation');d.close();d.remove()};
- d.querySelector('[data-download]').onclick=()=>{try{command('downloadModel',d.querySelector('[data-choice]').value)}catch(e){alert(e.message)}};d.querySelector('[data-import]').onclick=()=>{try{command('importModel')}catch(e){alert(e.message)}};
- d.querySelector('[data-close]').onclick=close;d.addEventListener('cancel',e=>{e.preventDefault();close()});document.body.appendChild(d);d.showModal();refresh();
+ d.innerHTML='<header class="voice-download-heading"><strong>Reconhecimento de voz</strong><button data-close aria-label="Fechar painel">×</button></header><p>Sua fala em texto, offline.</p><label class="speech-field">Modelo<select data-choice aria-label="Modelo de reconhecimento"></select></label><button data-download>Baixar modelo</button><p data-progress role="status"></p><details><summary>Já tenho o modelo</summary><p>Pacote Whisper .tar.bz2 ou GGML F16/Q5_1 multilíngue.</p><button data-import>Escolher arquivo</button></details><button data-cancel-download hidden>Cancelar download</button><small>Você pode fechar este painel e continuar usando o app.</small>';
+ const close=showDownloadSheet(d);
+ d.querySelector('[data-download]').onclick=()=>{try{command('downloadModel',d.querySelector('[data-choice]').value);close()}catch(e){alert(e.message)}};
+ d.querySelector('[data-cancel-download]').onclick=()=>quiet(native(),'cancelInstallation');d.querySelector('[data-import]').onclick=()=>{try{command('importModel')}catch(e){alert(e.message)}};
+ d.querySelector('[data-close]').onclick=close;d.addEventListener('cancel',e=>{e.preventDefault();close()});refresh();
 }
 function checkRecognition(){refresh();if(!status.installed){installDialog();return false}if(isBusy())throw new Error('Aguarde a instalação do reconhecimento.');return true}
 function redrawCapture(){
@@ -173,10 +176,12 @@ window.addEventListener('haruna-tts-status',e=>{
   if(localCall.generating){localCall.muted=true;localCall.collector?.cancel();setCallPhase('thinking','Áudio interrompido; concluindo a resposta no chat…');return}
   if(localCall.skipped)return;
   const call=localCall;setCallPhase('waiting','Sua vez…');clearTimeout(resumeTimer);
+  // Hidden WebViews may throttle timers; the foreground call can listen immediately.
+  if(document.hidden&&backgroundActive()){listenAgain();return}
   resumeTimer=setTimeout(()=>{if(localCall===call&&call.phase==='waiting'&&voiceAllowed())listenAgain()},450);
  }
 });
-q('[data-download]').onclick=()=>{try{const choice=q('[data-download-model]');if(confirm(`Baixar ${choice.selectedOptions[0].textContent} para uso offline?`))command('downloadModel',choice.value)}catch(e){alert(e.message)}};
+q('[data-download]').onclick=()=>{try{const choice=q('[data-download-model]');command('downloadModel',choice.value)}catch(e){alert(e.message)}};
 q('[data-import]').onclick=()=>{try{command('importModel')}catch(e){alert(e.message)}};
 q('[data-cancel]').onclick=()=>quiet(native(),'cancelInstallation');q('[data-remove]').onclick=()=>{try{if(confirm('Remover somente o modelo de reconhecimento? A voz da Haruna, GGUF e Segundo Cérebro serão mantidos.'))command('removeModel')}catch(e){alert(e.message)}};
 window.addEventListener('haruna-chat-context-changing',endVoice);

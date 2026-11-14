@@ -50,6 +50,13 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     private val statusListeners = CopyOnWriteArraySet<() -> Unit>()
     @Volatile private var destroyed = false
     @Volatile private var loading = false
+    @Volatile private var loadPhase = "idle"
+    @Volatile private var loadBeganMs = 0L
+    @Volatile private var loadingName: String? = null
+    fun loadingDetails(): JSONObject = JSONObject().put("phase", if (loading) loadPhase else "idle")
+        .put("elapsedMs", if (loading && loadBeganMs > 0) (android.os.SystemClock.elapsedRealtime() - loadBeganMs).coerceAtLeast(0) else 0)
+        .put("modelName", loadingName)
+    private fun loadStage(phase: String) { loadPhase = phase; notifyStatus() }
     @Volatile private var modelName: String? = null
     @Volatile private var modelPath: String? = null
     @Volatile private var modelIdentity: String? = null
@@ -146,7 +153,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             active.forEach { cancel(it, reason) }
             runBlocking { active.forEach { it.job.cancelAndJoin() } }
             action()
-        } finally { loading = false; notifyStatus() }
+        } finally { loading = false; loadPhase = "idle"; loadBeganMs = 0L; loadingName = null; notifyStatus() }
     }
 
     override fun status(): LlmBackend.Status {
@@ -195,10 +202,13 @@ class LlamaCppBackend(context: Context) : LlmBackend {
 
     private suspend fun loadAndPrime(file: File) {
         val totalStart = System.currentTimeMillis()
+        loadBeganMs = android.os.SystemClock.elapsedRealtime(); loadingName = file.name
+        loadStage("initializing")
         com.proxyslabs.haruna.speech.IdleSpeechSessions.releaseIdle()
         if (engine.state.value is InferenceEngine.State.Error || engine.state.value.isModelLoaded) engine.cleanUp()
         waitUntilInitialized()
         val loadStart = System.currentTimeMillis()
+        loadStage("reading_model")
         engine.loadModel(file.absolutePath)
         Log.i(TAG, "model_load_ms=${System.currentTimeMillis() - loadStart} file=${file.name}")
         check(engine.state.value.isModelLoaded) {
@@ -209,6 +219,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
         modelIdentity = metadata?.optString("modelName")?.takeIf { it.isNotBlank() }
         thinkingSupported = if (metadata?.has("thinkingSupported") == true && !metadata.isNull("thinkingSupported")) metadata.optBoolean("thinkingSupported") else null
         if (metadata?.optString("architecture") == "smollm3") {
+            loadStage("preparing_response")
             val manager = appContext.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
             val memory = android.app.ActivityManager.MemoryInfo(); manager.getMemoryInfo(memory)
             val saved = inferencePrefs.getString(preferenceKey(file.absolutePath), null)

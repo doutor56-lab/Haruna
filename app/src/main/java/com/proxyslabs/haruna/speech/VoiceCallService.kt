@@ -14,6 +14,15 @@ class VoiceCallService : Service() {
         private const val CHANNEL = "haruna_local_call"
         @Volatile var running = false
             private set
+        @Volatile private var starting = false
+        val active: Boolean get() = running || starting
+        @Synchronized fun start(context: android.content.Context) {
+            if (active) return
+            starting = true
+            try { context.startForegroundService(Intent(context, VoiceCallService::class.java)) }
+            catch (failure: Exception) { starting = false; throw failure }
+        }
+        fun stop(context: android.content.Context) { starting = false; context.stopService(Intent(context, VoiceCallService::class.java)) }
     }
     private val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var ownsCall = false
@@ -39,7 +48,7 @@ class VoiceCallService : Service() {
                 .setContentIntent(open).setOngoing(true).setCategory(NotificationCompat.CATEGORY_CALL)
                 .addAction(0, "Encerrar", stop).build()
             startForeground(6006, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-            running = true; ownsCall = true
+            running = true; starting = false; ownsCall = true
             if (wake == null) wake = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Haruna:LocalVoiceCall").apply {
                 setReferenceCounted(false); acquire(60 * 60 * 1000L)
             }
@@ -48,6 +57,7 @@ class VoiceCallService : Service() {
                 if (ownsCall) { sendBroadcast(Intent(STOP).setPackage(packageName)); stopSelf() }
             }, 60 * 60 * 1000L)
         } catch (failure: Exception) {
+            starting = false
             android.util.Log.w("HarunaVoice", "Foreground call unavailable", failure)
             sendBroadcast(Intent(STOP).setPackage(packageName)); stopSelf()
         }
@@ -55,9 +65,10 @@ class VoiceCallService : Service() {
     }
     override fun onTaskRemoved(rootIntent: Intent?) { sendBroadcast(Intent(STOP).setPackage(packageName)); stopSelf(); super.onTaskRemoved(rootIntent) }
     override fun onDestroy() {
+        if (ownsCall) sendBroadcast(Intent(STOP).setPackage(packageName))
         ownsCall = false
         timeoutHandler.removeCallbacksAndMessages(null)
-        running = false
+        running = false; starting = false
         wake?.let { if (it.isHeld) it.release() }; wake = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()

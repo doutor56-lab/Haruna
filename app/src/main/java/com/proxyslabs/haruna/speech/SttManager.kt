@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 /** Serial model work; each capture/transcription is explicitly owned by a request ID. */
-class SttManager(private val context: Context, private val emit: (JSONObject) -> Unit) : AutoCloseable, ComponentCallbacks2 {
+class SttManager(private val context: Context, private val installLifecycle: (Boolean) -> Unit = {}, private val emit: (JSONObject) -> Unit) : AutoCloseable, ComponentCallbacks2 {
     private val voicePrefs = context.getSharedPreferences("haruna_recognition", Context.MODE_PRIVATE)
     private val models = SttModelManager(context)
     private val engine: SttEngine = WhisperSttEngine { if (!closed.get()) emit(status()) }
@@ -62,7 +62,7 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
     @Volatile private var total: Long? = null
     init { IdleSpeechSessions.register(this) { if (closed.get() || active.get()) null else modelWorker.submit { if (!active.get()) releaseModels() } }; context.registerComponentCallbacks(this); SttDiagnostics.model(models.selected().title + " · " + if (models.selected().engine == "cpp") "whisper.cpp" else "sherpa-onnx INT8"); worker.execute { models.cleanTemporary() } }
     fun status(): JSONObject = JSONObject().put("state", state).put("error", error)
-        .put("installed", models.installed()).put("bytes", models.bytes()).put("busy", active.get()).put("requestId", requestId).put("mode", mode)
+        .put("installed", models.installed()).put("installing", installing.get()).put("bytes", models.bytes()).put("busy", active.get()).put("requestId", requestId).put("mode", mode)
         .put("installingModel", installationModel ?: JSONObject.NULL).put("copiedBytes", copied).put("totalBytes", total).put("archiveBytes", models.selected().archiveBytes)
         .put("catalog", org.json.JSONArray(WhisperModels.supported.map { model -> JSONObject().put("id", model.id).put("name", model.title).put("bytes", model.archiveBytes).put("engine", model.engine) }))
         .put("models", models.list()).put("selectedId", models.selected().id).put("modelName", models.selected().title)
@@ -141,7 +141,9 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
         val requested = WhisperModels.byId(id)
         require(!active.get()) { "Encerre a captura e aguarde a transcrição antes de instalar" }
         require(installing.compareAndSet(false, true)) { "Já existe uma instalação em andamento" }
-        models.cancelled.set(false); installationModel = if (uri == null) requested.title else null; copied = 0; total = if (uri == null) requested.archiveBytes else null
+        models.cancelled.set(false)
+        try { installLifecycle(true) } catch (failure: Exception) { installing.set(false); throw failure }
+        installationModel = if (uri == null) requested.title else null; copied = 0; total = if (uri == null) requested.archiveBytes else null
         publish(if (uri == null) "downloading" else "importing")
         worker.execute {
             try {
@@ -157,7 +159,7 @@ class SttManager(private val context: Context, private val emit: (JSONObject) ->
                 SttDiagnostics.model(models.selected().title + " · " + if (models.selected().engine == "cpp") "whisper.cpp" else "sherpa-onnx INT8")
                 publish("installed")
             } catch (failure: Throwable) { Log.w("HarunaSTT", "Model installation failed", failure); publish(if (models.cancelled.get()) "cancelled" else "error", if (models.cancelled.get()) null else SttErrors.message(failure)) }
-            finally { installing.set(false); installationModel = null; copied = 0; total = null; emit(status()) }
+            finally { installationModel = null; copied = 0; total = null; installLifecycle(false); installing.set(false); emit(status()) }
         }
     }
     fun cancelInstallation() { if (installing.get()) { models.cancel(); publish("cancelling") } }

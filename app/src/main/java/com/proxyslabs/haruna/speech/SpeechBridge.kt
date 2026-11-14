@@ -9,7 +9,8 @@ import org.json.JSONObject
 /** Separate bridge: no dependency on the LLM or knowledge store. */
 class SpeechBridge(private val activity: MainActivity, private val webView: WebView) : AutoCloseable {
     @Volatile private var closed = false
-    private val manager = TtsManager(activity.applicationContext) { status ->
+    private val manager = SpeechRuntime.tts(activity.applicationContext)
+    private val unsubscribe = SpeechRuntime.subscribeTts { status ->
         if (!closed) webView.post { if (!closed) webView.evaluateJavascript(
             "window.dispatchEvent(new CustomEvent('haruna-tts-status',{detail:JSON.parse(${JSONObject.quote(status.toString())})}))", null) }
     }
@@ -33,5 +34,5 @@ class SpeechBridge(private val activity: MainActivity, private val webView: WebV
     fun prepareForListening(keepWarm: Boolean = false, ready: () -> Unit) { manager.prepareForListening(keepWarm, ready) }
     fun selectionFailed(message: String) { manager.reportError(message) }
     fun selectionCancelled() { stop() }
-    override fun close() { closed = true; manager.close() }
+    override fun close() { closed = true; unsubscribe(); manager.stop("screen_closed") }
 }

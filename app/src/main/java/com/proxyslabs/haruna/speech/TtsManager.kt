@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
-class TtsManager(private val context: Context, private val emit: (JSONObject) -> Unit) : AutoCloseable {
+class TtsManager(private val context: Context, private val installLifecycle: (Boolean) -> Unit = {}, private val emit: (JSONObject) -> Unit) : AutoCloseable {
     private val prefs = context.getSharedPreferences("haruna_speech", Context.MODE_PRIVATE)
     private val models = TtsModelManager(context)
     private val worker = java.util.concurrent.ScheduledThreadPoolExecutor(1).apply { setExecuteExistingDelayedTasksAfterShutdownPolicy(false) }
@@ -34,7 +34,7 @@ class TtsManager(private val context: Context, private val emit: (JSONObject) ->
 
     init { IdleSpeechSessions.register(this) { if (closed.get() || state !in setOf("idle", "error")) null else worker.submit { if (state in setOf("idle", "error")) engine.close() } }; player.volume(prefs.getFloat("volume", 1f)); worker.execute { models.cleanTemporary() } }
     fun status(): JSONObject = JSONObject().put("state", state).put("error", error)
-        .put("installed", models.installed()).put("bytes", models.bytes()).put("speakers", models.speakers())
+        .put("installed", models.installed()).put("installing", installing.get()).put("bytes", models.bytes()).put("speakers", models.speakers())
         .put("speaker", prefs.getInt("speaker", -1)).put("speed", prefs.getFloat("speed", 1f).toDouble())
         .put("volume", prefs.getFloat("volume", 1f).toDouble())
         .put("pronunciations", JSONObject(prefs.getString("pronunciations", "{}") ?: "{}"))
@@ -182,19 +182,26 @@ class TtsManager(private val context: Context, private val emit: (JSONObject) ->
     fun cancelInstallation() { if (installing.get()) { models.cancel(); publish("cancelling") } }
     fun install(uri: Uri?) {
         require(installing.compareAndSet(false, true)) { "Já existe uma instalação em andamento" }
-        stop(); models.cancelled.set(false); copied = 0; total = if (uri == null) TtsModelManager.ARCHIVE_BYTES else null; publish(if (uri == null) "downloading" else "importing")
+        models.cancelled.set(false)
+        try { installLifecycle(true) } catch (failure: Exception) { installing.set(false); throw failure }
+        stop(); copied = 0; total = if (uri == null) TtsModelManager.ARCHIVE_BYTES else null; publish(if (uri == null) "downloading" else "importing")
         worker.execute {
             try {
                 engine.close()
+                var lastPhase = ""; var lastPublished = 0L
                 if (!models.installed()) models.install(uri) { phase, count, length ->
-                    copied = count; total = length; publish(phase)
+                    copied = count; total = length
+                    val now = System.nanoTime()
+                    if (phase != lastPhase || now - lastPublished >= 200_000_000L || (length != null && count == length)) {
+                        lastPhase = phase; lastPublished = now; publish(phase)
+                    }
                 }
                 // No speaker is automatically presented as the user's final choice.
                 publish("installed")
             } catch (failure: Throwable) {
                 if (models.cancelled.get() || failure is CancellationException) publish("cancelled")
                 else publish("error", failure.message ?: "Não foi possível instalar a voz")
-            } finally { installing.set(false); copied = 0; total = null; emit(status()) }
+            } finally { copied = 0; total = null; installLifecycle(false); installing.set(false); emit(status()) }
         }
     }
     fun remove() {
