@@ -13,4 +13,10 @@ A normalização existe apenas para classificar; o prompt original não é tradu
 
 Verificações: 48 pedidos positivos e 33 negativos, decisões ambíguas com LLM simulado, rejeição de JSON inválido/prosa/chaves extras, suporte aos marcadores de thinking e preservação do texto original. Integração adicionada ao `npm test` Windows; suíte de 23 testes. Os testes de intenção não são prova de inferência de imagens: não foi executado checkpoint de imagem real nesta correção.
 
-Build/artefato: pendentes da compilação desta revisão. Nenhuma alteração em runtime nativo, pesos, interface visual ou dados existentes. O ajuste compartilhado também fica disponível no código Android, mas a entrega desta correção é Windows.
+Build Windows concluído com sucesso no commit `e03b9e75d1f9239b9c70aaa496226b0f67fb9cff`: [workflow](https://github.com/doutor56-lab/Haruna/actions/runs/43554548014).
+
+- [Baixar Haruna Windows 0.5.1 x64](https://github.com/doutor56-lab/Haruna/actions/runs/43554548014/artifacts/14097418926). Extrair o ZIP e abrir `Haruna-Windows-0.5.1-x64.exe`; mesmo diretório de dados Windows.
+- SHA-256 do EXE: `2902b27bb292fe96b1907c0384f26ea2ad4cc079d8890e427912ec5cb2430dd6`.
+- [Relatório e screenshots](https://github.com/doutor56-lab/Haruna/actions/runs/43554548014/artifacts/14097344062): EXE empacotado abriu no Windows x64, chat/painel/controles presentes, escalas 75/100/125/150 verificadas e testes do workflow aprovados. Sem execução de modelo de imagem real no CI (`actualModelInference:false`, `realImageGenerated:false`).
+
+ Nenhuma alteração em runtime nativo, pesos, interface visual ou dados existentes. O ajuste compartilhado também fica disponível no código Android, mas a entrega desta correção é Windows.
