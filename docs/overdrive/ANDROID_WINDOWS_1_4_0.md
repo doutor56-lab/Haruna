@@ -25,3 +25,24 @@ Mantidos AppData, conversas, referências a arquivos originais, modelos, CPU/Vul
 - Integridade da UI Android, parser de intenção de imagem e segmentação de voz passaram. O workflow conjunto executa testes unitários e compila o APK ARM64, além do EXE x64.
 
 Pendente: resultados do workflow, hashes e validação nos dispositivos. Não se declara ganho de tokens/s, TTFT, velocidade de carga ou inferência de imagem real com base em smoke/compilação. A assinatura debug anterior do Android não pode ser recuperada do certificado público: atualizar uma instalação com assinatura diferente exige a chave privada original; não desinstalar nem limpar dados para contornar.
+
+## Entrega conferida
+
+Código compilado nas duas plataformas: `bd7f85712dd142a982856190bb42dbcd8f6e009b`. [Workflow conjunto 43549629499](https://github.com/doutor56-lab/Haruna/actions/runs/43549629499) disparado explicitamente, com ambos os jobs concluídos com sucesso. Sem merge em main.
+
+### Android
+
+- `:app:testDebugUnitTest :app:assembleDebug`: `BUILD SUCCESSFUL in 17m 21s`. Workflow confirmou package Overdrive, nome e ARM64.
+- [APK ARM64](https://github.com/doutor56-lab/Haruna/actions/runs/43549629499/artifacts/14096276778), ZIP com APK e SHA256SUMS, disponível até 21/11/2026.
+- APK baixado e conferido contra SHA256SUMS: 79349617 bytes; SHA-256 `ced8d4196f319750bb3a7190ff8ab74b090611ba6bf10a92adad5e515e35fe41`. Bibliotecas exclusivamente ARM64; novos serviços no DEX e UI de carregamento presentes no APK.
+- ELF Whisper extraído passou na verificação de isolamento JNI (sem inferência de áudio).
+- Certificado público SHA-256 `ceaf75d3e79964982db95ccb0583e2e70a7bf1f47efcf2045b98ffa39df1646c`, diferente da Overdrive 1.3.2 (`a9fb097f5df144785cbcf0acaf54da9d36603dc65a3a4fe79e6295b3e58d841b`). Portanto este APK não atualiza aquela instalação preservando o sandbox sem sua chave original. Nenhum dado foi removido para contornar a assinatura.
+
+### Windows
+
+- [Windows x64 portátil](https://github.com/doutor56-lab/Haruna/actions/runs/43549629499/artifacts/14095409733), ZIP com `Haruna-Windows-0.4.0-x64.exe`, disponível até 12/02/2027.
+- SHA-256 publicado no job e conferido no relatório: `1f6a2dbae3422bff302bcd36856531286686a85889ddbf872910aa39619236d0`.
+- [Relatório, hashes e capturas](https://github.com/doutor56-lab/Haruna/actions/runs/43549629499/artifacts/14095409736) baixados e inspecionados. `WINDOWS_SMOKE.json` do aplicativo empacotado reportou `win32/x64`, quatro escalas aprovadas, CLI SD/llama verificadas e runtimes Vulkan presentes. `actualModelInference`/`realImageGenerated` continuam false: não houve modelo real no smoke. Os 20 testes Node também passaram no runner Windows.
+- EXE portátil sem assinatura Authenticode, como no fluxo existente. Fechar a versão anterior antes de executar a nova; AppData é reutilizado e não se pede exclusão de modelos ou configurações.
+
+Permanecem pendentes os testes físicos de serviços/microfone/áudio no Samsung/Teclast, downloads reais com app minimizado, GPU/driver e inferência com modelos no PC. Os resultados de compilação acima substituem somente a pendência de build, não essas validações.
