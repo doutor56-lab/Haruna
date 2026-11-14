@@ -76,3 +76,10 @@ const rules=['HarunaIdentity.kt','HarunaBehaviorProfile.kt'].map(name=>{
 fs.writeFileSync(path.join(root,'src/identity-rules.json'),JSON.stringify(rules)+'\n');
 
 write('documents/ui.js',s=>s.replace("const q=prompt(","const q=await window.harunaDesktopPrompt("));
+
+// Reuse the same validated per-model form; desktop observations come from llama-server.
+write('inference-settings.js',s=>s
+ .replace('Aplicado na próxima geração. Contexto, batch, microbatch e Flash Attention recriam o contexto quando necessário. Isso reinicia o cache nativo, sem apagar mensagens.', 'Aplicado na próxima geração. Threads, contexto, batch, microbatch e Flash Attention recarregam o GGUF quando necessário, sem apagar mensagens. Valores configurados e medições do servidor são mostrados separadamente.')
+ .replace(/    const rows=\[.*?;\n/,`    const c=o.configured||{};
+    const rows=[['Preparação estática · durante carregamento',Number.isFinite(r.startup?.preparationUs)?fmt(r.startup.preparationUs/1e6,2)+' s':'Não aplicada'],['Prefixo preparado no servidor',String(r.startup?.systemPrefixTokens??0)+' tokens'],['Cache reutilizado na última resposta',String(prefix.reusedTokens??'N/D')+' tokens'],['Servidor → primeiro texto (inclui prefill)',fmt(g.firstDeltaUs/1e6,2)+' s'],['Geração · trabalho no servidor',fmt(g.decodePerSecond)+' tok/s'],['Prefill · trabalho no servidor',fmt(g.prefillPerSecond)+' tok/s'],['Entrada / saída',String(g.inputTokens??'N/D')+' / '+String(g.outputTokens??'N/D')],['Contexto confirmado pelo servidor',String(r.nCtx??'N/D')],['Contexto / batch / microbatch configurados',String(c.nCtx??'N/D')+' / '+String(c.nBatch??'N/D')+' / '+String(c.nUbatch??'N/D')],['Threads decode / prefill configuradas',String(c.threads??'N/D')+' / '+String(c.threadsBatch??'N/D')],['Flash Attention configurada',c.flashAttention||'N/D'],['Flash Attention observada no runtime',r.flashEffective===1?'Ativa':r.flashEffective===0?'Inativa':'Não confirmada'],['Recarga pendente',data.pendingReload?'Sim · próxima geração':'Não']];
+`));
