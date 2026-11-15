@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {imageCandidate,imageDecision,imageRequestCount} from '../app/src/main/assets/haruna/image-intent.js';
+import {imageCandidate,imageDecision,imageRequestCount,imageEnginePrompt} from '../app/src/main/assets/haruna/image-intent.js';
 const explicit=[
  'Crie uma imagem de um touro.','Gera uma foto de uma bola','Faça uma ilustração de uma floresta',
  'Desenha um gato','Desenhe um papagaio amarelo','Ilustre um castelo','Pinte uma paisagem','Renderize um robô',
@@ -47,3 +47,13 @@ console.log(`PASS: ${explicit.length} explicit requests; ${negative.length} non-
 
 for(const [text,count]of [['Crie 100 imagens de gatos',100],['Quero cem imagens de uma floresta',100],['Crie 1 imagem de uma casa',1],['Crie uma imagem com 100 gatos',null],['Desenhe 100 gatos',null],['Crie uma imagem com o texto gere 100 imagens',null],['Crie 101 imagens de um gato',101]]){assert.equal(imageCandidate(text),true,text);assert.equal(imageRequestCount(text),count,text);}
 console.log('PASS: explicit image quantity is extracted without treating objects in the scene as batch size.');
+
+for(const [input,output]of [
+ ['Crie uma imagem: um gato','um gato'],['Crie uma imagem de um gato','um gato'],
+ ['Gere 100 imagens de uma floresta','uma floresta'],['Por favor, faça uma ilustração: céu azul','céu azul'],
+ ['Você pode criar uma imagem de um touro?','um touro?'],['Create an image of a cat','a cat'],
+ ['Um cartaz com o texto "crie uma imagem:"','Um cartaz com o texto "crie uma imagem:"'],
+ ['Crie uma imagem: um cartaz com o texto "crie uma imagem:"','um cartaz com o texto "crie uma imagem:"'],
+ ['Imagem: um gato','Imagem: um gato'],['Crie uma imagem:','']
+])assert.equal(imageEnginePrompt(input),output);
+console.log('PASS: image engine receives scene without a leading creation command; quoted/internal text remains intact.');

@@ -14,15 +14,16 @@ test('image dispatch after classifier ignores stale LLM status but preserves ima
  handlers['haruna:update'](null,{snapshot:{llm:{state:'not_loaded'},images:{busy:true}},event:{type:'status'}});
  assert.equal(api.HarunaImages.generate('request-4','While native image runs'),false);assert.equal(commands.length,2);
 });
-test('refused image stays in its conversation card, without throwing a storage error or poisoning the next request',()=>{
+test('refused image stays in its conversation card, without throwing a storage error or poisoning the next request',async()=>{
+ const {imageEnginePrompt}=await import('../../app/src/main/assets/haruna/image-intent.js');
  const entries=[],button={setAttribute(){}};let accept=false;
  const chat={state:()=>({busy:false,attachments:0,draft:''}),begin:(request,prompt)=>entries.push({request,prompt,state:'LOADING'}),update:job=>Object.assign(entries.find(e=>e.request===job.request),job),refresh(){},entries:()=>entries};
- const images={status:()=>JSON.stringify({selected:'model',models:[],busy:false,generationAvailable:true,state:'INSTALLED'}),generate:()=>accept};
+ const images={status:()=>JSON.stringify({selected:'model',models:[],busy:false,generationAvailable:true,state:'INSTALLED'}),generate:(id,prompt)=>{images.lastPrompt=prompt;return accept}};
  const window={HarunaImages:images,harunaChatImages:chat,addEventListener(){},dispatchEvent(){}};
  const document={hidden:false,createElement:()=>button,querySelector:selector=>selector==='#attach'?{after(){}}:['#stop','#send'].includes(selector)?{}:null};
- const source=fs.readFileSync(path.join(__dirname,'../../app/src/main/assets/haruna/image-chat.js'),'utf8').replace('export function progressLabel','function progressLabel');
- vm.runInNewContext(source,{window,document,crypto:require('node:crypto'),setInterval(){},CustomEvent:class{},prompt:()=>''});
+ const source=fs.readFileSync(path.join(__dirname,'../../app/src/main/assets/haruna/image-chat.js'),'utf8').replace("import {imageEnginePrompt} from './image-intent.js';",'').replace('export function progressLabel','function progressLabel');
+ vm.runInNewContext(source,{imageEnginePrompt,window,document,crypto:require('node:crypto'),setInterval(){},CustomEvent:class{},prompt:()=>''});
  assert.equal(window.harunaStartImage('Crie uma imagem de uma bola.',{rememberUser:true}),false);
- assert.equal(entries[0].state,'ERROR');assert.match(entries[0].error,/ocupado/);assert(!window.harunaImagesBusy);
- accept=true;window.harunaStartImage('Crie outra imagem.',{rememberUser:true});assert.equal(entries.length,2);assert.equal(entries[1].state,'LOADING');assert.equal(window.harunaImagesBusy,true);
+ assert.equal(images.lastPrompt,'uma bola.');assert.equal(entries[0].prompt,'Crie uma imagem de uma bola.');assert.equal(entries[0].state,'ERROR');assert.match(entries[0].error,/ocupado/);assert(!window.harunaImagesBusy);
+ accept=true;window.harunaStartImage('Crie outra imagem de uma árvore.',{rememberUser:true});assert.equal(entries.length,2);assert.equal(entries[1].state,'LOADING');assert.equal(window.harunaImagesBusy,true);
 });

@@ -21,3 +21,7 @@ As respostas locais antigas que diziam desconhecer o desenvolvedor foram corrigi
 - UI de imagens em 360×800 e 800×1280 passou, incluindo cancelamento, persistência e galeria paginada.
 
 Sem novo APK/EXE nesta alteração e sem workflows remotos disparados. A integração Android completa não foi compilada neste ambiente sem SDK/NDK. Não houve inferência real com um GGUF de linguagem ou visão nesta tarefa: os testes validam configuração, mensagens e estado, não garantem obediência de qualquer modelo às instruções. Não há métricas novas de desempenho.
+
+## Limpeza do comando de imagem
+
+Atendendo à instrução posterior, o encaminhamento compartilhado remove comandos explícitos no início da descrição: `Crie uma imagem: um gato` envia `um gato` ao motor. Não traduz nem amplia a descrição. Comandos dentro do conteúdo (por exemplo, texto entre aspas num cartaz) permanecem. O histórico conserva a mensagem original, e o JSON do motor registra o prompt efetivamente utilizado. Descrição vazia após a limpeza é recusada. Quantidade, seeds, CFG, etapas e cancelamento permanecem independentes. Testes de intenção e despacho verificam o texto limpo e a mensagem original preservada.
