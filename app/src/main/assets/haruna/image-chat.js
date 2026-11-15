@@ -1,7 +1,7 @@
 // SD1.5 jobs use the same conversation and persistence as text; no remote requests.
 const api=window.HarunaImages,chat=window.harunaChatImages;
 const uuid=/^[0-9a-f-]{36}$/;
-let stoppingRequest=null;
+let stoppingRequest=null;const imagePages=new Map(),PAGE_SIZE=12;
 function requestStop(id){stoppingRequest=id;api?.cancelGeneration(id);const label=document.querySelector(`[data-image-job="${id}"] .image-job-state`);if(label)label.textContent='Interrompendo…'}
 const pending=s=>['LOADING','GENERATING','RESTORING_LLM'].includes(s);
 const phases=['Preparando','Carregando modelo','Codificando descrição','Gerando imagem','Decodificando imagem','Gravando PNG'];
@@ -16,8 +16,9 @@ window.harunaRenderImageCard=(bubble,message)=>{
  const actions=document.createElement('div');actions.className='model-actions';bubble.append(actions);
  const button=(text,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=text;b.onclick=fn;actions.append(b);return b};
  if(j.state==='COMPLETED'||j.results?.length){
-  const grid=document.createElement('div');grid.className='image-results';const results=j.results?.length?j.results:[{request:j.request}];grid.dataset.count=results.length;
-  for(const result of results){if(!uuid.test(result.request))continue;const item=document.createElement('div'),image=document.createElement('img');image.src='/generated/'+result.request+'.png';image.alt=j.prompt||'Imagem gerada pela Haruna';image.loading='lazy';image.decoding='async';item.append(image);for(const [label,handler]of [['Visualizar',()=>api?.open(result.request,false)],['Salvar',()=>api?.save(result.request)],['Compartilhar',()=>api?.open(result.request,true)]]){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=handler;b.disabled=label==='Salvar'&&pending(j.state);item.append(b)}grid.append(item)}bubble.insertBefore(grid,actions);
+  const grid=document.createElement('div');grid.className='image-results';const results=j.results?.length?j.results:[{request:j.request}];const page=Math.min(imagePages.get(j.request)||0,Math.floor((results.length-1)/PAGE_SIZE)),visible=results.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);grid.dataset.count=visible.length;
+  for(const result of visible){if(!uuid.test(result.request))continue;const item=document.createElement('div'),image=document.createElement('img');image.src='/generated/'+result.request+'.png';image.alt=j.prompt||'Imagem gerada pela Haruna';image.loading='lazy';image.decoding='async';item.append(image);for(const [label,handler]of [['Visualizar',()=>api?.open(result.request,false)],['Salvar',()=>api?.save(result.request)],['Compartilhar',()=>api?.open(result.request,true)]]){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=handler;b.disabled=label==='Salvar'&&pending(j.state);item.append(b)}grid.append(item)}bubble.insertBefore(grid,actions);
+  if(results.length>PAGE_SIZE){const previous=button('Anterior',()=>{imagePages.set(j.request,page-1);window.harunaRenderImageCard(bubble,message)});previous.disabled=page===0;const label=document.createElement('span');label.textContent=`${page*PAGE_SIZE+1}–${Math.min((page+1)*PAGE_SIZE,results.length)} de ${results.length}`;actions.append(label);const next=button('Próxima',()=>{imagePages.set(j.request,page+1);window.harunaRenderImageCard(bubble,message)});next.disabled=(page+1)*PAGE_SIZE>=results.length;}
   button('Salvar todas',()=>api?.saveBatch(j.request)).disabled=pending(j.state);
   if(pending(j.state)){const progress=document.createElement('progress');bubble.insertBefore(progress,actions);if(j.state!=='RESTORING_LLM')button('Cancelar',()=>requestStop(j.request))}
   if(j.saveWarning||j.restoreWarning){const warning=document.createElement('small');warning.textContent=[j.saveWarning,j.restoreWarning].filter(Boolean).join(' · ');bubble.append(warning)}
@@ -40,8 +41,9 @@ if(api&&chat){
   if(status.generationAvailable===false)throw Error('O motor deste modelo de imagens não está disponível nesta build.');if(status.models?.find(m=>m.id===status.selected)?.state==='INCOMPATIBLE')throw Error('O modelo selecionado é incompatível com o motor disponível.');
   const text=original??(chat.state().draft.trim()||prompt('Descreva a imagem que deseja gerar:')||'').trim();if(!text)return;
   if(text.length>2000)throw Error('Use uma descrição de até 2.000 caracteres.');
+  const count=options.count??status.batchCount??1;if(!Number.isInteger(count)||count<1||count>(status.maxBatch||1))throw Error(`Este motor permite de 1 a ${status.maxBatch||1} imagens por pedido.`);if(options.count!=null&&!api.generateBatch&&count!==(status.batchCount||1))throw Error('Defina essa quantidade no painel de imagens; este motor não aceita quantidade por pedido.');
   const request=crypto.randomUUID();chat.begin(request,text,options.rememberUser===true,status);
-  if(!api.generate(request,text)){chat.update({request,state:'ERROR',error:'O motor de imagens está ocupado.'});return false}
+  if(!(options.count!=null&&api.generateBatch?api.generateBatch(request,text,count):api.generate(request,text))){chat.update({request,state:'ERROR',error:'O motor de imagens está ocupado.'});return false}
   window.harunaImagesBusy=true;window.harunaImageRunning=true;
  };
  button.setAttribute('aria-controls','imageGenerationPanel');button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');button.onclick=()=>window.harunaToggleImagePanel?.();

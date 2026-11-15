@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {imageCandidate,imageDecision} from '../app/src/main/assets/haruna/image-intent.js';
+import {imageCandidate,imageDecision,imageRequestCount} from '../app/src/main/assets/haruna/image-intent.js';
 const explicit=[
  'Crie uma imagem de um touro.','Gera uma foto de uma bola','Faça uma ilustração de uma floresta',
  'Desenha um gato','Desenhe um papagaio amarelo','Ilustre um castelo','Pinte uma paisagem','Renderize um robô',
@@ -44,3 +44,6 @@ for(const text of ['Vou gerar para você!','{"action":"text"}','null','[]','{"ac
 for(const chunks of [['<think>classificar</think>','{"action":"generate_image"}'],['classificar</thi','nk>{"action":"generate_image"}'],['```json\n','{"action":"generate_image"}','\n```']])assert.equal(await imageDecision({generate:async(m,o)=>chunks.forEach(t=>o.onToken(t))},original),true);
 assert.equal(await imageDecision({refreshStatus:async()=>({modelLoaded:false}),...never},original),false);
 console.log(`PASS: ${explicit.length} explicit requests; ${negative.length} non-image/negated/meta/capability requests; soft requests require a bounded structured decision (FAKE LLM). Original prompt preserved.`);
+
+for(const [text,count]of [['Crie 100 imagens de gatos',100],['Quero cem imagens de uma floresta',100],['Crie 1 imagem de uma casa',1],['Crie uma imagem com 100 gatos',null],['Desenhe 100 gatos',null],['Crie uma imagem com o texto gere 100 imagens',null],['Crie 101 imagens de um gato',101]]){assert.equal(imageCandidate(text),true,text);assert.equal(imageRequestCount(text),count,text);}
+console.log('PASS: explicit image quantity is extracted without treating objects in the scene as batch size.');

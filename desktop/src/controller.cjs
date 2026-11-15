@@ -25,7 +25,7 @@ class Controller{
    engineKind:'safetensors',engineAvailable:executable,generationAvailable:executable,
    imageEngineBusy:!!this.image.busy,nativeProgress:this.progress||[0,0,0],
    nativeGrid:32,nativeWidth:native.width,nativeHeight:native.height,
-   maxSteps:100,maxBatch:4,previewSupported:false,showPreviews:false,
+   maxSteps:100,maxBatch:config.MAX_BATCH,previewSupported:false,showPreviews:false,
    performanceSupported:false,performance:'balanced',
    ...this.settings,resolution:this.settings.width
   },version:require('../package.json').version};
@@ -100,30 +100,32 @@ class Controller{
  finally{if(this.request===id){this.request=null;this.abort=null;this.llm.state=this.llm.modelLoaded?'active':this.llm.error?'error':'not_loaded';this.emit();}}
  }
  cancelChat(id){if(this.request===id)this.abort?.abort();}
- startImage(id,prompt){if(this.closed||this.image.busy||this.visionBusy||this.maintenance||this.request||!UUID.test(id)||typeof prompt!=='string'||!prompt.trim()||prompt.length>2000||fs.existsSync(path.join(this.outputs,id+'.json'))||fs.existsSync(path.join(this.outputs,id+'.png')))return false;
-  this.model(this.selected,'image');this.job=id;this.cancelled=false;this.image={state:'LOADING',busy:true,generation:{request:id,state:'LOADING'}};this.progress=[1,0,this.settings.steps];this.emit();this.imageTask=this.runImage(id,prompt).catch(()=>{}).finally(()=>{this.imageTask=null;});return true;
+ startImage(id,prompt,batchCount){if(this.closed||this.image.busy||this.visionBusy||this.maintenance||this.request||!UUID.test(id)||typeof prompt!=='string'||!prompt.trim()||prompt.length>2000||fs.existsSync(path.join(this.outputs,id+'.json'))||fs.existsSync(path.join(this.outputs,id+'.png')))return false;
+  if(batchCount!==undefined)config.validate({...this.settings,batchCount});this.model(this.selected,'image');this.job=id;this.cancelled=false;this.image={state:'LOADING',busy:true,generation:{request:id,state:'LOADING'}};this.progress=[1,0,this.settings.steps];this.emit();this.imageTask=this.runImage(id,prompt,batchCount).catch(()=>{}).finally(()=>{this.imageTask=null;});return true;
  }
- async runImage(id,prompt){
+ async runImage(id,prompt,batchCount){
   const restoreId=this.loaded,work=path.join(this.outputs,'.work-'+id),results=[];
   try{
    await this.unload();if(this.cancelled)throw Error('Geração cancelada.');
    const model=this.model(this.selected,'image');if(model.components){const verified=await validateComponents(path.dirname(model.file));model.components=verified.components;model.architecture=verified.architecture;}else await inspectSdxl(model.file);
-   const settings=config.validate(this.settings),native=config.nativeSize(settings,model.architecture);
+   const settings=config.validate({...this.settings,...(batchCount===undefined?{}:{batchCount})}),native=config.nativeSize(settings,model.architecture);
    if(os.freemem()<2*1024**3)throw Error('Memória livre insuficiente; feche outros aplicativos antes de gerar imagens.');
    const disk=await fsp.statfs(this.outputs,{bigint:true});if(disk.bavail*disk.bsize<BigInt(settings.width*settings.height*4*settings.batchCount+67108864))throw Error('Espaço insuficiente para salvar o lote de imagens.');await fsp.mkdir(work);const promptFile=path.join(work,'prompt.txt'),negativeFile=path.join(work,'negative.txt');await fsp.writeFile(promptFile,prompt,{mode:0o600});await fsp.writeFile(negativeFile,settings.negativePrompt,{mode:0o600});
    this.image.generation={request:id,state:'GENERATING',results,count:settings.batchCount,current:1,outputWidth:settings.width,outputHeight:settings.height,nativeWidth:native.width,nativeHeight:native.height,steps:settings.steps,backendRequested:settings.backend};
-   const initialSeed=settings.seed<0?crypto.randomInt(2147483647):settings.seed;
+   const seeds=config.batchSeeds(settings.batchCount,settings.seed);
    for(let index=0;index<settings.batchCount;index++){
     if(this.cancelled||this.closed)throw Error('Geração cancelada.');
-    const imageId=index===0?id:crypto.randomUUID(),output=path.join(work,'native.png'),final=path.join(this.outputs,imageId+'.png'),seed=settings.batchCount===1?settings.seed:(initialSeed+index)%2147483648;
+    const imageId=index===0?id:crypto.randomUUID(),output=path.join(work,'native.png'),final=path.join(this.outputs,imageId+'.png'),seed=seeds[index];
     this.image.generation.current=index+1;this.image.generation.currentRequest=imageId;this.progress=[1,0,settings.steps];this.emit();
     await this.runImageProcess(model,{...settings,seed},promptFile,negativeFile,output);
     const size=pngDimensions(output);if(size.width!==native.width||size.height!==native.height)throw Error('O motor retornou uma resolução diferente da solicitada.');
     this.progress=[5,settings.steps,settings.steps];this.emit();await this.finalizePng(output,final,settings);
     if(this.cancelled||this.closed){await fsp.rm(final,{force:true});throw Error('Geração cancelada.');}
     const item={request:imageId,file:imageId+'.png',seed,width:settings.width,height:settings.height};results.push(item);if(imageId!==id)atomicJson(path.join(this.outputs,imageId+'.json'),item);
+    // User-requested generation metadata, separate from diagnostics and job state.
+    atomicJson(path.join(this.outputs,'metadados',imageId+'.json'),{image:imageId+'.png',prompt,seed,cfg:settings.cfg,steps:settings.steps,width:settings.width,height:settings.height,model:model.name,negativePrompt:settings.negativePrompt,sampler:settings.sampler,scheduler:settings.scheduler});
     atomicJson(path.join(this.outputs,id+'.json'),this.image.generation);this.emit();
-    if(settings.autoSave){try{await fsp.mkdir(this.pictures,{recursive:true});await fsp.copyFile(final,path.join(this.pictures,imageId+'.png'),fs.constants.COPYFILE_EXCL);}catch{this.image.generation.saveWarning='PNG salvo na Haruna; não foi possível copiar para Imagens/Haruna.';}}
+    if(settings.autoSave){try{await fsp.mkdir(this.pictures,{recursive:true});await this.exportImage(imageId,path.join(this.pictures,imageId+'.png'),true);}catch{this.image.generation.saveWarning='PNG e metadados salvos na Haruna; não foi possível concluir a cópia para Imagens/Haruna.';}}
     await fsp.rm(output,{force:true});
    }
    this.image.generation.state='COMPLETED';this.image.generation.file=id+'.png';
@@ -148,6 +150,13 @@ class Controller{
  }
  cancelImage(id){if(this.installAbort){this.installAbort.abort();return;}if(this.job!==id)return;this.cancelled=true;this.imageProcess?.child.kill();}
  result(id){const r=UUID.test(id)?readJson(path.join(this.outputs,id+'.json'),{}):{};return r&&typeof r==='object'&&!Array.isArray(r)?r:{};}
+ async exportImage(id,target,exclusive=false){
+  if(!UUID.test(id))throw Error('Imagem inválida.');const source=path.join(this.outputs,id+'.png');if(!fs.existsSync(source))throw Error('Imagem não encontrada.');
+  if(path.resolve(target)!==path.resolve(source))await fsp.copyFile(source,target,exclusive?fs.constants.COPYFILE_EXCL:0);
+  const metadata=readJson(path.join(this.outputs,'metadados',id+'.json'),null);
+  if(!metadata)return false; // Old images remain exportable; never invent missing prompts/seeds.
+  atomicJson(path.join(path.dirname(target),'metadados',path.parse(target).name+'.json'),{...metadata,image:path.basename(target)});return true;
+ }
  async registerComponents(files){
   if(this.maintenance||this.image.busy||this.request)throw Error('Aguarde a operação atual.');this.maintenance=true;const abort=new AbortController();this.installAbort=abort;this.image={state:'INSTALLING',busy:true,generation:{},copiedBytes:0};this.emit();
   try{const info=await installComponents(files,path.join(this.root,'image-models'),{signal:abort.signal,progress:bytes=>{this.image.copiedBytes=bytes;this.emit();}});const m={id:crypto.randomUUID(),kind:'image',name:info.architecture==='flux1-dev'?'FLUX.1 dev':'FLUX.1 schnell',...info};this.models.push(m);if(!this.selected)this.activateImage(m.id);this.save();return m;}

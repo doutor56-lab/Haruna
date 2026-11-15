@@ -1,4 +1,4 @@
-import {imageCandidate,imageDecision} from './image-intent.js';
+import {imageCandidate,imageDecision,imageRequestCount} from './image-intent.js';
 import * as documents from './documents/client.js';
 import {beginPipeline,measured,measuredAsync,takeInspectorRequest} from './diagnostics/pipeline.js';
 import {modelStatus} from './voice/model-names.js';
@@ -199,7 +199,7 @@ function resize(){input.style.height='auto';input.style.height=`${Math.min(input
  const voiceObserver=fromVoice?voiceStreamObserver:null;
  const chat=active(),files=attachments.pending(chat.id);
  const text=input.value.trim()||(files.length?'Analise os arquivos anexados.':'');if(!text)return;
- if(!files.length&&window.harunaStartImage&&imageCandidate(text)){if(await imageDecision(llm,text)){window.harunaStartImage(text,{rememberUser:true,allowBusy:true});return {chatId:chat.id,image:true}}}
+ if(!files.length&&window.harunaStartImage&&imageCandidate(text)){if(await imageDecision(llm,text)){window.harunaStartImage(text,{rememberUser:true,allowBusy:true,count:imageRequestCount(text)});return {chatId:chat.id,image:true}}}
  // Reading is local. Attachments enter the model context only after Send is pressed.
  const prepared=[],previousLength=chat.messages.length;
  try{
