@@ -18,10 +18,11 @@ async function play(event){
   const started=context.currentTime;p.meter=setInterval(()=>{if(playback!==p||context.state!=='running')return;const at=Math.floor((context.currentTime-started)*event.sampleRate);let sum=0,n=0;for(let i=at;i<Math.min(samples.length,at+1024);i++){sum+=samples[i]*samples[i];n++;}window.dispatchEvent(new CustomEvent('haruna-tts-status',{detail:{messageId:p.id,meter:true,state:'playing',level:Math.min(1,Math.sqrt(sum/Math.max(1,n))*6)}}));},160);source.start();
  }catch{if(playback===p){await stopPlayback();desktop.voicePlaybackFailed(p.id);}}
 }
+async function changePlayback(action){const p=playback;try{await p?.context?.[action==='pause'?'suspend':'resume']()}catch{if(p&&playback===p)desktop.voicePlaybackFailed(p.id)}}
 desktop?.subscribe(event=>{
  if(event.type==='voice-status')window.dispatchEvent(new CustomEvent(event.kind==='stt'?'haruna-stt-status':'haruna-tts-status',{detail:event.status}));
  else if(event.type==='voice-capture')event.action==='start'?startCapture(event.id):stopCapture(event.id);
  else if(event.type==='voice-audio')play(event);
- else if(event.type==='voice-playback'){if(event.action==='pause')playback?.context?.suspend();else if(event.action==='resume')playback?.context?.resume();else stopPlayback();}
+ else if(event.type==='voice-playback'){if(event.action==='pause'||event.action==='resume')changePlayback(event.action);else stopPlayback();}
 });
 addEventListener('pagehide',()=>{stopCapture();stopPlayback();desktop?.voiceStop();});
