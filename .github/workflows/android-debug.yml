@@ -40,6 +40,7 @@ jobs:
         run: |
           python3 scripts/validate_ui_integrity.py
           node tests/image_intent_check.mjs
+          node scripts/check_voice.mjs
           node tests/voice_orb_check.cjs
       - name: Install Android SDK components
         run: |
@@ -80,7 +81,9 @@ jobs:
           PYCODE
           mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Haruna-Overdrive-ARM64.apk
       - name: Hash Android APK
-        run: sha256sum app/build/outputs/apk/debug/*.apk > app/build/outputs/apk/debug/SHA256SUMS.txt
+        run: |
+          sha256sum app/build/outputs/apk/debug/*.apk > app/build/outputs/apk/debug/SHA256SUMS.txt
+          for apk in app/build/outputs/apk/debug/*.apk; do "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk"; done > app/build/outputs/apk/debug/SIGNATURE.txt
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
@@ -89,5 +92,6 @@ jobs:
           path: |
             app/build/outputs/apk/debug/*.apk
             app/build/outputs/apk/debug/SHA256SUMS.txt
+            app/build/outputs/apk/debug/SIGNATURE.txt
           if-no-files-found: error
           retention-days: 7

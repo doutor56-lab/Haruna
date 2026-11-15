@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path');const {Worker}=require('node:worker_threads');
 const {atomicJson,readJson}=require('./models.cjs');const models=require('./voice-models.cjs');
 class Voice {
- constructor(root,publish,vadModel){this.root=path.join(root,'voice');fs.mkdirSync(this.root,{recursive:true});this.publish=publish;this.vadModel=vadModel;this.preferences=readJson(path.join(this.root,'preferences.json'),{selectedId:models.catalog[0].id,speaker:-1,speed:1,volume:1,automaticPause:true,pronunciations:{}});this.stt={state:'idle',busy:false};this.tts={state:'idle'};this.jobs={};}
+ constructor(root,publish,vadModel){this.root=path.join(root,'voice');fs.mkdirSync(this.root,{recursive:true});this.publish=publish;this.vadModel=vadModel;this.preferences=readJson(path.join(this.root,'preferences.json'),{selectedId:models.catalog[0].id,speaker:-1,speed:1,volume:1,automaticPause:true,pronunciations:{}});this.stt={state:'idle',busy:false};this.tts={state:'idle'};this.jobs={};this.playbackSerial=0;}
  spec(){return models.catalog.find(m=>m.id===this.preferences.selectedId)||models.catalog[0];}
  status(kind){const p=this.preferences;if(kind==='stt'){const spec=this.spec();return {...this.stt,installed:models.installed(this.root,spec),installing:this.installing?.kind===kind,installingModel:this.installing?.kind==='stt'?this.installing.spec.name:null,archiveBytes:spec.bytes,loaded:false,selectedId:spec.id,modelName:spec.name,bytes:models.installedBytes(this.root,spec),automaticPause:p.automaticPause,vad:'silero',catalog:models.catalog,models:models.catalog.filter(m=>models.installed(this.root,m)).map(m=>({...m,bytes:models.installedBytes(this.root,m),installed:true,selected:m.id===spec.id,format:'sherpa-onnx INT8'}))};}return {...this.tts,installed:models.installed(this.root,models.tts),installing:this.installing?.kind===kind,archiveBytes:models.tts.bytes,speakers:models.installed(this.root,models.tts)?10:0,speaker:p.speaker,speed:p.speed,volume:p.volume,pronunciations:p.pronunciations,bytes:models.installedBytes(this.root,models.tts),voiceLabels:Array.from({length:10},(_,i)=>i<5?`F${i+1} • feminina`:`M${i-4} • masculina`)};}
  emit(kind,next={}){Object.assign(this[kind],next);this.publish({type:'voice-status',kind,status:this.status(kind)});}
@@ -24,19 +24,33 @@ class Voice {
   w.on('message',async event=>{if(this.capture!==c)return;if(event.type!=='result'){this.failCapture(c);return;}const text=typeof event.text==='string'?event.text.trim():'';await w.terminate();if(this.capture!==c)return;this.capture=null;const accepted=text.length<=2000&&/[\p{L}\p{N}]/u.test(text)&&!text.includes('<|')&&!/[\x00-\x08\x0E-\x1F]/.test(text);this.emit('stt',{state:accepted?'result':'no_speech',busy:false,...(accepted?{text}:{})});});w.on('error',()=>this.failCapture(c));
  }
  stop(){const c=this.capture;this.capture=null;if(c){this.publish({type:'voice-capture',action:'stop',id:c.id});c.vad?.terminate();c.worker?.terminate();for(const f of c.frames)f.fill(0);}if(this.installing?.kind!=='stt')this.emit('stt',{state:'idle',busy:false});}
- begin(id){if(this.installing||this.capture||!models.installed(this.root,models.tts)||!Number.isInteger(this.preferences.speaker)||this.preferences.speaker<0)throw Error('Instale a voz e escolha um speaker nas configurações.');this.stopTts();this.speech={id,queue:[],ended:false,working:false,played:false};this.emit('tts',{state:'buffering',messageId:id,error:null});}
+ begin(id){if(this.installing||this.capture||!models.installed(this.root,models.tts)||!Number.isInteger(this.preferences.speaker)||this.preferences.speaker<0)throw Error('Instale a voz e escolha um speaker nas configurações.');this.stopTts();this.speech={id,queue:[],ended:false,working:false,playing:false,next:null};this.emit('tts',{state:'buffering',messageId:id,error:null});}
  append(id,text){const s=this.speech;if(!s||s.id!==id)throw Error('Fluxo de voz encerrado.');if(typeof text!=='string'||text.length>1000||s.queue.length>=256)throw Error('Trecho de voz muito grande.');let value=text;for(const [name,word]of Object.entries(this.preferences.pronunciations||{}))value=value.split(name).join(word);s.queue.push(value);this.pump(s);}
  end(id){if(this.speech?.id===id){this.speech.ended=true;this.pump(this.speech);}}
- async pump(s){if(this.speech!==s||s.working)return;if(!s.queue.length){if(s.ended){this.stopTts();}return;}s.working=true;try{
-  if(!s.worker){await models.verify(this.root,models.tts);if(this.speech!==s)return;const w=new Worker(path.join(__dirname,'voice-worker.cjs'),{workerData:{kind:'tts',directory:path.join(this.root,models.tts.id)}});s.worker=w;await new Promise((resolve,reject)=>{w.once('message',e=>e.type==='ready'?resolve():reject(Error('tts_load')));w.once('error',reject);w.once('exit',()=>reject(Error('tts_exit')));});}
-  if(this.speech!==s)return;const text=s.queue.shift();this.emit('tts',{state:'preparing'});
-  const audio=await new Promise((resolve,reject)=>{const w=s.worker;const message=e=>{clean();e.type==='audio'?resolve(e):reject(Error('tts_generate'));},failed=()=>{clean();reject(Error('tts_exit'));},clean=()=>{w.removeListener('message',message);w.removeListener('error',failed);w.removeListener('exit',failed);};w.once('message',message);w.once('error',failed);w.once('exit',failed);w.postMessage({text,speaker:this.preferences.speaker,speed:this.preferences.speed});});
-  if(this.speech!==s)return;if(!(audio.samples instanceof Float32Array)||!audio.samples.length||audio.samples.length>audio.sampleRate*120)throw Error('tts_audio');this.emit('tts',{state:'playing'});
-  await new Promise(resolve=>{s.ack=resolve;s.timer=setTimeout(()=>{this.stopTts();},120000);s.serial=(s.serial||0)+1;this.publish({type:'voice-audio',id:s.id,serial:s.serial,samples:audio.samples,sampleRate:audio.sampleRate,volume:this.preferences.volume});});
- }catch{if(this.speech===s){this.stopTts(false);this.emit('tts',{state:'error',error:'Não foi possível sintetizar ou reproduzir a voz local.'});}}
- finally{s.working=false;if(this.speech===s)this.pump(s);}}
- played(id,serial){const s=this.speech;if(s?.id===id&&s.serial===serial){clearTimeout(s.timer);const ack=s.ack;s.ack=null;ack?.();}}
- stopTts(notify=true){const s=this.speech;this.speech=null;if(s){clearTimeout(s.timer);s.ack?.();this.ttsReleased=s.worker?.terminate();this.publish({type:'voice-playback',action:'stop',id:s.id});}if(notify&&this.installing?.kind!=='tts')this.emit('tts',{state:'idle'});}
+ playAudio(s,audio){
+  s.playing=true;s.serial=++this.playbackSerial;const serial=s.serial;
+  this.emit('tts',{state:'playing'});
+  s.timer=setTimeout(()=>{if(this.speech===s&&s.serial===serial)this.stopTts();},120000);
+  this.publish({type:'voice-audio',id:s.id,serial,samples:audio.samples,sampleRate:audio.sampleRate,volume:this.preferences.volume});
+ }
+ async pump(s){
+  if(this.speech!==s)return;
+  if(!s.playing&&s.next){const audio=s.next;s.next=null;this.playAudio(s,audio);}
+  // One clip playing and at most one clip prepared ahead. Never synthesize the full reply into RAM.
+  if(s.working||s.next)return;
+  if(!s.queue.length){if(!s.playing){if(s.ended)this.stopTts();else this.emit('tts',{state:'buffering'});}return;}
+  s.working=true;
+  try{
+   if(!s.worker){await this.ttsReleased;await models.verify(this.root,models.tts);if(this.speech!==s)return;const w=new Worker(path.join(__dirname,'voice-worker.cjs'),{workerData:{kind:'tts',directory:path.join(this.root,models.tts.id)}});s.worker=w;await new Promise((resolve,reject)=>{w.once('message',e=>e.type==='ready'?resolve():reject(Error('tts_load')));w.once('error',reject);w.once('exit',()=>reject(Error('tts_exit')));});}
+   if(this.speech!==s)return;const text=s.queue.shift();if(!s.playing)this.emit('tts',{state:'preparing'});
+   const audio=await new Promise((resolve,reject)=>{const w=s.worker;const message=e=>{clean();e.type==='audio'?resolve(e):reject(Error('tts_generate'));},failed=()=>{clean();reject(Error('tts_exit'));},clean=()=>{w.removeListener('message',message);w.removeListener('error',failed);w.removeListener('exit',failed);};w.once('message',message);w.once('error',failed);w.once('exit',failed);w.postMessage({text,speaker:this.preferences.speaker,speed:this.preferences.speed});});
+   if(this.speech!==s)return;if(!(audio.samples instanceof Float32Array)||!Number.isFinite(audio.sampleRate)||audio.sampleRate<=0||!audio.samples.length||audio.samples.length>audio.sampleRate*120)throw Error('tts_audio');
+   if(s.playing)s.next=audio;else this.playAudio(s,audio);
+  }catch{if(this.speech===s){this.stopTts(false);this.emit('tts',{state:'error',error:'Não foi possível sintetizar ou reproduzir a voz local.'});}}
+  finally{s.working=false;if(this.speech===s)this.pump(s);}
+ }
+ played(id,serial){const s=this.speech;if(s?.id===id&&s.playing&&s.serial===serial){clearTimeout(s.timer);s.playing=false;this.pump(s);}}
+ stopTts(notify=true){const s=this.speech;this.speech=null;if(s){clearTimeout(s.timer);s.next=null;if(s.worker)this.ttsReleased=s.worker.terminate();this.publish({type:'voice-playback',action:'stop',id:s.id});}if(notify&&this.installing?.kind!=='tts')this.emit('tts',{state:'idle'});}
  close(){this.callActive=false;this.cancelInstallation();this.stop();this.stopTts();}
 }
 module.exports={Voice};

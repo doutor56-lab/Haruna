@@ -2,15 +2,16 @@ import {ThinkParser} from '../streaming/think-parser.js';
 
 /** Natural, bounded text segments. No audio buffer and no native/UI backpressure on the LLM. */
 export class SentenceQueue {
- constructor(send,{minimum=48,maximum=280}={}){this.send=send;this.minimum=minimum;this.maximum=maximum;this.buffer='';this.ended=false;this.initial=true}
+ constructor(send,{minimum=48,maximum=180}={}){this.send=send;this.minimum=minimum;this.maximum=maximum;this.buffer='';this.ended=false;this.initial=true}
  push(text){if(this.ended||!text)return;this.buffer+=text;this.flush(false)}
  reset(){this.buffer='';this.initial=true}
  flush(final){
   while(this.buffer.length){
-   let end=0;const minimum=this.initial?Math.min(24,this.minimum):this.minimum,maximum=this.initial?Math.min(120,this.maximum):this.maximum;
-   for(const match of this.buffer.matchAll(/[.!?;:]["'”»)]*\s+|\n\s*\n/g)){
+   let end=0;const minimum=this.initial?Math.min(24,this.minimum):this.minimum,maximum=this.initial?Math.min(96,this.maximum):this.maximum;
+   for(const match of this.buffer.matchAll(/[,.!?;:]["'”»)]*\s+|\n\s*\n/g)){
     const point=match.index+match[0].length;
-    if(point<minimum)continue;
+    const sentence=/[.!?]/.test(match[0][0]);
+    if(point<(sentence?3:minimum))continue;
     if(point>maximum)break;
     const previous=this.buffer.slice(0,match.index).match(/([\p{L}.]+)$/u)?.[1]||'';
     if(match[0][0]==='.'&&(/^(sr|sra|srta|dr|dra|prof|profa|etc|ex|p\.ex)$/i.test(previous)||previous.length===1))continue;
