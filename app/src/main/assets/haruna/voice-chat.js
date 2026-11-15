@@ -1,6 +1,7 @@
 import {showDownloadSheet} from './voice/download-ui.js';
 import {CallView,voiceSettings,voiceIcon} from './voice/call-view.js';
 import {SpeechStream} from './voice/stream.js';
+import {TurnCue} from './voice/turn-cue.js';
 // Dictation writes a draft. Only the explicitly started local call sends turns automatically.
 const input=document.querySelector('#input'),composer=document.querySelector('#composer');
 const backgroundActive=()=>{try{return JSON.parse(window.HarunaVoiceCall?.status()||'{}').running===true}catch{return false}};
@@ -96,17 +97,29 @@ function stopSpeech(){if(!localCall)return;localCall.muted=true;localCall.skippe
 function openVoiceSettings(){if(localCall)pauseCall();refresh();voiceSettings({stt:status,tts:parse(tts()?.getStatus()||'{}'),invoke:(engine,method,...args)=>invoke(engine==='stt'?native():tts(),method,...args),onStreaming:()=>{}})}
 function pauseCall(reason='Conversa pausada. Toque em Retomar para continuar.',failed=false){
  if(!localCall)return;
- localCall.turn++;clearTimeout(resumeTimer);resumeTimer=null;setCallPhase(failed?'error':'paused',reason);localCall.collector?.cancel();
+ localCall.turn++;localCall.cue?.cancel();clearTimeout(resumeTimer);resumeTimer=null;setCallPhase(failed?'error':'paused',reason);localCall.collector?.cancel();
  stopCapture();if(localCall.replyId)quietChatCancel(localCall.replyId);quiet(tts(),'stop');
 }
 function quietChatCancel(request){try{Promise.resolve(chat()?.cancel(request)).catch(()=>{})}catch{}}
 function endVoice(){
  const previous=localCall;localCall=null;clearTimeout(resumeTimer);resumeTimer=null;
- stopCapture();if(previous){previous.collector?.cancel();if(previous.replyId)quietChatCancel(previous.replyId);quiet(tts(),'stop');previous.view.close();quiet(window.HarunaVoiceCall,'end')}
+ stopCapture();if(previous){previous.cue?.close();previous.collector?.cancel();if(previous.replyId)quietChatCancel(previous.replyId);quiet(tts(),'stop');previous.view.close();quiet(window.HarunaVoiceCall,'end')}
 }
-function listenAgain(){
- if(!localCall||!voiceAllowed())return;
- try{const s=current();if(s.chatId!==localCall.chatId){endVoice();return}startCapture('call')}catch(error){pauseCall(error.message,true)}
+function scheduleListening(call,announce=false,delay=200){
+ clearTimeout(resumeTimer);
+ resumeTimer=setTimeout(()=>{resumeTimer=null;if(localCall===call&&call.phase==='waiting'&&voiceAllowed())listenAgain(announce)},delay);
+}
+function listenAgain(announce=false){
+ const call=localCall;if(!call||!voiceAllowed()||capture||call.generating)return;
+ try{
+  const state=current();if(state.chatId!==call.chatId){endVoice();return}
+  // JS completion and native cleanup can finish in different orders. Wait without pausing the call.
+  if(state.busy||parse(native().getStatus()).busy){
+   call.listenRetries=(call.listenRetries||0)+1;if(call.listenRetries>100)throw Error('O microfone ainda está ocupado. Toque em Retomar para tentar novamente.');
+   setCallPhase('waiting','Preparando sua vez…');scheduleListening(call,announce,100);return;
+  }
+  call.listenRetries=0;call.announceTurn=announce;startCapture('call');
+ }catch(error){pauseCall(error.message,true)}
 }
 async function voiceTurn(text){
  const call=localCall;if(!call)return;
@@ -139,15 +152,16 @@ phone.onclick=()=>{
   const voice=parse(tts()?.getStatus()||'{}');
   if(!voice.installed||Number(voice.speaker??-1)<0){window.dispatchEvent(new CustomEvent('haruna-open-view',{detail:{view:'settings'}}));throw new Error('Instale a voz da Haruna e escolha um speaker nas configurações.');}
   stopCapture();
-  const resume=async()=>{const call=localCall,reply=call?.replyId;if(!call)return;if(call.phase==='audiopaused'){try{invoke(tts(),'resume');setCallPhase('speaking','Haruna está falando…')}catch(error){pauseCall(error.message,true)}return}pauseCall();try{if(reply)await chat().cancel(reply);for(let i=0;i<100&&parse(native().getStatus()).busy;i++){if(localCall!==call||call.phase!=='paused')return;await new Promise(r=>setTimeout(r,150))}if(localCall===call&&call.phase==='paused')listenAgain()}catch(error){if(localCall===call)pauseCall(error.message)}};
+  const resume=async()=>{const call=localCall,reply=call?.replyId;if(!call)return;if(call.phase==='audiopaused'){try{invoke(tts(),'resume');setCallPhase('speaking','Haruna está falando…')}catch(error){pauseCall(error.message,true)}return}pauseCall();try{if(reply)await chat().cancel(reply);for(let i=0;i<100&&parse(native().getStatus()).busy;i++){if(localCall!==call||call.phase!=='paused')return;await new Promise(r=>setTimeout(r,150))}if(localCall===call&&call.phase==='paused')listenAgain(true)}catch(error){if(localCall===call)pauseCall(error.message)}};
   const view=new CallView({end:endVoice,pause:togglePause,resume,skip:skipSpeech,stopSpeech,finish:()=>quiet(native(),'finish'),settings:openVoiceSettings});
-  localCall={view,dialog:view.dialog,chatId:s.chatId,turn:0,phase:'ready',orb:view.orb,label:view.label,transcript:view.transcript,resume:view.resume,pause:view.pause,ttsId:null,replyId:null};
-  view.phase('ready');
+  const cue=new TurnCue();cue.unlock();
+  localCall={cue,view,dialog:view.dialog,chatId:s.chatId,turn:0,phase:'ready',orb:view.orb,label:view.label,transcript:view.transcript,resume:view.resume,pause:view.pause,ttsId:null,replyId:null};
+  view.phase('ready');listenAgain(true);
  }catch(error){alert(error.message)}
 };
 window.addEventListener('haruna-stt-status',e=>{
  const d=e.detail;if(d.meter){if(capture?.mode==='call'&&d.requestId===capture.request)setLevel(d.level);return}update(d);if(!capture||d.requestId!==capture.request)return;
- if(d.state==='listening'||d.state==='transcribing'){capture.phase=d.state;redrawCapture();if(capture.mode==='call'){setCallPhase(d.state,d.state==='listening'?'Ouvindo… fale e faça uma pausa.':'Transcrevendo no dispositivo…');if(localCall)setLevel(d.level||0)}return}
+ if(d.state==='listening'||d.state==='transcribing'){capture.phase=d.state;redrawCapture();if(capture.mode==='call'){setCallPhase(d.state,d.state==='listening'?'Ouvindo… fale e faça uma pausa.':'Transcrevendo no dispositivo…');if(localCall){setLevel(d.level||0);if(d.state==='listening'&&localCall.announceTurn&&localCall.cueRequest!==capture.request){localCall.announceTurn=false;localCall.cueRequest=capture.request;let volume=1;try{volume=parse(tts().getStatus()).volume??1}catch{}localCall.cue.play(volume)}}}return}
  if(d.state==='result'&&typeof d.text==='string'){
   const previous=capture;capture=null;redrawCapture();
   if(previous.chatId!==current().chatId){endVoice();return}
@@ -156,14 +170,14 @@ window.addEventListener('haruna-stt-status',e=>{
  if(['no_speech','error','idle'].includes(d.state)){
   const mode=capture.mode;capture=null;redrawCapture();
   const message=d.error||(d.state==='no_speech'?'Não identifiquei fala. Tente novamente perto do microfone.':'Microfone parado.');
-  if(mode==='call')pauseCall(message,d.state==='error');else if(d.state!=='idle')alert(message);
+  if(mode==='call'&&d.state==='no_speech'&&localCall){setCallPhase('waiting','Sua vez… aguardando sua fala.');scheduleListening(localCall,false,350)}else if(mode==='call')pauseCall(message,d.state==='error');else if(d.state!=='idle')alert(message);
  }
 });
 window.addEventListener('haruna-tts-status',e=>{
  const d=e.detail;if(!localCall)return;
  if(d.reason==='app_background'){if(!backgroundActive())endVoice();return}
  if(d.reason==='audio_focus_lost'){pauseCall('O áudio foi interrompido por outro aplicativo.');return}
- if(d.messageId!==localCall.ttsId||['paused','error','ready'].includes(localCall.phase))return;
+ if(d.messageId!==localCall.ttsId||localCall.finishedAudio===d.messageId||['paused','error','ready'].includes(localCall.phase))return;
  if(d.meter){if(localCall.phase==='speaking')setLevel(d.level);return}
  if(d.state==='paused'){setCallPhase('audiopaused','Fala pausada.');return}
  if(d.state==='playing'&&!localCall.muted){setCallPhase('speaking','Haruna está falando…');return}
@@ -175,10 +189,10 @@ window.addEventListener('haruna-tts-status',e=>{
  if(d.state==='idle'){
   if(localCall.generating){localCall.muted=true;localCall.collector?.cancel();setCallPhase('thinking','Áudio interrompido; concluindo a resposta no chat…');return}
   if(localCall.skipped)return;
-  const call=localCall;setCallPhase('waiting','Sua vez…');clearTimeout(resumeTimer);
+  const call=localCall;call.finishedAudio=d.messageId;setCallPhase('waiting','Sua vez…');clearTimeout(resumeTimer);
   // Hidden WebViews may throttle timers; the foreground call can listen immediately.
-  if(document.hidden&&backgroundActive()){listenAgain();return}
-  resumeTimer=setTimeout(()=>{if(localCall===call&&call.phase==='waiting'&&voiceAllowed())listenAgain()},450);
+  if(document.hidden&&backgroundActive()){listenAgain(true);return}
+  scheduleListening(call,true);
  }
 });
 q('[data-download]').onclick=()=>{try{const choice=q('[data-download-model]');command('downloadModel',choice.value)}catch(e){alert(e.message)}};

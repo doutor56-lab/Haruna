@@ -1,6 +1,7 @@
 'use strict';
-// Each worker owns its native handles. Termination releases ONNX sessions and PCM.
-const {parentPort,workerData}=require('node:worker_threads');
+// Each speech process owns its native handles. IPC contains only the active voice request.
+const threads=require('node:worker_threads');
+function run(workerData,parentPort){
 const path=require('node:path');
 const sherpa=require('sherpa-onnx-node');
 const send=(type,value={})=>parentPort.postMessage({type,...value});
@@ -19,3 +20,13 @@ try {
   parentPort.on('message',data=>{try{const audio=tts.generate({text:data.text,generationConfig:{sid:data.speaker,speed:data.speed,numSteps:5,extra:{lang:'pt',max_len:'240',silence_duration:'0.1'}},enableExternalBuffer:false});const samples=Float32Array.from(audio.samples);parentPort.postMessage({type:'audio',samples,sampleRate:audio.sampleRate},[samples.buffer]);}catch{send('error');}});send('ready',{speakers:tts.numSpeakers});
  }
 }catch{send('error');parentPort.close();}
+
+}
+if(threads.parentPort)run(threads.workerData,threads.parentPort);
+else{
+ const{EventEmitter}=require('node:events'),port=new EventEmitter();let started=false;
+ port.postMessage=value=>process.parentPort.postMessage(value);
+ // Parent closes the process after receiving the result; do not race IPC delivery with process.exit().
+ port.close=()=>{};
+ process.parentPort.on('message',event=>{if(!started){started=true;run(event.data.workerData,port)}else port.emit('message',event.data)});
+}
