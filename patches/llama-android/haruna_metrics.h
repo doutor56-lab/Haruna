@@ -59,6 +59,17 @@ static void hm_context(const llama_context_params * requested = nullptr) {
         value["architecture"]=hm_identifier(arch);
     if (llama_model_desc(g_model,description,sizeof(description))>0)
         value["description"]=hm_identifier(description);
+    HarunaJson metadata = HarunaJson::object();
+    for (const auto & field : {"name", "author", "organization", "license", "url"}) {
+        char text[1024] = {};
+        const int length = llama_model_meta_val_str(g_model, (std::string("general.") + field).c_str(), text, sizeof(text));
+        if (length > 0 && length < static_cast<int>(sizeof(text))) {
+            std::string declared(text, length);
+            for (char & c : declared) if (static_cast<unsigned char>(c) < 32 || c == 127) c = ' ';
+            metadata[field] = declared;
+        }
+    }
+    value["modelMetadata"] = metadata;
     if (requested) {
         value["kvK"]=ggml_type_name(requested->type_k); value["kvV"]=ggml_type_name(requested->type_v);
         value["flashRequested"]=llama_flash_attn_type_name(requested->flash_attn_type);
