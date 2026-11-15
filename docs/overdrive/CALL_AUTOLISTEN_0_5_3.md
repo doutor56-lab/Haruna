@@ -30,4 +30,11 @@ Arquivo: `%APPDATA%\Haruna Windows\diagnostics\runtime.jsonl` (rotação existen
 
 ## Entrega
 
-Compilação Windows e hashes pendentes. A mudança compartilhada de controle também está no código Android; não é uma nova build Android nesta entrega, cujo problema de fechamento foi confirmado como Windows. Audição do sinal e tentativa de reproduzir o fechamento original permanecem dependentes do PC do usuário.
+Build Windows concluído com sucesso no commit `fa8d4acccc866a6fbca13ac04b4e850da54ad00b`: [workflow](https://github.com/doutor56-lab/Haruna/actions/runs/43677122588).
+
+- [Baixar Haruna Windows 0.5.3 x64](https://github.com/doutor56-lab/Haruna/actions/runs/43677122588/artifacts/14147355718). Extrair o ZIP e abrir `Haruna-Windows-0.5.3-x64.exe`; o AppData existente é reutilizado.
+- SHA-256 do EXE: `ebdaf0a06f513b6b58f84b4f34b6241f6a9258b17b7e4b86ddabeb17d1c1f389`.
+- [Relatório e screenshots Windows](https://github.com/doutor56-lab/Haruna/actions/runs/43677122588/artifacts/14147375636): EXE empacotado abriu, 27 testes do workflow passaram, transporte PCM e cancelamento antes de ready passaram, encerramento isolado código 73 preservou o aplicativo e dois ciclos reais do VAD passaram. Layout nas quatro escalas preservado.
+- Não houve transcrição com Whisper nem síntese com o modelo TTS do usuário no CI. O isolamento adiciona o custo de um processo Node; consumo adicional de memória no PC não foi medido. Não se declara que a causa específica do fechamento relatado foi reproduzida ou eliminada no hardware do usuário.
+
+ A mudança compartilhada de controle também está no código Android; não é uma nova build Android nesta entrega, cujo problema de fechamento foi confirmado como Windows. Audição do sinal e tentativa de reproduzir o fechamento original permanecem dependentes do PC do usuário.
