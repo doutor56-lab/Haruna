@@ -14,3 +14,16 @@ Branch: `feature/android-overdrive`; sem merge na principal.
 - Mantida a instrução de autoria Proxys Labs da versão 0.5.4, sem atribuir a ela o treinamento dos GGUF.
 
 Validação local: 28 testes Node passaram, incluindo lote de 100 com CLI simulado, seeds realmente distintas, cancelamento parcial, metadados no disco e exportação com nome alterado. Classificação de intenção: 48 positivos e 33 negativos, além das quantidades. Smoke Electron passou com controles, persistência de lote 100, escalas 75–150% e dois ciclos VAD nativos. Nenhuma geração real com checkpoint de imagens foi executada neste ambiente. Tempo, qualidade, memória e estabilidade de um lote real longo dependem do modelo e do computador; não há promessa de desempenho.
+
+## Entrega verificada
+
+- Commit compilado: `07e6c606f53155503fc1f460a187f0cb1960867e`.
+- GitHub Actions: https://github.com/doutor56-lab/Haruna/actions/runs/43681857604 — sucesso.
+- Executável: `Haruna-Windows-0.5.5-x64.exe`.
+- Download: https://github.com/doutor56-lab/Haruna/actions/runs/43681857604/artifacts/14148741707
+- SHA-256: `2373cee6f940e62d0b261b5102be303fd6411620d2b27f0bf16065c82e8029c9`.
+- Relatório: https://github.com/doutor56-lab/Haruna/actions/runs/43681857604/artifacts/14148383220
+- Smoke do executável empacotado executado no Windows x64: `batchCount=100`, `maxBatch=100`, dois ciclos VAD nativos, transporte PCM e sobrevivência do processo principal após saída do filho. Inferência real de imagens não executada em CI.
+- UI Chromium: 360×800 e 800×1280 passaram, incluindo persistência, paginação de 100 resultados simulados e ações de exportação. Fixtures não representam geração real.
+
+Extrair o ZIP de download e abrir o EXE. Não remover o diretório de dados existente. Novas gerações escrevem os JSONs na pasta `generated-images\metadados`; imagens antigas não recebem parâmetros inventados.
