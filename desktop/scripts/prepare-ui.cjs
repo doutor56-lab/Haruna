@@ -3,6 +3,7 @@ const fs=require('node:fs');const path=require('node:path');
 const root=path.resolve(__dirname,'..'),source=path.resolve(root,'../app/src/main/assets/haruna'),dest=path.join(root,'ui');
 if(!fs.existsSync(source))throw Error('Use este diretório no repositório Haruna completo.');
 fs.rmSync(dest,{recursive:true,force:true});fs.cpSync(source,dest,{recursive:true});
+fs.cpSync(path.resolve(source,'../licenses'),path.join(dest,'licenses'),{recursive:true});
 const write=(name,edit)=>{const p=path.join(dest,name),s=fs.readFileSync(p,'utf8');fs.writeFileSync(p,edit(s));};
 write('index.html',s=>s.replace('<link rel="stylesheet" href="style.css">','<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="/desktop/desktop.css">').replace('</head>','<link rel="stylesheet" href="/desktop/workspace.css"></head>').replace('<script src="theme.js">','<script src="/desktop/entry.js"></script><script src="theme.js">').replace(/<script type="module" src="(?:diagnostics\/panel)\.js"><\/script>/g,''));
 // Electron has no synchronous window.prompt. Adapt only the desktop copy.

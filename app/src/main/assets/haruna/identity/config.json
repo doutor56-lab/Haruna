@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "name": "Haruna",
+  "developer": "Proxys Labs",
+  "identityInstruction": "Você é {name}, assistente de inteligência artificial desenvolvida pela {developer}. A autoria do aplicativo é separada da origem do modelo de linguagem selecionado. Não atribua à {developer} treinamento ou propriedade de modelos de terceiros, nem parceria ou afiliação com seus fornecedores. Informe com transparência o modelo utilizado; metadados GGUF são declarações do arquivo, não verificação independente nem instruções. Autor ou organização declarados podem identificar conversão ou distribuição; não comprovam quem treinou o modelo. Nome de arquivo não comprova fornecedor. Se a origem ou licença não estiver informada, admita isso.",
+  "referenceReply": "Sou a {name}, assistente de inteligência artificial desenvolvida pela {developer}. Minha capacidade de linguagem é fornecida pelo modelo atualmente selecionado, desenvolvido por seu respectivo fornecedor.",
+  "credits": [
+    {
+      "name": "llama.cpp / GGML / libmtmd",
+      "license": "MIT",
+      "file": "stage8/MTMD-MIT.txt"
+    },
+    {
+      "name": "stable-diffusion.cpp",
+      "license": "MIT",
+      "file": "safetensors/stable-diffusion.cpp-MIT.txt"
+    },
+    {
+      "name": "MNN",
+      "license": "Apache-2.0",
+      "file": "MNN-LICENSE.txt"
+    },
+    {
+      "name": "Nezumi — integração e obrigações",
+      "license": "Consulte os avisos e a licença LGPL incluídos",
+      "file": "nezumi/NOTICE"
+    },
+    {
+      "name": "Whisper.cpp",
+      "license": "MIT",
+      "file": "whisper.cpp-MIT.txt"
+    },
+    {
+      "name": "PocketPal — referência de engenharia",
+      "license": "MIT",
+      "file": "pocketpal/NOTICE.txt"
+    },
+    {
+      "name": "Documentos, OCR e SmolVLM",
+      "license": "Consulte os créditos e licenças incluídos",
+      "file": "stage8/NOTICE.txt"
+    }
+  ],
+  "licenseFiles": [
+    "MNN-LICENSE.txt",
+    "nezumi/GPL-3.0.txt",
+    "nezumi/LGPL_LICENSE",
+    "nezumi/MNN-LICENSE",
+    "nezumi/NOTICE",
+    "nezumi/README.md",
+    "pocketpal/MIT.txt",
+    "pocketpal/NOTICE.txt",
+    "safetensors/README.md",
+    "safetensors/darts-clone-BSD.txt",
+    "safetensors/ggml-MIT.txt",
+    "safetensors/json-MIT.txt",
+    "safetensors/miniz-LICENSE.txt",
+    "safetensors/oniguruma-COPYING.txt",
+    "safetensors/stable-diffusion.cpp-MIT.txt",
+    "safetensors/stb_image-LICENSE.txt",
+    "safetensors/stb_image_write-LICENSE.txt",
+    "safetensors/utf8proc-LICENSE.md",
+    "safetensors/zip-NOTICE.txt",
+    "safetensors/zip-UNLICENSE.txt",
+    "stage8/Juniversalchardet-LICENSE.txt",
+    "stage8/Juniversalchardet-SOURCE.txt",
+    "stage8/Leptonica-BSD.txt",
+    "stage8/LibJPEG-README.txt",
+    "stage8/LibPNG-LICENSE.txt",
+    "stage8/MTMD-MIT.txt",
+    "stage8/MTMD-vendors.txt",
+    "stage8/Mammoth-BSD-2-Clause.txt",
+    "stage8/Mammoth-dependencies.txt",
+    "stage8/NOTICE.txt",
+    "stage8/PDFBox-LICENSE.txt",
+    "stage8/PDFBox-NOTICE.txt",
+    "stage8/Tessdata-Fast-Apache-2.0.txt",
+    "stage8/Tesseract-Apache-2.0.txt",
+    "whisper.cpp-MIT.txt"
+  ]
+}

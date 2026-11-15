@@ -25,12 +25,12 @@ struct Failure:std::runtime_error{int code;explicit Failure(int c):std::runtime_
 void require(bool value,int code){if(!value)throw Failure(code);}
 }
 #define JNI(name) Java_com_proxyslabs_haruna_documents_VisionNative_##name
-extern "C" JNIEXPORT jbyteArray JNICALL JNI(analyze)(JNIEnv* e,jobject,jlong ticket,jstring modelPath,jstring projection,jbyteArray rgb,jint w,jint h,jstring question){
+extern "C" JNIEXPORT jbyteArray JNICALL JNI(analyze)(JNIEnv* e,jobject,jlong ticket,jstring modelPath,jstring projection,jbyteArray rgb,jint w,jint h,jstring question,jstring identity){
     std::lock_guard<std::mutex> lock(operation);if(ticket<=0)return nullptr;active=ticket;errorCode=0;stopCode=0;currentPhase=1;
     struct Retire{~Retire(){active=0;currentPhase=0;}} retire;
     try{
         require(!aborted(&ticket),10);require(w>0&&h>0&&w<=1024&&h<=1024&&e->GetArrayLength(rgb)==w*h*3,5);
-        const auto path=utf8(e,modelPath),proj=utf8(e,projection),query=utf8(e,question);require(query.size()<=8000,6);
+        const auto path=utf8(e,modelPath),proj=utf8(e,projection),query=utf8(e,question),system=utf8(e,identity);require(query.size()<=8000&&system.size()<=16000&&!system.empty(),6);
         auto mp=llama_model_default_params();mp.n_gpu_layers=0;mp.progress_callback=progress;mp.progress_callback_user_data=&ticket;
         std::unique_ptr<llama_model,decltype(&llama_model_free)> model(llama_model_load_from_file(path.c_str(),mp),llama_model_free);require(model!=nullptr,2);require(!aborted(&ticket),10);
         auto cp=llama_context_default_params();cp.n_ctx=4096;cp.n_batch=256;cp.n_ubatch=256;cp.n_threads=2;cp.n_threads_batch=4;cp.abort_callback=aborted;cp.abort_callback_data=&ticket;
@@ -40,7 +40,10 @@ extern "C" JNIEXPORT jbyteArray JNICALL JNI(analyze)(JNIEnv* e,jobject,jlong tic
         std::vector<unsigned char> pixels(w*h*3);e->GetByteArrayRegion(rgb,0,pixels.size(),reinterpret_cast<jbyte*>(pixels.data()));
         std::unique_ptr<mtmd_bitmap,decltype(&mtmd_bitmap_free)> bitmap(mtmd_bitmap_init(w,h,pixels.data()),mtmd_bitmap_free);require(bitmap!=nullptr,5);
         currentPhase=2;auto tmpls=common_chat_templates_init(model.get(),"");common_chat_msg user;user.role="user";user.content=std::string(mtmd_default_marker())+"\n"+(query.empty()?"Describe the visible image accurately. Do not invent details or unreadable text.":query);
-        const auto prompt=common_chat_format_single(tmpls.get(),{},user,true,true);
+        common_chat_msg assistantIdentity;assistantIdentity.role="system";assistantIdentity.content=system;
+        common_chat_templates_inputs messages;messages.messages={assistantIdentity,user};messages.use_jinja=true;messages.add_generation_prompt=true;
+        messages.add_bos=llama_vocab_get_add_bos(llama_model_get_vocab(model.get()));messages.add_eos=llama_vocab_get_add_eos(llama_model_get_vocab(model.get()));
+        const std::string prompt=common_chat_templates_apply(tmpls.get(),messages).prompt.str();
         mtmd_input_text input{prompt.c_str(),prompt.size(),true,true};const mtmd_bitmap* items[]={bitmap.get()};
         std::unique_ptr<mtmd_input_chunks,decltype(&mtmd_input_chunks_free)> chunks(mtmd_input_chunks_init(),mtmd_input_chunks_free);
         require(mtmd_tokenize(vision.get(),chunks.get(),&input,items,1)==0,6);require(mtmd_helper_get_n_pos(chunks.get())+384<llama_n_ctx(ctx.get()),7);

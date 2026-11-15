@@ -36,6 +36,9 @@ class LlamaCppBackend(context: Context) : LlmBackend {
     }
 
     private val appContext = context.applicationContext
+    init { HarunaIdentity.initialize(appContext) }
+    @Volatile private var modelMetadata: JSONObject? = null
+    fun identityModelMetadata(): JSONObject? = modelMetadata?.let { JSONObject(it.toString()) }
     private val diagnosticPrefs = appContext.getSharedPreferences("haruna_runtime_diagnostic", Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val engine: InferenceEngine = AiChat.getInferenceEngine(context.applicationContext)
@@ -202,6 +205,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
 
     private suspend fun loadAndPrime(file: File) {
         val totalStart = System.currentTimeMillis()
+        modelMetadata = null
         loadBeganMs = android.os.SystemClock.elapsedRealtime(); loadingName = file.name
         loadStage("initializing")
         com.proxyslabs.haruna.speech.IdleSpeechSessions.releaseIdle()
@@ -216,6 +220,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             (state as? InferenceEngine.State.Error)?.exception?.let(::friendlyLoadError) ?: "O llama.cpp não confirmou o carregamento do modelo (${state.javaClass.simpleName})"
         }
         val metadata = JSONObject(engine.runtimeMetrics()).optJSONObject("runtime")
+        modelMetadata = metadata?.optJSONObject("modelMetadata")
         modelIdentity = metadata?.optString("modelName")?.takeIf { it.isNotBlank() }
         thinkingSupported = if (metadata?.has("thinkingSupported") == true && !metadata.isNull("thinkingSupported")) metadata.optBoolean("thinkingSupported") else null
         if (metadata?.optString("architecture") == "smollm3") {
@@ -225,7 +230,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
             val saved = inferencePrefs.getString(preferenceKey(file.absolutePath), null)
             val config = InferencePreferences.resolve(modelIdentity ?: file.name, saved?.let(::JSONObject))
             val budget = if (!memory.lowMemory && memory.availMem >= 256L*1024*1024) 64L*1024*1024 else 0L
-            try { engine.primeStaticSystem(HarunaIdentity.systemPrompt(file.name), config.toString(), budget) }
+            try { engine.primeStaticSystem(HarunaIdentity.systemPrompt(file.name, modelMetadata), config.toString(), budget) }
             catch (failure: Throwable) { runCatching { engine.cleanUp() }; throw failure }
         }
         // Identity and current profile are the system role of the complete chat request.
@@ -321,7 +326,7 @@ class LlamaCppBackend(context: Context) : LlmBackend {
                     }
                     val profile = options?.optString("essentialContext", "") ?: ""
                     require(profile.length <= 900) { "Perfil de contexto muito longo" }
-                    val stableSystem = HarunaIdentity.systemPrompt(requireNotNull(modelName))
+                    val stableSystem = HarunaIdentity.systemPrompt(requireNotNull(modelName), modelMetadata)
                     val originalSystem = stableSystem +
                         if (profile.isBlank()) "" else "\n" + profile
                     val labVariant = options?.optString("labSystemPromptVariant", "current") ?: "current"

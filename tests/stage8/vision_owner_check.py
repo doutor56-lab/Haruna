@@ -10,8 +10,11 @@ class Bitmap(val width:Int=2,val height:Int=2){fun getPixels(p:IntArray,o:Int,s:
 stubs['Native.kt']='''package com.proxyslabs.haruna.documents
 import com.proxyslabs.haruna.image.ImageLease
 object VisionNative{val available=true;var fail=false;var partial=false;var runs=0;lateinit var backend:com.proxyslabs.haruna.LlmBackend
-fun analyze(t:Long,m:String,p:String,b:ByteArray,w:Int,h:Int,q:String):ByteArray?{check(ImageLease.active);check(!backend.status().modelLoaded);runs++;return if(fail)null else "Descrição de teste JNI falso".toByteArray()};fun error()=8;fun stopReason()=if(partial)2 else 1}
+fun analyze(t:Long,m:String,p:String,b:ByteArray,w:Int,h:Int,q:String,system:String):ByteArray?{check(ImageLease.active);check(!backend.status().modelLoaded);runs++;return if(fail)null else "Descrição de teste JNI falso".toByteArray()};fun error()=8;fun stopReason()=if(partial)2 else 1}
 object DocumentReader{fun digest(file:java.io.File):String{val h=java.security.MessageDigest.getInstance("SHA-256");file.inputStream().use{input->val b=ByteArray(131072);while(true){val n=input.read(b);if(n<0)break;h.update(b,0,n)}};return h.digest().joinToString(""){"%02x".format(it)}}}
+'''
+stubs['Identity.kt']='''package com.proxyslabs.haruna
+object HarunaIdentity{fun initialize(context:android.content.Context){};fun systemPrompt(file:String)="Test identity"}
 '''
 stubs['Test.kt']='''import com.proxyslabs.haruna.documents.*
 import com.proxyslabs.haruna.image.ImageLease

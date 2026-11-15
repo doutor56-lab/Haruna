@@ -17,6 +17,7 @@ import kotlin.concurrent.withLock
 
 /** First verified family: official SmolVLM-500M weights and matching projector, never arbitrary GGUF. */
 class VisionModels(private val app:Context,private val backend:LlmBackend){
+    init { com.proxyslabs.haruna.HarunaIdentity.initialize(app) }
     data class Spec(val name:String,val role:String,val bytes:Long,val sha:String)
     private val specs=listOf(
         Spec("SmolVLM-500M-Instruct-Q8_0.gguf","model",436806912,"9d4612de6a42214499e301494a3ecc2be0abdd9de44e663bda63f1152fad1bf4"),
@@ -58,7 +59,7 @@ class VisionModels(private val app:Context,private val backend:LlmBackend){
                 stage("SUSPENDING_LLM");backend.unloadModel().getOrThrow();check(!backend.status().modelLoaded){"O GGUF permanece carregado"}}
             backend.awaitAuxiliaryReady().getOrThrow();val info=ActivityManager.MemoryInfo();app.getSystemService(ActivityManager::class.java).getMemoryInfo(info);check(!info.lowMemory&&info.availMem>maxOf(1536L*1024*1024,(model.bytes+projector.bytes)*2)){"Memória disponível insuficiente para visão; os arquivos foram preservados"}
             check(!cancel.get()){ "Operação cancelada" };stage("VISION");val pixels=IntArray(image.width*image.height);image.getPixels(pixels,0,image.width,0,0,image.width,image.height);val rgb=ByteArray(pixels.size*3);pixels.forEachIndexed{i,p->rgb[i*3]=(p shr 16).toByte();rgb[i*3+1]=(p shr 8).toByte();rgb[i*3+2]=p.toByte()}
-            val result=VisionNative.analyze(ticket,file(model).path,file(projector).path,rgb,image.width,image.height,question)?:error("Falha no motor visual (código ${VisionNative.error()})")
+            val result=VisionNative.analyze(ticket,file(model).path,file(projector).path,rgb,image.width,image.height,question,com.proxyslabs.haruna.HarunaIdentity.systemPrompt(file(model).name))?:error("Falha no motor visual (código ${VisionNative.error()})")
             check(!cancel.get()){ "Operação cancelada" };val text=result.toString(Charsets.UTF_8).trim();check(text.isNotBlank()){ "O modelo visual não produziu descrição" };if(VisionNative.stopReason()==2)warning="A interpretação visual atingiu seu orçamento; trate-a como parcial."
             textResult=text
         }finally{if(owned)ImageLease.lock.withLock{ImageLease.active=false;if(!closed()&&previous!=null&&!backend.status().modelLoaded){stage("RESTORING_LLM");runCatching{backend.loadModel(previous!!).getOrThrow()}.onFailure{warning="Não foi possível restaurar o GGUF anterior; carregue-o novamente."};if(!backend.status().modelLoaded)warning="O GGUF anterior não foi confirmado pelo backend.";restoreWarning=warning}}}

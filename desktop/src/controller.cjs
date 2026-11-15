@@ -19,7 +19,7 @@ class Controller{
  snapshot(){
   const native=config.nativeSize(this.settings,this.models.find(m=>m.id===this.selected)?.architecture);
   const executable=fs.existsSync(this.exe('image',this.settings.backend));
-  return {llm:this.llm,models:this.list('llm'),images:{
+  return {identity:require('./identity.cjs').CONFIG,llm:this.llm,models:this.list('llm'),images:{
    ...this.image,models:this.list('image'),selected:this.selected,loaded:null,
    engine:'stable-diffusion.cpp • SD1.5 / SDXL / FLUX.1 • '+this.settings.backend.toUpperCase(),
    engineKind:'safetensors',engineAvailable:executable,generationAvailable:executable,
@@ -55,7 +55,7 @@ class Controller{
   // The server owns the live sequence; no KV-only snapshot or hybrid rollback is added.
   if(this.nativeArchitecture!=='smollm3')return;
   this.llm.loading.phase='preparing_response';this.emit();
-  const formatted=await this.serverJson('/apply-template',{messages:[{role:'system',content:this.systemPrompt(path.basename(model.file))}],chat_template_kwargs:{enable_thinking:false}},signal);
+  const formatted=await this.serverJson('/apply-template',{messages:[{role:'system',content:this.systemPrompt(path.basename(model.file),this.modelMetadata||{})}],chat_template_kwargs:{enable_thinking:false}},signal);
   if(typeof formatted.prompt!=='string'||formatted.prompt.length>100000)throw Error('Template de preparação inválido.');
   const tokenized=await this.serverJson('/tokenize',{content:formatted.prompt,add_special:true,parse_special:true},signal);
   const tokens=tokenized.tokens;if(!Array.isArray(tokens)||!tokens.every(Number.isInteger))throw Error('Tokenização de preparação inválida.');
@@ -65,9 +65,9 @@ class Controller{
   if(result.tokens_evaluated!==prefix.length)throw Error('O runtime não confirmou a preparação do prefixo.');
   runtime.startup={status:'live_prefix_ready',systemPrefixTokens:prefix.length,preparationUs:(performance.now()-start)*1000,chargedTo:'model_loading'};
  }
- async unload({preserveRequest=false}={}){if(!preserveRequest)this.abort?.abort();if(this.server)this.server.expectedExit=true;await stop(this.server);this.server=null;this.port=null;this.loaded=null;this.llm={...this.llm,modelLoaded:false,state:'not_loaded',loading:null,modelName:null,error:null};this.emit();}
+ async unload({preserveRequest=false}={}){if(!preserveRequest)this.abort?.abort();if(this.server)this.server.expectedExit=true;await stop(this.server);this.server=null;this.port=null;this.loaded=null;this.llm={...this.llm,modelLoaded:false,state:'not_loaded',loading:null,modelName:null,modelMetadata:null,error:null};this.emit();}
  async load(id,{imageOwner=null,requestOwner=null}={}){if(this.maintenance||(this.image.busy&&this.job!==imageOwner)||(this.request&&this.request!==requestOwner))throw Error('O runtime está ocupado.');if(this.loaded===id&&this.llm.modelLoaded&&this.server&&!this.llm.settingsPending)return;this.maintenance=true;try{
-  const m=this.model(id,'llm');await this.unload({preserveRequest:!!requestOwner});this.appliedInference=inference.configured(inference.resolve(m.name,this.inferenceProfiles[id]),m.name);this.observation={configured:{...this.appliedInference,backend:this.settings.llmBackend},runtime:{},generation:{},prefix:{}};this.nativeArchitecture=null;try{this.nativeArchitecture=await ggufTensors(m.file,{architectureOnly:true});}catch{/* Optional bounded metadata probe; native loader remains authoritative. */}this.llm={...this.llm,state:'loading',modelLoaded:false,error:null,loading:{phase:'reading_model',startedAt:Date.now(),modelName:m.name}};this.emit();await inspectGguf(m.file);
+  const m=this.model(id,'llm');await this.unload({preserveRequest:!!requestOwner});this.appliedInference=inference.configured(inference.resolve(m.name,this.inferenceProfiles[id]),m.name);this.observation={configured:{...this.appliedInference,backend:this.settings.llmBackend},runtime:{},generation:{},prefix:{}};this.modelMetadata={};try{this.modelMetadata=await ggufTensors(m.file,{metadataOnly:true});}catch{/* Missing or excessive optional metadata is not proof of origin. */}this.nativeArchitecture=null;try{this.nativeArchitecture=await ggufTensors(m.file,{architectureOnly:true});}catch{/* Optional bounded metadata probe; native loader remains authoritative. */}this.llm={...this.llm,state:'loading',modelLoaded:false,error:null,loading:{phase:'reading_model',startedAt:Date.now(),modelName:m.name}};this.emit();await inspectGguf(m.file);
   if(!fs.existsSync(this.exe('llm')))throw Error('Motor llama.cpp não encontrado. Instale o runtime Windows antes de carregar o GGUF.');
   const port=await new Promise((resolve,reject)=>{const s=net.createServer();s.once('error',reject);s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});
   const key=crypto.randomBytes(32).toString('hex');this.apiKey=key;
@@ -78,7 +78,7 @@ class Controller{
     const signal=requestOwner?AbortSignal.any([this.abort.signal,AbortSignal.timeout(120000)]):AbortSignal.timeout(120000);
     const props=await this.serverJson('/props',undefined,signal);const nCtx=props.default_generation_settings?.n_ctx;if(Number.isInteger(nCtx)&&nCtx>0)this.observation.runtime.nCtx=nCtx;
     await this.preparePrefix(m,signal);if(this.closed||exited||this.server!==owned||signal.aborted)throw Error('Carregamento interrompido.');
-    this.loaded=id;this.lastModel=id;this.save();this.llm={...this.llm,loading:null,settingsPending:false,modelLoaded:true,state:'active',modelName:m.name,error:null};this.emit({type:'model_import',phase:'ready',name:m.name});return;}await wait(200);}
+    this.loaded=id;this.lastModel=id;this.save();this.llm={...this.llm,loading:null,settingsPending:false,modelLoaded:true,state:'active',modelName:m.name,modelMetadata:this.modelMetadata,error:null};this.emit({type:'model_import',phase:'ready',name:m.name});return;}await wait(200);}
   throw Error('Tempo de carregamento excedido.');
  }catch(e){await this.unload({preserveRequest:!!requestOwner});this.llm={...this.llm,state:'error',error:e.message};this.emit({type:'model_import',phase:'error',error:e.message});throw e;}finally{this.maintenance=false;}}
  generate(payload){if(this.closed||this.maintenance||this.image.busy||this.visionBusy||this.request||!this.port||!this.llm.modelLoaded)throw Error('Carregue um GGUF e aguarde a operação atual.');if(!payload||typeof payload.requestId!=='string'||!payload.requestId.trim()||payload.requestId.length>120||!Array.isArray(payload.messages)||payload.messages.length>128)throw Error('Solicitação inválida.');
@@ -89,7 +89,7 @@ class Controller{
  }
  async runChat(id,messages,options,abort){let seq=0;const send=(delta,final)=>this.emit({type:'stream',requestId:id,sequence:++seq,delta,...(final?{final}:{})});try{
   const model=this.model(this.loaded,'llm');if(this.llm.settingsPending)await this.load(model.id,{requestOwner:id});if(abort.signal.aborted)throw Error('Geração cancelada.');this.llm.state='generating';this.emit();const preferences=inference.resolve(model.name,this.inferenceProfiles[model.id]);const extra=typeof options.essentialContext==='string'?options.essentialContext.slice(0,16000):'';
-  const all=[{role:'system',content:this.systemPrompt(path.basename(model.file))+(extra?'\n'+extra:'')},...messages];
+  const all=[{role:'system',content:this.systemPrompt(path.basename(model.file),this.modelMetadata||{})+(extra?'\n'+extra:'')},...messages];
   const started=performance.now();this.observation.generation={};this.observation.prefix={};
   const response=await fetch(`http://127.0.0.1:${this.port}/v1/chat/completions`,{method:'POST',signal:abort.signal,headers:{'Content-Type':'application/json',Authorization:`Bearer ${this.apiKey}`},body:JSON.stringify({messages:all,stream:true,stream_options:{include_usage:true},cache_prompt:true,id_slot:0,...inference.sampling(preferences,options.maxTokens),chat_template_kwargs:{enable_thinking:options.enableThinking===true}})});
   if(!response.ok)throw Error('O llama.cpp recusou a geração.');if(!response.body)throw Error('O llama.cpp não retornou um fluxo de resposta.');let pending='',seenFinal=false;const decoder=new TextDecoder();
@@ -171,7 +171,7 @@ class Controller{
    server=this.launch(this.exe('llm','cpu'),['--model',model,'--mmproj',projector,'--no-mmproj-offload','--host','127.0.0.1','--port',String(port),'--api-key',key,'--ctx-size','4096','--threads','2','--threads-batch','6','--n-gpu-layers','0','--parallel','1','--no-webui']);this.visualProcess=server;server.child.stdout.resume();server.child.stderr.resume();let exited=false;server.done.then(()=>{exited=true;},()=>{exited=true;});let ready=false;phase('VISION');
    for(let i=0;i<600;i++){signal.throwIfAborted();if(exited)throw Error('O motor visual encerrou ao carregar os componentes.');try{const r=await fetch(`http://127.0.0.1:${port}/health`,{headers:{Authorization:`Bearer ${key}`},signal:AbortSignal.any([signal,AbortSignal.timeout(1500)])});if(r.ok){ready=true;break;}}catch(e){signal.throwIfAborted();}await wait(200);}if(!ready)throw Error('Tempo de carregamento visual excedido.');
    const bytes=await fsp.readFile(file);if(bytes.length>32*1024**2)throw Error('Imagem muito grande para análise visual.');const ext=path.extname(file).toLowerCase(),mime=ext==='.png'?'image/png':ext==='.webp'?'image/webp':'image/jpeg';
-   const response=await fetch(`http://127.0.0.1:${port}/v1/chat/completions`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},signal,body:JSON.stringify({messages:[{role:'user',content:[{type:'text',text:question},{type:'image_url',image_url:{url:`data:${mime};base64,${bytes.toString('base64')}`}}]}],max_tokens:512,temperature:0.2,stream:false})});if(!response.ok)throw Error('O modelo visual recusou a análise.');const result=await response.json(),text=result.choices?.[0]?.message?.content;if(typeof text!=='string'||!text.trim())throw Error('O modelo visual não retornou descrição.');return text.trim();
+   const response=await fetch(`http://127.0.0.1:${port}/v1/chat/completions`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},signal,body:JSON.stringify({messages:[{role:'system',content:this.systemPrompt(path.basename(model))},{role:'user',content:[{type:'text',text:question},{type:'image_url',image_url:{url:`data:${mime};base64,${bytes.toString('base64')}`}}]}],max_tokens:512,temperature:0.2,stream:false})});if(!response.ok)throw Error('O modelo visual recusou a análise.');const result=await response.json(),text=result.choices?.[0]?.message?.content;if(typeof text!=='string'||!text.trim())throw Error('O modelo visual não retornou descrição.');return text.trim();
   }finally{signal.removeEventListener('abort',abort);await stop(server);this.visualProcess=null;this.maintenance=false;this.visionBusy=false;if(restore&&!this.closed){phase('RESTORING_LLM');await this.load(restore);}}
  }
  async devices(){const out=await probe(this.exe('image','vulkan'),['--list-devices']);return out.split(/\r?\n/).filter(l=>/^\s*vulkan\d*[:\t]/i.test(l)).slice(0,8).map(l=>l.trim().slice(0,240));}
