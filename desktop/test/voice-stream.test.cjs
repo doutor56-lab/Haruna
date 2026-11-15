@@ -30,20 +30,20 @@ test('TTS prepares one clip ahead during playback, preserves order and rejects s
  }finally{voice.close();fs.rmSync(root,{recursive:true,force:true});}
 });
 test('renderer keeps one AudioContext between consecutive clips and closes it on stop (fake Web Audio)',async()=>{
- let listener,contexts=0,closed=0;const sources=[],acks=[];
+ let listener,contexts=0,closed=0,rejectPause=false;const sources=[],acks=[],failures=[];
  class AudioContext{
   constructor(){contexts++;this.state='running';this.currentTime=0;this.destination={};}
-  resume(){this.state='running';return Promise.resolve();}suspend(){this.state='suspended';return Promise.resolve();}close(){closed++;this.state='closed';return Promise.resolve();}
+  resume(){this.state='running';return Promise.resolve();}suspend(){if(rejectPause)return Promise.reject(Error('synthetic pause failure'));this.state='suspended';return Promise.resolve();}close(){closed++;this.state='closed';return Promise.resolve();}
   createBuffer(){return{copyToChannel(){}};}
   createGain(){return{gain:{},connect(){},disconnect(){}};}
   createBufferSource(){const source={connect(){},disconnect(){},start(){},stop(){},onended:null};sources.push(source);return source;}
  }
- const window={HarunaDesktop:{subscribe:fn=>listener=fn,voicePlayed:(...args)=>acks.push(args),voicePlaybackFailed:()=>assert.fail('playback failed')},dispatchEvent(){}};
+ const window={HarunaDesktop:{subscribe:fn=>listener=fn,voicePlayed:(...args)=>acks.push(args),voicePlaybackFailed:id=>failures.push(id)},dispatchEvent(){}};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../renderer/voice.js'),'utf8'),{window,AudioContext,Float32Array,CustomEvent:class{},addEventListener(){},setInterval:()=>1,clearInterval(){}});
  const clip=serial=>({type:'voice-audio',id:'reply',serial,sampleRate:16000,samples:new Float32Array(160),volume:1});
  listener(clip(1));await tick();sources[0].onended();await tick();assert.deepEqual(acks,[['reply',1]]);assert.equal(closed,0);
  listener(clip(2));await tick();assert.equal(contexts,1);listener({type:'voice-playback',action:'pause'});assert.equal(closed,0);listener({type:'voice-playback',action:'resume'});sources[1].onended();await tick();
- assert.deepEqual(acks,[['reply',1],['reply',2]]);listener({type:'voice-playback',action:'stop'});await tick();assert.equal(closed,1);
+ assert.deepEqual(acks,[['reply',1],['reply',2]]);assert.equal(failures.length,0);rejectPause=true;listener({type:'voice-playback',action:'pause'});await tick();assert.deepEqual(failures,['reply']);listener({type:'voice-playback',action:'stop'});await tick();assert.equal(closed,1);
 });
 test('shared voice segmentation preserves thinking/cancellation and emits short sentences and clauses early',async()=>{await import('../../scripts/check_voice.mjs');});
 
