@@ -47,8 +47,6 @@ write('image-chat.js',s=>{
 // Android revision. Only labels and platform bridges differ in the desktop copy.
 write('image-models.js',s=>s
  .replace('function update(){if(document.hidden)return;try{','function update(){if(document.hidden && !window.HarunaDesktop)return;try{')
- .replace('Importe um pacote ZIP SD1.5 MNN Haruna ou Nezumi SD1.5 (Anything V5 / CyberRealistic). Ou importe um checkpoint SD1.5 completo .safetensors (experimental, CPU). SDXL Base/Illustrious completo também pode ser importado (experimental; CPU, pesos em disco, CLIP-L + CLIP-G + VAE). SD2, LoRA e componentes separados não são suportados. Para SD1.5 convencional, prefira cerca de 20 etapas; cinco servem como teste rápido.',
- 'No Windows, importe checkpoints SD1.5 ou SDXL/Illustrious completos, ou adicione os quatro componentes FLUX.1. CPU e Vulkan dependem dos runtimes e da memória. Pacotes MNN Android e LoRA isolado não são executados pelo motor Windows.')
  .replace('Excluir este modelo de imagens do dispositivo?','Remover este modelo da lista? Originais externos serão preservados; componentes copiados pela Haruna serão excluídos.')
  .replace('Excluir este modelo de imagens','Remover este checkpoint da lista')
  // Windows loads the SDXL checkpoint only when a generation starts.

@@ -20,12 +20,18 @@ def gguf(name,tensors):
         offset=(offset+count//block*width+31)//32*32
     data=(len(header)+31)//32*32
     with (root/name).open('wb') as f:f.write(header);f.truncate(data+offset)
-gguf('diffusion.gguf',{'img_in.weight':[3072,64],'txt_in.weight':[3072,4096],'double_blocks.0.img_attn.qkv.weight':[9216,3072],'double_blocks.18.fixture':[1],'single_blocks.37.fixture':[1]})
-safetensors('clip_l.safetensors',{'text_model.embeddings.token_embedding.weight':[49408,768]})
-gguf('t5xxl.gguf',{'shared.weight':[32128,4096]})
-safetensors('ae.safetensors',{'decoder.conv_in.weight':[512,16,3,3],'decoder.conv_out.weight':[3,128,3,3]})
+anima=len(sys.argv)>2 and sys.argv[2]=='anima'
+if anima:
+    gguf('diffusion.gguf',{'net.llm_adapter.blocks.0.cross_attn.q_proj.weight':[1024,1024],'net.x_embedder.proj.1.weight':[2048,68]})
+    gguf('llm.gguf',{'token_embd.weight':[151936,1024]})
+    safetensors('vae.safetensors',{'decoder.conv_out.weight':[3,96,3,3,3]})
+else:
+    gguf('diffusion.gguf',{'img_in.weight':[3072,64],'txt_in.weight':[3072,4096],'double_blocks.0.img_attn.qkv.weight':[9216,3072],'double_blocks.18.fixture':[1],'single_blocks.37.fixture':[1]})
+    safetensors('clip_l.safetensors',{'text_model.embeddings.token_embedding.weight':[49408,768]})
+    gguf('t5xxl.gguf',{'shared.weight':[32128,4096]})
+    safetensors('ae.safetensors',{'decoder.conv_in.weight':[512,16,3,3],'decoder.conv_out.weight':[3,128,3,3]})
 files={f.name:hashlib.file_digest(f.open('rb'),'sha256').hexdigest() for f in root.iterdir() if f.name.endswith(('.gguf','.safetensors'))}
-(root/'haruna-image-model.json').write_text(json.dumps({'version':1,'engine':'stable-diffusion.cpp','format':'sdcpp_components_v1','architecture':'flux1-schnell','files':files}))
+(root/'haruna-image-model.json').write_text(json.dumps({'version':1,'engine':'stable-diffusion.cpp','format':'sdcpp_components_v1','architecture':'anima' if anima else 'flux1-schnell','files':files}))
 with zipfile.ZipFile(root.with_suffix('.zip'),'w',compression=zipfile.ZIP_DEFLATED) as z:
     for f in root.iterdir():z.write(f,f.name)
-print('Sparse FLUX container fixtures, no trained weights:',root)
+print('Sparse component container fixtures, no trained weights:',root)

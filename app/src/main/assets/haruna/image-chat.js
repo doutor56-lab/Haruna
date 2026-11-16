@@ -43,7 +43,7 @@ if(api&&chat){
   const text=original??(chat.state().draft.trim()||prompt('Descreva a imagem que deseja gerar:')||'').trim();if(!text)return;
   if(text.length>2000)throw Error('Use uma descrição de até 2.000 caracteres.');
   const count=options.count??status.batchCount??1;if(!Number.isInteger(count)||count<1||count>(status.maxBatch||1))throw Error(`Este motor permite de 1 a ${status.maxBatch||1} imagens por pedido.`);if(options.count!=null&&!api.generateBatch&&count!==(status.batchCount||1))throw Error('Defina essa quantidade no painel de imagens; este motor não aceita quantidade por pedido.');
-  const enginePrompt=imageEnginePrompt(text);if(!enginePrompt)throw Error('Descreva o que deve aparecer na imagem.');
+  const enginePrompt=imageEnginePrompt(text);if(!enginePrompt)throw Error('Descreva o que deve aparecer na imagem.');if(/<lora:/i.test(enginePrompt))throw Error('Selecione os LoRAs nas configurações de imagens; não use tags com caminhos no prompt.');
   const request=crypto.randomUUID();chat.begin(request,text,options.rememberUser===true,status);
   if(!(options.count!=null&&api.generateBatch?api.generateBatch(request,enginePrompt,count):api.generate(request,enginePrompt))){chat.update({request,state:'ERROR',error:'O motor de imagens está ocupado.'});return false}
   window.harunaImagesBusy=true;window.harunaImageRunning=true;

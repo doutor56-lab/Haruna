@@ -6,7 +6,8 @@
 #include "../app/src/main/cpp/safetensors/safetensors_jni.cpp"
 struct sd_ctx_t { std::atomic<bool> freed{false}; };
 std::atomic<int> cancellations{0},frees{0};
-void sd_set_log_callback(sd_log_cb_t,void*){}
+sd_log_cb_t logCallback=nullptr;void* logData=nullptr;
+void sd_set_log_callback(sd_log_cb_t cb,void* data){logCallback=cb;logData=data;}
 void sd_set_progress_callback(sd_progress_cb_t,void*){}
 void sd_set_preview_callback(sd_preview_cb_t,preview_t,int,bool,bool,void*){}
 void sd_ctx_params_init(sd_ctx_params_t* p){std::memset(p,0,sizeof(*p));}
@@ -18,6 +19,9 @@ bool generate_image(sd_ctx_t*,const sd_img_gen_params_t*,sd_image_generation_res
 void free_sd_image_generation_result(sd_image_generation_result_t*){}
 void sd_cancel_generation(sd_ctx_t* p,sd_cancel_mode_t){assert(!p->freed);++cancellations;std::this_thread::sleep_for(std::chrono::microseconds(50));assert(!p->freed);}
 int main(){
+    Session adapter;
+    {CallbackScope callbacks(&adapter);assert(logData==&adapter);logCallback(SD_LOG_INFO,"prompt: Only (0 / 2) LoRA tensors have been applied --- other.cpp:1\n",logData);assert(!adapter.loraError);logCallback(SD_LOG_INFO,"(2 / 2) LoRA tensors have been applied --- lora.hpp:1042\n",logData);assert(!adapter.loraError);logCallback(SD_LOG_WARN,"Only (0 / 2) LoRA tensors have been applied --- lora.hpp:1042\n",logData);assert(adapter.loraError);}
+    assert(logData==nullptr);logCallback(SD_LOG_WARN,"Only (0 / 2) LoRA tensors have been applied --- lora.hpp:1042\n",logData);
     Session s;s.phase=2;s.total=5;
     progress(1,1,0,&s);assert(s.phase==2&&s.step==0&&s.total==5);
     progress(0,5,0,&s);assert(s.phase==3);progress(2,5,0,&s);assert(s.step==2);

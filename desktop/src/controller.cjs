@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs');const fsp=fs.promises;const path=require('node:path');const os=require('node:os');const crypto=require('node:crypto');const net=require('node:net');
-const inference=require('./inference-config.cjs');
+const inference=require('./inference-config.cjs');const lora=require('./loras.cjs');const{hash}=require('./voice-models.cjs');
 const config=require('./image-config.cjs');const {validateComponents,installComponents,ggufTensors}=require('./image-components.cjs');const {inspectSdxl,inspectGguf,atomicJson,readJson}=require('./models.cjs');const {launch,stop,probe,pngDimensions}=require('./processes.cjs');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -8,19 +8,19 @@ class Controller{
  constructor({root,runtimes,publish,systemPrompt,finalizePng,pictures=path.join(os.homedir(),'Pictures','Haruna'),processLauncher=launch}){
   Object.assign(this,{root,runtimes,publish,systemPrompt,finalizePng,pictures});this.launch=processLauncher;fs.mkdirSync(root,{recursive:true});
   this.file=path.join(root,'desktop-models.json');const data=readJson(this.file,{})||{};
-  this.models=Array.isArray(data.models)?data.models.filter(m=>m&&UUID.test(m.id)&&['image','llm'].includes(m.kind)&&typeof m.file==='string'):[];
-  this.inferenceProfiles=data.inferenceProfiles&&typeof data.inferenceProfiles==='object'?data.inferenceProfiles:{};this.profiles=data.imageProfiles||{};this.lastModel=data.lastModel||null;this.primary=data.primary||null;this.selected=data.selected||null;try{this.settings=config.validate(data.settings);}catch{this.settings={...config.DEFAULTS};}
+  this.models=Array.isArray(data.models)?data.models.filter(m=>m&&UUID.test(m.id)&&['image','llm','lora'].includes(m.kind)&&typeof m.file==='string'):[];
+  this.loraProfiles=data.loraProfiles||{};this.inferenceProfiles=data.inferenceProfiles&&typeof data.inferenceProfiles==='object'?data.inferenceProfiles:{};this.profiles=data.imageProfiles||{};this.lastModel=data.lastModel||null;this.primary=data.primary||null;this.selected=data.selected||null;try{this.settings=config.validate(data.settings);}catch{this.settings={...config.DEFAULTS};}
   this.image={state:'INSTALLED',busy:false,generation:{}};this.llm={available:true,modelLoaded:false,state:'not_loaded',incrementalConversation:false};this.port=null;this.maintenance=false;this.closed=false;
   this.outputs=path.join(root,'generated-images');fs.mkdirSync(this.outputs,{recursive:true});
   for(const f of fs.readdirSync(this.outputs))if(f.startsWith('.work-'))fs.rmSync(path.join(this.outputs,f),{recursive:true,force:true});
  }
- save(){atomicJson(this.file,{models:this.models,primary:this.primary,lastModel:this.lastModel,selected:this.selected,settings:this.settings,imageProfiles:this.profiles,inferenceProfiles:this.inferenceProfiles});}
- list(kind){return this.models.filter(m=>m.kind===kind).map(m=>({id:m.id,path:m.id,name:m.name,bytes:m.bytes,primary:m.id===this.primary,active:m.id===this.loaded,engineAvailable:fs.existsSync(this.exe(kind==='llm'?'llm':'image',kind==='llm'?this.settings.llmBackend:this.settings.backend)),state:fs.existsSync(m.file)?'INSTALLED':'MISSING'}));}
+ save(){atomicJson(this.file,{loraProfiles:this.loraProfiles,models:this.models,primary:this.primary,lastModel:this.lastModel,selected:this.selected,settings:this.settings,imageProfiles:this.profiles,inferenceProfiles:this.inferenceProfiles});}
+ list(kind){return this.models.filter(m=>m.kind===kind).map(m=>({id:m.id,path:m.id,name:m.name,architecture:m.architecture||null,bytes:m.bytes,primary:m.id===this.primary,active:m.id===this.loaded,engineAvailable:fs.existsSync(this.exe(kind==='llm'?'llm':'image',kind==='llm'?this.settings.llmBackend:this.settings.backend)),state:fs.existsSync(m.file)?'INSTALLED':'MISSING'}));}
  snapshot(){
   const native=config.nativeSize(this.settings,this.models.find(m=>m.id===this.selected)?.architecture);
   const executable=fs.existsSync(this.exe('image',this.settings.backend));
   return {identity:require('./identity.cjs').CONFIG,llm:this.llm,models:this.list('llm'),images:{
-   ...this.image,models:this.list('image'),selected:this.selected,loaded:null,
+   ...this.image,models:this.list('image'),loras:this.models.filter(m=>m.kind==='lora').map(({id,name,family})=>({id,name,family})),activeLoras:this.loraProfiles[this.selected]||[],loraAvailable:executable,loraSupported:true,selected:this.selected,loaded:null,
    engine:'stable-diffusion.cpp • SD1.5 / SDXL / FLUX.1 • '+this.settings.backend.toUpperCase(),
    engineKind:'safetensors',engineAvailable:executable,generationAvailable:executable,
    imageEngineBusy:!!this.image.busy,nativeProgress:this.progress||[0,0,0],
@@ -34,17 +34,17 @@ class Controller{
  model(id,kind){const m=this.models.find(m=>m.id===id&&m.kind===kind);if(!m)throw Error('Modelo não encontrado.');if(!fs.existsSync(m.file))throw Error('O arquivo foi movido ou removido. Importe-o novamente.');return m;}
  exe(kind,backend=kind==='llm'?this.settings.llmBackend:'cpu'){const name=kind==='llm'?'llama-server.exe':'sd-cli.exe';return path.join(this.runtimes,kind==='llm'?(backend==='vulkan'?'llama-vulkan':'llama'):backend,name);}
  async register(file,kind){if(this.maintenance||this.image.busy||this.request)throw Error('Aguarde a operação atual.');this.maintenance=true;try{
-  const info=await(kind==='image'?inspectSdxl(file):inspectGguf(file));const absolute=path.resolve(file);let m=this.models.find(m=>m.file===absolute&&m.kind===kind);
+  const info=await(kind==='lora'?{...await lora.inspectLora(file),sha256:await hash(file)}:kind==='image'?inspectSdxl(file):inspectGguf(file));const absolute=path.resolve(file);let m=this.models.find(m=>m.file===absolute&&m.kind===kind);
   if(!m){m={id:crypto.randomUUID(),kind,file:absolute,name:path.basename(file).replace(/\.(safetensors|gguf)$/i,'').slice(0,100),...info};delete m.metadata;this.models.push(m);}else Object.assign(m,info);
   if(kind==='image'&&!this.selected)this.activateImage(m.id);if(kind==='llm'&&!this.primary)this.primary=m.id;this.save();this.emit(kind==='llm'?{type:'model_import',phase:'importing',name:m.name}:undefined);return m;
  }finally{this.maintenance=false;this.emit();}}
  configure(p){if(this.image.busy||this.maintenance)throw Error('Aguarde a operação atual.');this.settings=config.validate({...this.settings,...p});this.save();this.emit();}
- activateImage(id){const next=this.model(id,'image'),old=this.models.find(m=>m.id===this.selected);if(old)this.profiles[old.architecture||'sdxl']=this.settings;const family=next.architecture||'sdxl',saved=this.profiles[family];const defaults=family.startsWith('flux1-')?{width:512,height:512,steps:family==='flux1-schnell'?4:20,cfg:1,clipSkip:-1,sampler:'euler',scheduler:'default'}:family==='sd15'?{width:256,height:256,steps:20,cfg:7,clipSkip:-1,sampler:'default',scheduler:'default'}:{};this.settings=config.validate({...this.settings,...(saved||defaults),backend:this.settings.backend,llmBackend:this.settings.llmBackend,vramBudget:this.settings.vramBudget,autoSave:this.settings.autoSave,batchCount:this.settings.batchCount});this.selected=id;}
+ activateImage(id){const next=this.model(id,'image'),old=this.models.find(m=>m.id===this.selected);if(old)this.profiles[old.architecture||'sdxl']=this.settings;const family=next.architecture||'sdxl',saved=this.profiles[family];const defaults=family==='anima'?{width:512,height:512,steps:20,cfg:6,clipSkip:-1,sampler:'euler',scheduler:'discrete'}:family.startsWith('flux1-')?{width:512,height:512,steps:family==='flux1-schnell'?4:20,cfg:1,clipSkip:-1,sampler:'euler',scheduler:'default'}:family==='sd15'?{width:256,height:256,steps:20,cfg:7,clipSkip:-1,sampler:'default',scheduler:'default'}:{};this.settings=config.validate({...this.settings,...(saved||defaults),backend:this.settings.backend,llmBackend:this.settings.llmBackend,vramBudget:this.settings.vramBudget,autoSave:this.settings.autoSave,batchCount:this.settings.batchCount});this.selected=id;}
  select(id){this.model(id,'image');if(this.image.busy||this.maintenance)throw Error('Aguarde a geração atual.');if(this.selected!==id)this.activateImage(id);this.save();this.emit();}
  setPrimary(id){this.model(id,'llm');this.primary=id;this.save();this.emit();}
  async remove(id){
   if(this.image.busy||this.maintenance||this.request)throw Error('Aguarde a operação atual.');const model=this.models.find(m=>m.id===id);if(!model)throw Error('Modelo não encontrado.');this.maintenance=true;
-  try{if(this.loaded===id)await this.unload();if(model.components){const folder=path.resolve(path.dirname(model.file));if(path.dirname(folder)===path.resolve(this.root,'image-models')&&UUID.test(path.basename(folder))&&path.basename(model.file)==='haruna-image-model.json')await fsp.rm(folder,{recursive:true,force:true});}this.models=this.models.filter(m=>m.id!==id);if(this.primary===id)this.primary=null;if(this.lastModel===id)this.lastModel=null;if(this.selected===id)this.selected=null;this.save();this.emit();}finally{this.maintenance=false;}
+  try{if(this.loaded===id)await this.unload();if(model.components){const folder=path.resolve(path.dirname(model.file));if(path.dirname(folder)===path.resolve(this.root,'image-models')&&UUID.test(path.basename(folder))&&path.basename(model.file)==='haruna-image-model.json')await fsp.rm(folder,{recursive:true,force:true});}this.models=this.models.filter(m=>m.id!==id);for(const base of Object.keys(this.loraProfiles))this.loraProfiles[base]=this.loraProfiles[base].filter(x=>x.id!==id);delete this.loraProfiles[id];if(this.primary===id)this.primary=null;if(this.lastModel===id)this.lastModel=null;if(this.selected===id)this.selected=null;this.save();this.emit();}finally{this.maintenance=false;}
  }
  inferenceSettings(){const m=this.model(this.loaded,'llm');return{status:'ok',settings:inference.resolve(m.name,this.inferenceProfiles[m.id]),observation:this.observation||{},pendingReload:!!this.llm.settingsPending};}
  configureInference(value){if(this.closed||this.maintenance||this.image.busy||this.visionBusy||this.request)throw Error('Aguarde a operação atual.');const m=this.model(this.loaded,'llm');if(value?.restoreDefaults===true)delete this.inferenceProfiles[m.id];else this.inferenceProfiles[m.id]=inference.validate(value);const next=inference.configured(inference.resolve(m.name,this.inferenceProfiles[m.id]),m.name);this.llm.settingsPending=inference.contextKey(next)!==inference.contextKey(this.appliedInference);this.save();this.emit();return{status:'ok'};}
@@ -100,17 +100,20 @@ class Controller{
  finally{if(this.request===id){this.request=null;this.abort=null;this.llm.state=this.llm.modelLoaded?'active':this.llm.error?'error':'not_loaded';this.emit();}}
  }
  cancelChat(id){if(this.request===id)this.abort?.abort();}
+ configureLoras(json){if(this.maintenance||this.image.busy||this.request)throw Error('Aguarde a operação atual.');const model=this.model(this.selected,'image');this.loraProfiles[this.selected]=lora.selections(JSON.parse(json),this.models.filter(m=>m.kind==='lora'),model.architecture);this.save();this.emit();return true;}
  startImage(id,prompt,batchCount){if(this.closed||this.image.busy||this.visionBusy||this.maintenance||this.request||!UUID.test(id)||typeof prompt!=='string'||!prompt.trim()||prompt.length>2000||fs.existsSync(path.join(this.outputs,id+'.json'))||fs.existsSync(path.join(this.outputs,id+'.png')))return false;
-  if(batchCount!==undefined)config.validate({...this.settings,batchCount});this.model(this.selected,'image');this.job=id;this.cancelled=false;this.image={state:'LOADING',busy:true,generation:{request:id,state:'LOADING'}};this.progress=[1,0,this.settings.steps];this.emit();this.imageTask=this.runImage(id,prompt,batchCount).catch(()=>{}).finally(()=>{this.imageTask=null;});return true;
+  if(/<lora:/i.test(prompt))throw Error('Selecione LoRAs no painel; não inclua caminhos ou tags manuais.');if(batchCount!==undefined)config.validate({...this.settings,batchCount});this.model(this.selected,'image');this.job=id;this.cancelled=false;this.image={state:'LOADING',busy:true,generation:{request:id,state:'LOADING'}};this.progress=[1,0,this.settings.steps];this.emit();this.imageTask=this.runImage(id,prompt,batchCount).catch(()=>{}).finally(()=>{this.imageTask=null;});return true;
  }
  async runImage(id,prompt,batchCount){
   const restoreId=this.loaded,work=path.join(this.outputs,'.work-'+id),results=[];
   try{
    await this.unload();if(this.cancelled)throw Error('Geração cancelada.');
    const model=this.model(this.selected,'image');if(model.components){const verified=await validateComponents(path.dirname(model.file));model.components=verified.components;model.architecture=verified.architecture;}else await inspectSdxl(model.file);
+   const selectedLoras=lora.selections(this.loraProfiles[this.selected]||[],this.models.filter(m=>m.kind==='lora'),model.architecture);
    const settings=config.validate({...this.settings,...(batchCount===undefined?{}:{batchCount})}),native=config.nativeSize(settings,model.architecture);
    if(os.freemem()<2*1024**3)throw Error('Memória livre insuficiente; feche outros aplicativos antes de gerar imagens.');
-   const disk=await fsp.statfs(this.outputs,{bigint:true});if(disk.bavail*disk.bsize<BigInt(settings.width*settings.height*4*settings.batchCount+67108864))throw Error('Espaço insuficiente para salvar o lote de imagens.');await fsp.mkdir(work);const promptFile=path.join(work,'prompt.txt'),negativeFile=path.join(work,'negative.txt');await fsp.writeFile(promptFile,prompt,{mode:0o600});await fsp.writeFile(negativeFile,settings.negativePrompt,{mode:0o600});
+   const disk=await fsp.statfs(this.outputs,{bigint:true});if(disk.bavail*disk.bsize<BigInt(settings.width*settings.height*4*settings.batchCount+67108864))throw Error('Espaço insuficiente para salvar o lote de imagens.');await fsp.mkdir(work);const promptFile=path.join(work,'prompt.txt'),negativeFile=path.join(work,'negative.txt');let taggedPrompt=prompt;for(const selected of selectedLoras){const adapter=this.model(selected.id,'lora');const inspected=await lora.inspectLora(adapter.file);if(inspected.family!==lora.family(model.architecture)||await hash(adapter.file)!==adapter.sha256)throw Error('LoRA alterado ou incompatível; importe-o novamente.');const target=path.join(work,adapter.id+'.safetensors');try{await fsp.link(adapter.file,target)}catch{const free=await fsp.statfs(work,{bigint:true});if(free.bavail*free.bsize<BigInt(adapter.bytes+134217728))throw Error('Espaço insuficiente para preparar o LoRA.');await fsp.copyFile(adapter.file,target)}taggedPrompt+=` <lora:${adapter.id}:${selected.weight}>`;}settings.loraDirectory=selectedLoras.length?work:null;
+   await fsp.writeFile(promptFile,taggedPrompt,{mode:0o600});await fsp.writeFile(negativeFile,settings.negativePrompt,{mode:0o600});
    this.image.generation={request:id,state:'GENERATING',results,count:settings.batchCount,current:1,outputWidth:settings.width,outputHeight:settings.height,nativeWidth:native.width,nativeHeight:native.height,steps:settings.steps,backendRequested:settings.backend};
    const seeds=config.batchSeeds(settings.batchCount,settings.seed);
    for(let index=0;index<settings.batchCount;index++){
@@ -123,7 +126,7 @@ class Controller{
     if(this.cancelled||this.closed){await fsp.rm(final,{force:true});throw Error('Geração cancelada.');}
     const item={request:imageId,file:imageId+'.png',seed,width:settings.width,height:settings.height};results.push(item);if(imageId!==id)atomicJson(path.join(this.outputs,imageId+'.json'),item);
     // User-requested generation metadata, separate from diagnostics and job state.
-    atomicJson(path.join(this.outputs,'metadados',imageId+'.json'),{image:imageId+'.png',prompt,seed,cfg:settings.cfg,steps:settings.steps,width:settings.width,height:settings.height,model:model.name,negativePrompt:settings.negativePrompt,sampler:settings.sampler,scheduler:settings.scheduler});
+    atomicJson(path.join(this.outputs,'metadados',imageId+'.json'),{image:imageId+'.png',prompt,loras:selectedLoras.map(x=>{const m=this.model(x.id,'lora');return{name:m.name,sha256:m.sha256,family:m.family,weight:x.weight}}),seed,cfg:settings.cfg,steps:settings.steps,width:settings.width,height:settings.height,model:model.name,negativePrompt:settings.negativePrompt,sampler:settings.sampler,scheduler:settings.scheduler});
     atomicJson(path.join(this.outputs,id+'.json'),this.image.generation);this.emit();
     if(settings.autoSave){try{await fsp.mkdir(this.pictures,{recursive:true});await this.exportImage(imageId,path.join(this.pictures,imageId+'.png'),true);}catch{this.image.generation.saveWarning='PNG e metadados salvos na Haruna; não foi possível concluir a cópia para Imagens/Haruna.';}}
     await fsp.rm(output,{force:true});
@@ -142,11 +145,11 @@ class Controller{
  async runImageProcess(model,settings,promptFile,negativeFile,output){
   if(this.cancelled||this.closed)throw Error('Geração cancelada.');
   const p=this.launch(this.exe('image',settings.backend),config.command({model:model.file,architecture:model.architecture,components:model.components,promptFile,negativeFile,output,settings}));this.imageProcess=p;
-  let tail='',technical='',denoising=false;
-   const consume=chunk=>{tail=(tail+chunk.toString()).slice(-4096);const begin=tail.lastIndexOf('generating image:'),end=Math.max(tail.lastIndexOf('sampling completed'),tail.lastIndexOf('decoding '));if(begin>end)denoising=true;else if(end>=0){denoising=false;this.progress=[4,this.progress?.[1]||0,settings.steps];this.emit();}const matches=[...tail.matchAll(/(?:^|[\r\n\s|])(\d+)\s*\/\s*(\d+)\s*[-|]/g)];const m=matches.at(-1);if(m&&denoising&&Number(m[2])===settings.steps&&Number(m[1])<=settings.steps){this.progress=[3,Number(m[1]),settings.steps];this.image.state='GENERATING';this.image.generation.state='GENERATING';this.emit();tail=tail.slice(m.index+m[0].length);}if(/out of memory|not enough memory|bad_alloc|allocation failed/i.test(tail))technical='memoria';else if(/VK_ERROR|vulkan.*failed/i.test(tail))technical='vulkan';};
+  let tail='',technical='',denoising=false,loraRejected=false;
+   const consume=chunk=>{tail=(tail+chunk.toString()).slice(-4096);if(settings.loraDirectory&&!loraRejected&&lora.rejectedLog(tail)){loraRejected=true;p.child.kill();}const begin=tail.lastIndexOf('generating image:'),end=Math.max(tail.lastIndexOf('sampling completed'),tail.lastIndexOf('decoding '));if(begin>end)denoising=true;else if(end>=0){denoising=false;this.progress=[4,this.progress?.[1]||0,settings.steps];this.emit();}const matches=[...tail.matchAll(/(?:^|[\r\n\s|])(\d+)\s*\/\s*(\d+)\s*[-|]/g)];const m=matches.at(-1);if(m&&denoising&&Number(m[2])===settings.steps&&Number(m[1])<=settings.steps){this.progress=[3,Number(m[1]),settings.steps];this.image.state='GENERATING';this.image.generation.state='GENERATING';this.emit();tail=tail.slice(m.index+m[0].length);}if(/out of memory|not enough memory|bad_alloc|allocation failed/i.test(tail))technical='memoria';else if(/VK_ERROR|vulkan.*failed/i.test(tail))technical='vulkan';};
 
   p.child.stdout.on('data',consume);p.child.stderr.on('data',consume);const result=await p.done;this.imageProcess=null;
-  if(this.cancelled||this.closed)throw Error('Geração cancelada.');if(result.code!==0)throw Error(technical==='memoria'?'O motor ficou sem memória. Reduza a resolução ou use CPU com pouca memória.':technical==='vulkan'?'Falha no driver Vulkan. Selecione CPU ou atualize o driver.':'O motor de imagens falhou. Confira os componentes e a memória disponível.');
+  if(this.cancelled||this.closed)throw Error('Geração cancelada.');if(loraRejected)throw Error('LoRA não aplicado ou incompatível; nenhum resultado foi aceito.');if(result.code!==0)throw Error(technical==='memoria'?'O motor ficou sem memória. Reduza a resolução ou use CPU com pouca memória.':technical==='vulkan'?'Falha no driver Vulkan. Selecione CPU ou atualize o driver.':'O motor de imagens falhou. Confira os componentes e a memória disponível.');
  }
  cancelImage(id){if(this.installAbort){this.installAbort.abort();return;}if(this.job!==id)return;this.cancelled=true;this.imageProcess?.child.kill();}
  result(id){const r=UUID.test(id)?readJson(path.join(this.outputs,id+'.json'),{}):{};return r&&typeof r==='object'&&!Array.isArray(r)?r:{};}
@@ -159,7 +162,7 @@ class Controller{
  }
  async registerComponents(files){
   if(this.maintenance||this.image.busy||this.request)throw Error('Aguarde a operação atual.');this.maintenance=true;const abort=new AbortController();this.installAbort=abort;this.image={state:'INSTALLING',busy:true,generation:{},copiedBytes:0};this.emit();
-  try{const info=await installComponents(files,path.join(this.root,'image-models'),{signal:abort.signal,progress:bytes=>{this.image.copiedBytes=bytes;this.emit();}});const m={id:crypto.randomUUID(),kind:'image',name:info.architecture==='flux1-dev'?'FLUX.1 dev':'FLUX.1 schnell',...info};this.models.push(m);if(!this.selected)this.activateImage(m.id);this.save();return m;}
+  try{const info=await installComponents(files,path.join(this.root,'image-models'),{signal:abort.signal,progress:bytes=>{this.image.copiedBytes=bytes;this.emit();}});const m={id:crypto.randomUUID(),kind:'image',name:info.architecture==='anima'?(info.displayName||'Anima'):info.architecture==='flux1-dev'?'FLUX.1 dev':'FLUX.1 schnell',...info};this.models.push(m);if(!this.selected)this.activateImage(m.id);this.save();return m;}
   catch(e){this.image.state=abort.signal.aborted?'INSTALLED':'ERROR';this.image.error=abort.signal.aborted?'Instalação cancelada.':e.message;throw e;}
   finally{if(this.image.state==='INSTALLING')this.image.state='INSTALLED';this.image.busy=false;this.maintenance=false;this.installAbort=null;this.emit();}
  }

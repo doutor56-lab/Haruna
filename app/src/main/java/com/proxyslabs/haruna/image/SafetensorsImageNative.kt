@@ -11,6 +11,7 @@ internal object SafetensorsImageNative {
 
     /** Returns 0 on failure; the caller owns and must destroy the handle. */
     external fun create(): Long
+    external fun loadAnima(handle:Long,diffusion:String,llm:String,vae:String,lowMemory:Boolean):Boolean
     external fun loadFlux(handle:Long,diffusion:String,clip:String,t5:String,vae:String,lowMemory:Boolean):Boolean
     external fun loadSd15(handle: Long, checkpointPath: String, sdxl: Boolean = false, lowMemory: Boolean = sdxl): Boolean
     external fun generatePng(
@@ -22,7 +23,7 @@ internal object SafetensorsImageNative {
         height: Int,
         steps: Int,
         seed: Long,
-        cfg: Double, clipSkip: Int, sampler: String, scheduler: String
+        cfg: Double, clipSkip: Int, sampler: String, scheduler: String, loraPaths:Array<String>, loraWeights:FloatArray
     ): Boolean
     external fun setPreviewEnabled(handle:Long,enabled:Boolean):Boolean
     external fun cancel(handle: Long)

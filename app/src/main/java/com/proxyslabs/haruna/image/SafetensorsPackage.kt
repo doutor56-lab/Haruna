@@ -23,7 +23,9 @@ object SafetensorsPackage {
         root.mkdirs();check(!cancelled()){ "Instalação cancelada" }
         // Inspect header/components before committing disk space to gigabytes of weights.
         val header=SafetensorsInspector.readHeader(input)
-        require(header.result.sd15Compatible||header.result.sdxlCompatible){"Requer checkpoint SD1.5 ou SDXL completo (.safetensors), com CLIP, UNet e VAE; SD2, LoRA e componentes separados não são suportados"}
+        val lora=if(header.tensors.keys.any{it.contains("lora_")})LoraPackage.family(header.tensors,JSONObject(header.json.toString(Charsets.UTF_8)).optJSONObject("__metadata__")?:JSONObject())else null
+        require(lora!=null||header.result.sd15Compatible||header.result.sdxlCompatible){"Requer checkpoint SD1.5 ou SDXL completo (.safetensors), com CLIP, UNet e VAE, ou LoRA convencional identificado; para Anima/FLUX use conjunto de componentes"}
+        require(lora==null||header.result.fileBytes<=2L*1024*1024*1024){"LoRA excede 2 GiB"}
         require(available()>header.result.fileBytes+128L*1024*1024){"Espaço insuficiente para instalar o checkpoint"}
         val temp=File(root,NezumiPackage.stagingPrefix+UUID.randomUUID()).apply{check(mkdirs())};var total=0L
         try {
@@ -33,7 +35,7 @@ object SafetensorsPackage {
                 require(input.read()==-1){"Dados extras no checkpoint"}
             }
             check(!cancelled()){ "Instalação cancelada" };val sha=md.digest().joinToString(""){"%02x".format(it)}
-            val m=JSONObject().put("version",1).put("engine","stable-diffusion.cpp").put("architecture",if(header.result.sdxlCompatible)"sdxl" else "sd15").put("format",if(header.result.sdxlCompatible)sdxlFormat else format).put("displayName",displayName.map{if(it.isISOControl()) ' ' else it}.joinToString("").trim().take(64).ifEmpty{"SD1.5 safetensors"}).put("files",JSONObject().put(checkpoint,sha)).put("bytes",total)
+            val m=JSONObject().put("version",1).put("engine","stable-diffusion.cpp").put("architecture",lora?:if(header.result.sdxlCompatible)"sdxl" else "sd15").put("format",if(lora!=null)LoraPackage.format else if(header.result.sdxlCompatible)sdxlFormat else format).put("displayName",displayName.map{if(it.isISOControl()) ' ' else it}.joinToString("").trim().take(64).ifEmpty{"SD1.5 safetensors"}).put("files",JSONObject().put(checkpoint,sha)).put("bytes",total)
             File(temp,"haruna-image-model.json").writeText(m.toString());val target=File(root,UUID.randomUUID().toString());check(temp.renameTo(target)){"Não foi possível concluir a instalação"};return target
         }catch(e:Throwable){temp.deleteRecursively();throw e}
     }

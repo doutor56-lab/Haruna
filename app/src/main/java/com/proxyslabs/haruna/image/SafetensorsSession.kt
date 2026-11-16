@@ -17,7 +17,7 @@ internal class SafetensorsSession private constructor(@Volatile private var hand
             val paths=SdcppPackage.files(directory)
             val id=SafetensorsImageNative.create();check(id!=0L){SafetensorsImageNative.lastError()}
             val session=SafetensorsSession(id,true)
-            try{onCreated(session);check(!cancelled()){"Carregamento cancelado"};check(SafetensorsImageNative.loadFlux(id,paths[0],paths[1],paths[2],paths[3],lowMemory)){SafetensorsImageNative.lastError()};check(!cancelled()){"Carregamento cancelado"};return session}
+            try{onCreated(session);check(!cancelled()){"Carregamento cancelado"};check((if(paths.size==3)SafetensorsImageNative.loadAnima(id,paths[0],paths[1],paths[2],lowMemory)else SafetensorsImageNative.loadFlux(id,paths[0],paths[1],paths[2],paths[3],lowMemory))){SafetensorsImageNative.lastError()};check(!cancelled()){"Carregamento cancelado"};return session}
             catch(t:Throwable){session.close();throw t}
         }
         fun open(checkpoint: File, cancelled:()->Boolean={false}, lowMemory:Boolean?=null, onCreated:(SafetensorsSession)->Unit={}): SafetensorsSession {
@@ -58,7 +58,7 @@ internal class SafetensorsSession private constructor(@Volatile private var hand
         height: Int = 512,
         steps: Int = 20,
         seed: Long = -1,
-        cfg:Double=if(sdxl)5.0 else 7.0, clipSkip:Int=if(sdxl)2 else -1, sampler:String=if(sdxl)"euler" else "default", scheduler:String=if(sdxl)"discrete" else "default"
+        cfg:Double=if(sdxl)5.0 else 7.0, clipSkip:Int=if(sdxl)2 else -1, sampler:String=if(sdxl)"euler" else "default", scheduler:String=if(sdxl)"discrete" else "default", loras:List<Pair<String,Float>> = emptyList()
     ) {
         check(handle != 0L) { "Sessão já encerrada" }
         require(prompt.isNotBlank()) { "Prompt vazio" }
@@ -68,7 +68,7 @@ internal class SafetensorsSession private constructor(@Volatile private var hand
         require(destination.parentFile?.isDirectory == true) { "Pasta de destino inexistente" }
         check(SafetensorsImageNative.generatePng(
             handle, prompt, negativePrompt, destination.absolutePath,
-            width, height, steps, seed, cfg, clipSkip, sampler, scheduler
+            width, height, steps, seed, cfg, clipSkip, sampler, scheduler, loras.map{it.first}.toTypedArray(),loras.map{it.second}.toFloatArray()
         )) { SafetensorsImageNative.lastError() }
     }
 
